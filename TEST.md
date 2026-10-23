@@ -252,6 +252,7 @@ Every protected endpoint is tested for each role:
 | UC-AUTH-03 | `401` mid-session | Re-authenticate/redirect |
 | UC-AUTH-04 | `403` | Access-denied view; no existence leak |
 | UC-AUTH-05 | Sign-out | State and caches cleared |
+| UC-AUTH-06 | Patient registration | Patient-only account; neutral confirmation; no role picker; no account enumeration |
 
 ### 6.3 Patient appointments (UI-003)
 

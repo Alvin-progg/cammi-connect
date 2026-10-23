@@ -1,6 +1,6 @@
 # ADR-0001 — Auth Provider and Identity Architecture
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-23
 - Decision owner: Human project owner
 - Related ticket: `CC-002`
@@ -44,24 +44,43 @@ and test strategy.
 - Highest security and maintenance burden.
 - Not preferred without a specific requirement.
 
-No option is selected.
-
 ## Decision
 
-TBD. Do not implement authentication until this ADR is approved.
+- **Provider:** Supabase Auth (email + password).
+- **Sessions:** cookie-based via `@supabase/ssr`. `src/proxy.ts` refreshes and
+  verifies tokens with `supabase.auth.getClaims()`; the DAL uses
+  `supabase.auth.getUser()` for secure checks. Never trust `getSession()` for
+  authorization.
+- **Identity ownership:** Supabase owns `auth.users`, credentials, email
+  verification, and sessions. The app database owns `profiles` and roles in a
+  later phase, keyed by `auth.users.id`. No passwords stored in the app
+  database. Role is never read from `user_metadata`.
+- **Roles:** self-registration creates patient accounts only. Doctor/admin
+  accounts are provisioned by admins. No role picker on registration.
+  Role-aware navigation is deferred until roles exist in the app database.
+- **CSRF:** auth mutations go through Server Actions (Next.js built-in
+  Origin/Host check) with `SameSite=Lax` cookies. `/auth/callback` is a GET that
+  sets a session but is protected by PKCE (single-use code + code verifier). No
+  state-changing GETs otherwise. No separate CSRF token for auth forms.
+- **Env:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+  (public-safe by design). No service-role key in the auth slice.
+- **Test strategy:** mock the Supabase client in unit/component tests; manual
+  smoke test against the hosted dev project with synthetic users.
 
 ## Consequences
 
-- `CC-201` through `CC-203` cannot start.
-- `users`, `roles`, and profile ownership cannot be finalized.
-- CSRF and session test strategy cannot be written.
-- Phase 2 remains blocked.
+- Registration is patient-only; doctor/admin provisioning comes with app-DB
+  roles in a later phase.
+- Session cookies are not HttpOnly by design (the browser needs the refresh
+  token). XSS risk is documented; a CSP is planned for a later phase.
+- Authorization is enforced in the DAL and actions, never by middleware/proxy
+  or UI visibility.
 
 ## Approval
 
-- [ ] Provider selected.
-- [ ] Session model selected.
-- [ ] Identity ownership recorded.
-- [ ] CSRF approach recorded.
-- [ ] Test strategy approved.
-- [ ] Human owner approval recorded.
+- [x] Provider selected: Supabase Auth.
+- [x] Session model selected: cookie-based via `@supabase/ssr`.
+- [x] Identity ownership recorded: Supabase owns `auth.users`; app DB owns profiles.
+- [x] CSRF approach recorded: Server Actions + PKCE callback.
+- [x] Test strategy approved: mocked Supabase client + synthetic manual smoke.
+- [x] Human owner approval recorded: approved 2026-10-23 via `PLN-001`.

@@ -173,6 +173,7 @@ The system shall not automatically publish arbitrary uploaded content into the a
 - Prevent access to other patients' records.
 - Avoid sensitive information in error messages (do not reveal whether another user's record exists).
 - Enforce role-based authorization on the server, independent of UI visibility.
+- Public self-registration creates patient accounts only. Doctor and admin accounts are provisioned by administrators; no role picker on registration.
 
 ### FR-004: Appointment Booking
 
@@ -444,7 +445,7 @@ Never commit `.env` files, production keys, or real patient data.
 
 ### UI-002: Authentication UI (FR-003)
 
-Sign-in/out and session handling per the chosen provider; protected-route redirects with return path; `401` → re-authenticate; `403` → access-denied state without leaking resource existence; role-aware navigation (cosmetic only). Clear caches and client state on sign-out.
+Sign-in/out and session handling per the chosen provider; protected-route redirects with return path; `401` → re-authenticate; `403` → access-denied state without leaking resource existence; role-aware navigation (cosmetic only). Clear caches and client state on sign-out. Patient self-registration page with neutral confirmation (no account enumeration); doctor/admin accounts are not self-provisioned.
 
 ### UI-003: Patient appointment flows (FR-004)
 
