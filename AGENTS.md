@@ -50,7 +50,14 @@ If blocked, stop the affected work, explain the impact, propose options, and wai
 - Synthetic data only; no real patient data in fixtures, screenshots, or traces.
 - Schema changes go through migrations; never run destructive database commands without approval.
 - TDD: write the failing test first, implement minimally, and never weaken, skip, or delete assertions to pass.
-- Never change a public API contract silently; update schemas, handlers, client, mocks, and tests together.
+- Never change a public API contract silently; update schemas, handler### Implementation discipline
+
+Before adding an abstraction, helper, dependency, or architectural layer, determine whether it is necessary for the current approved task.
+
+Prefer the smallest maintainable change that satisfies the acceptance criteria. Do not build for hypothetical requirements, refactor unrelated code, or introduce patterns solely because they are considered best practices.
+
+When multiple reasonable solutions exist, prefer the simplest solution consistent with the approved architecture, existing conventions, security requirements, and testability.
+My recommendation: keep this section alongside your existing TDD, security, and autonomy rules. These principles should guide every ticket, while the ticket's acceptance criteria determine what actually needs to be implemented.s, client, mocks, and tests together.
 - On conflict, follow this order: safety/security/privacy > approved scope > `SPEC.md`/`TEST.md` > this file > agent preference.
 - Report only checks actually run and their real results. Never claim an unexecuted test, build, or lint passed.
 
@@ -93,7 +100,14 @@ For each completed task, report:
 
 Do not claim completion of acceptance criteria that have not been verified.
 
-<!-- BEGIN:nextjs-agent-rules -->
+<!-- BEGIN:nextjs-agent-rules -->### Implementation discipline
+
+Before adding an abstraction, helper, dependency, or architectural layer, determine whether it is necessary for the current approved task.
+
+Prefer the smallest maintainable change that satisfies the acceptance criteria. Do not build for hypothetical requirements, refactor unrelated code, or introduce patterns solely because they are considered best practices.
+
+When multiple reasonable solutions exist, prefer the simplest solution consistent with the approved architecture, existing conventions, security requirements, and testability.
+My recommendation: keep this section alongside your existing TDD, security, and autonomy rules. These principles should guide every ticket, while the ticket's acceptance criteria determine what actually needs to be implemented.
 
 ## This is NOT the Next.js you know
 
@@ -102,7 +116,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+### Implementation discipline
 
+Before adding an abstraction, helper, dependency, or architectural layer, determine whether it is necessary for the current approved task.
+
+Prefer the smallest maintainable change that satisfies the acceptance criteria. Do not build for hypothetical requirements, refactor unrelated code, or introduce patterns solely because they are considered best practices.
+
+When multiple reasonable solutions exist, prefer the simplest solution consistent with the approved architecture, existing conventions, security requirements, and testability.
+My recommendation: keep this section alongside your existing TDD, security, and autonomy rules. These principles should guide every ticket, while the ticket's acceptance criteria determine what actually needs to be implemented.
 <!-- BEGIN:nextjs-agent-feedback -->
 
 ## Report Next.js feedback
@@ -122,4 +143,105 @@ Retain qualifying friction even if it is later fixed or worked around; record th
 
 Before the final response, run one reporting pass. If candidates remain, from this file's directory run `npx --no-install next internal agent-feedback-instructions` once without piping or truncating its output. Follow its output or error guidance. If a network sandbox blocks it, retry with network access; if it still returns no output, continue normally.
 
+
+
 <!-- END:nextjs-agent-feedback -->
+## Code Quality and Readability
+
+### Core principles
+
+- Write code for human readability first and machine execution second.
+- Prefer simple, explicit, and maintainable solutions over clever, overly abstract, or unnecessarily compact code.
+- Optimize for clarity, correctness, and maintainability before micro-optimizations.
+- Follow the existing project conventions and established patterns unless they introduce a concrete problem.
+- Avoid unnecessary complexity, premature abstraction, and speculative flexibility.
+- Every abstraction must justify its existence by improving clarity, reuse, testability, or separation of responsibilities.
+
+### Naming and structure
+
+- Use descriptive, intention-revealing names for variables, functions, types, components, and modules.
+- Avoid vague names such as `data`, `result`, `handler`, `manager`, or `utils` when a more specific name is practical.
+- Keep functions and components focused on one clear responsibility.
+- Keep files organized around cohesive responsibilities rather than unrelated collections of functionality.
+- Prefer early returns and guard clauses when they make control flow easier to follow.
+- Avoid deeply nested conditionals and unnecessarily long functions.
+- Extract repeated logic when doing so meaningfully improves consistency and readability.
+- Do not extract trivial expressions into excessive helper functions merely to reduce line count.
+
+### Complexity and duplication
+
+- Follow the principle of doing the simplest thing that correctly satisfies the approved requirements.
+- Avoid premature generalization, unnecessary design patterns, and abstractions for hypothetical future requirements.
+- Follow DRY when duplication represents shared behavior or a genuine maintenance risk. Do not force unrelated code into a common abstraction merely because it looks similar.
+- Avoid deeply coupled modules, circular dependencies, and hidden side effects.
+- Keep business rules separate from presentation, infrastructure, and external service integrations where appropriate to the approved architecture.
+- Do not introduce additional architectural layers unless they provide a concrete benefit.
+
+### TypeScript and type safety
+
+- Prefer explicit, meaningful types for public interfaces, API contracts, domain models, and complex function boundaries.
+- Let TypeScript infer straightforward local types when the inferred type is clear.
+- Avoid `any`, unsafe type assertions, non-null assertions, and type suppression directives unless justified by a documented constraint.
+- Never use type casts to hide an actual type error.
+- Validate untrusted input at system boundaries, including API requests, external service responses, and persisted data where appropriate.
+- Represent meaningful states and outcomes with types instead of relying on ambiguous strings or loosely structured objects.
+- Keep types aligned with actual runtime behavior.
+
+### Comments and documentation
+
+- Write code that explains itself through good naming and structure.
+- Add comments to explain intent, non-obvious reasoning, constraints, trade-offs, or surprising behavior.
+- Do not add comments that merely repeat what the code already says.
+- Document important business rules, security assumptions, public interfaces, and non-obvious architectural decisions.
+- Update relevant documentation when behavior, contracts, or implementation assumptions change.
+- Remove outdated or misleading comments when encountered within the approved task.
+
+### Error handling and side effects
+
+- Handle errors explicitly at appropriate system boundaries.
+- Do not silently swallow exceptions or replace meaningful errors with misleading success responses.
+- Avoid broad catch blocks unless there is a clear recovery or translation strategy.
+- Keep side effects visible and predictable.
+- Avoid hidden mutations and unexpected changes to shared state.
+- Do not introduce fallback behavior that conceals configuration errors, provider failures, or invalid data.
+- Never expose secrets, sensitive information, or internal error details in client-facing responses or logs.
+
+### Refactoring
+
+- Refactor only when it improves correctness, readability, duplication, cohesion, or maintainability.
+- Keep refactoring separate from unrelated behavior changes whenever practical.
+- Preserve existing public contracts and observable behavior unless a change is explicitly approved.
+- Make behavior-preserving refactors in small, verifiable steps.
+- Run relevant tests before and after refactoring.
+- Do not refactor unrelated files merely to impose personal stylistic preferences.
+
+### Dependencies and implementation choices
+
+- Prefer existing project utilities, dependencies, and established patterns when appropriate.
+- Do not introduce a new dependency when a small, clear implementation using existing tools is sufficient.
+- Request approval before adding dependencies or changing approved architectural patterns, as required by the autonomy rules.
+- Avoid unnecessary configuration, wrapper functions, compatibility layers, and boilerplate.
+
+### Definition of readable code
+
+Before reporting a task complete, verify that:
+
+- Names communicate intent.
+- Functions and modules have cohesive responsibilities.
+- Control flow is easy to follow.
+- Types accurately represent expected inputs and outputs.
+- Errors and side effects are handled deliberately.
+- Duplication and abstractions are justified.
+- Comments explain why when the reason is not obvious.
+- The implementation follows established project conventions.
+- Tests verify behavior without being weakened to accommodate the implementation.
+
+Readable code does not mean minimizing line count. Prefer the clearest implementation that satisfies the approved requirements without unnecessary complexity.
+
+### Implementation discipline
+
+Before adding an abstraction, helper, dependency, or architectural layer, determine whether it is necessary for the current approved task.
+
+Prefer the smallest maintainable change that satisfies the acceptance criteria. Do not build for hypothetical requirements, refactor unrelated code, or introduce patterns solely because they are considered best practices.
+
+When multiple reasonable solutions exist, prefer the simplest solution consistent with the approved architecture, existing conventions, security requirements, and testability.
