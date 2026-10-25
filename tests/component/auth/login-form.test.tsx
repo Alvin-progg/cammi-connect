@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -38,32 +38,40 @@ describe("LoginForm", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows a generic form error in an alert", async () => {
+  it("shows a generic form error as a toast, not an inline alert", async () => {
     const user = userEvent.setup();
     vi.mocked(loginAction).mockResolvedValue({
       formError: "Email or password is incorrect.",
     });
     render(<LoginForm />);
     await user.click(screen.getByRole("button", { name: "Sign in" }));
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Email or password is incorrect.");
+    await waitFor(() =>
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Sign-in failed", {
+        id: "login-error",
+        description: "Email or password is incorrect.",
+        duration: 8000,
+      }),
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Email or password is incorrect."),
+    ).not.toBeInTheDocument();
   });
 
-  it("shows a supplementary toast when credentials are rejected", async () => {
+  it("uses a stable toast id and an 8 second duration for credential failures", async () => {
     const user = userEvent.setup();
     vi.mocked(loginAction).mockResolvedValue({
       formError: "Email or password is incorrect.",
     });
     render(<LoginForm />);
     await user.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Email or password is incorrect.",
+    await waitFor(() =>
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Sign-in failed", {
+        id: "login-error",
+        description: "Email or password is incorrect.",
+        duration: 8000,
+      }),
     );
-    expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Sign-in failed", {
-      id: "login-error",
-      description: "Email or password is incorrect.",
-      duration: 8000,
-    });
   });
 
   it("does not toast field validation errors", async () => {
@@ -79,14 +87,20 @@ describe("LoginForm", () => {
     expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
   });
 
-  it("moves focus to the error summary after a failed submit", async () => {
+  it("moves focus to the first invalid field after a validation failure", async () => {
     const user = userEvent.setup();
     vi.mocked(loginAction).mockResolvedValue({
-      formError: "Email or password is incorrect.",
+      fieldErrors: {
+        email: ["Enter a valid email address."],
+        password: ["Enter your password."],
+      },
     });
     render(<LoginForm />);
     await user.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("alert")).toHaveFocus();
+    expect(
+      await screen.findByText("Enter a valid email address."),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Email")).toHaveFocus());
   });
 
   it("disables the submit button and shows pending text while submitting", async () => {
@@ -116,16 +130,21 @@ describe("LoginForm", () => {
     await user.type(screen.getByLabelText("Email"), "pat@example.com");
     await user.type(screen.getByLabelText("Password"), "secret123");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalled());
     expect(screen.getByLabelText("Email")).toHaveValue("pat@example.com");
     expect(screen.getByLabelText("Password")).toHaveValue("");
   });
 
-  it("shows the callback error when the page reports one", () => {
+  it("shows the callback error as a toast", async () => {
     render(<LoginForm callbackError="Unable to sign in. Please try again." />);
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Unable to sign in. Please try again.",
+    await waitFor(() =>
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Sign-in failed", {
+        id: "login-error",
+        description: "Unable to sign in. Please try again.",
+        duration: 8000,
+      }),
     );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("links to the registration page", () => {

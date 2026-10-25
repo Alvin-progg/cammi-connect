@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { registerAction } from "@/server/auth/actions";
 import type { AuthFormState } from "@/lib/auth/form-state";
+import { REGISTER_ERROR_TOAST_ID } from "@/lib/auth/toast-ids";
 
 import { FormField } from "./form-field";
 
@@ -14,16 +16,26 @@ export function RegisterForm({ next }: { next?: string }) {
   const [state, formAction, pending] = useActionState(registerAction, INITIAL_STATE);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const summaryRef = useRef<HTMLParagraphElement>(null);
-
-  const hasFieldErrors = Boolean(state.fieldErrors);
-  const hasError = Boolean(state.formError) || hasFieldErrors;
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    if (hasError) {
-      summaryRef.current?.focus();
-    }
-  }, [hasError]);
+    if (!state.formError) return;
+    toast.error("Could not create account", {
+      id: REGISTER_ERROR_TOAST_ID,
+      description: state.formError,
+      duration: 8000,
+    });
+    return () => {
+      toast.dismiss(REGISTER_ERROR_TOAST_ID);
+    };
+  }, [state.formError]);
+
+  useEffect(() => {
+    if (!state.fieldErrors) return;
+    formRef.current
+      ?.querySelector<HTMLInputElement>('[aria-invalid="true"]')
+      ?.focus();
+  }, [state.fieldErrors]);
 
   if (state.success) {
     return (
@@ -38,28 +50,12 @@ export function RegisterForm({ next }: { next?: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {state.formError ? (
-        <p
-          ref={summaryRef}
-          tabIndex={-1}
-          role="alert"
-          className="rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm leading-6 text-danger-soft-ink"
-        >
-          {state.formError}
-        </p>
-      ) : null}
-      {hasFieldErrors && !state.formError ? (
-        <p
-          ref={summaryRef}
-          tabIndex={-1}
-          role="alert"
-          className="rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm leading-6 text-danger-soft-ink"
-        >
-          There was a problem with your submission. Fix the highlighted fields and
-          try again.
-        </p>
-      ) : null}
-      <form action={formAction} noValidate className="flex flex-col gap-4">
+      <form
+        ref={formRef}
+        action={formAction}
+        noValidate
+        className="flex flex-col gap-4"
+      >
         {next ? <input type="hidden" name="next" value={next} /> : null}
         <p className="text-sm leading-6 text-ink-muted">All fields are required.</p>
         <FormField

@@ -1,11 +1,15 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RegisterForm } from "@/components/auth/register-form";
 import { registerAction } from "@/server/auth/actions";
 import type { AuthFormState } from "@/lib/auth/form-state";
 
 vi.mock("@/server/auth/actions", () => ({ registerAction: vi.fn() }));
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), success: vi.fn(), dismiss: vi.fn() },
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -28,6 +32,43 @@ describe("RegisterForm", () => {
     render(<RegisterForm />);
     await user.click(screen.getByRole("button", { name: "Create account" }));
     expect(await screen.findByText("Passwords do not match.")).toBeInTheDocument();
+  });
+
+  it("moves focus to the first invalid field after a validation failure", async () => {
+    const user = userEvent.setup();
+    vi.mocked(registerAction).mockResolvedValue({
+      fieldErrors: {
+        fullName: ["Enter your full name."],
+        email: ["Enter a valid email address."],
+      },
+    });
+    render(<RegisterForm />);
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+    expect(await screen.findByText("Enter your full name.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Full name")).toHaveFocus());
+  });
+
+  it("shows a form error as a toast, not an inline alert", async () => {
+    const user = userEvent.setup();
+    vi.mocked(registerAction).mockResolvedValue({
+      formError: "Unable to sign in right now.",
+    });
+    render(<RegisterForm />);
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+    await waitFor(() =>
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+        "Could not create account",
+        {
+          id: "register-error",
+          description: "Unable to sign in right now.",
+          duration: 8000,
+        },
+      ),
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Unable to sign in right now."),
+    ).not.toBeInTheDocument();
   });
 
   it("disables the submit button and shows pending text while submitting", async () => {
@@ -75,7 +116,7 @@ describe("RegisterForm", () => {
     await user.type(password, "secret123");
     await user.type(confirmPassword, "secret123");
     await user.click(screen.getByRole("button", { name: "Create account" }));
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalled());
     expect(screen.getByLabelText("Full name")).toHaveValue("Pat Doe");
     expect(screen.getByLabelText("Email")).toHaveValue("pat@example.com");
     expect(password).toHaveValue("");

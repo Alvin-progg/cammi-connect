@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
 
 import { AuthNotice } from "@/components/auth/auth-notice";
+import { AuthToastCleanup } from "@/components/auth/auth-toast-cleanup";
 import { AppToaster } from "@/components/ui/app-toaster";
 
 import "./globals.css";
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </a>
         {children}
         <AppToaster />
+        <AuthToastCleanup />
         <Suspense fallback={null}>
           <AuthNotice />
         </Suspense>

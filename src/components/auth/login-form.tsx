@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { loginAction } from "@/server/auth/actions";
 import type { AuthFormState } from "@/lib/auth/form-state";
+import { LOGIN_ERROR_TOAST_ID } from "@/lib/auth/toast-ids";
 
 import { FormField } from "./form-field";
 
@@ -20,54 +21,37 @@ export function LoginForm({
 }) {
   const [state, formAction, pending] = useActionState(loginAction, INITIAL_STATE);
   const [email, setEmail] = useState("");
-  const summaryRef = useRef<HTMLParagraphElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
-  const formError = state.formError ?? callbackError;
-  const hasFieldErrors = Boolean(state.fieldErrors);
-  const hasError = Boolean(formError) || hasFieldErrors;
+  const errorMessage = state.formError ?? callbackError;
 
   useEffect(() => {
-    if (hasError) {
-      summaryRef.current?.focus();
-    }
-  }, [hasError]);
-
-  useEffect(() => {
-    if (!state.formError) return;
+    if (!errorMessage) return;
     toast.error("Sign-in failed", {
-      id: "login-error",
-      description: state.formError,
+      id: LOGIN_ERROR_TOAST_ID,
+      description: errorMessage,
       duration: 8000,
     });
     return () => {
-      toast.dismiss("login-error");
+      toast.dismiss(LOGIN_ERROR_TOAST_ID);
     };
-  }, [state]);
+  }, [errorMessage]);
+
+  useEffect(() => {
+    if (!state.fieldErrors) return;
+    formRef.current
+      ?.querySelector<HTMLInputElement>('[aria-invalid="true"]')
+      ?.focus();
+  }, [state.fieldErrors]);
 
   return (
     <div className="flex flex-col gap-4">
-      {formError ? (
-        <p
-          ref={summaryRef}
-          tabIndex={-1}
-          role="alert"
-          className="rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm leading-6 text-danger-soft-ink"
-        >
-          {formError}
-        </p>
-      ) : null}
-      {hasFieldErrors && !formError ? (
-        <p
-          ref={summaryRef}
-          tabIndex={-1}
-          role="alert"
-          className="rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm leading-6 text-danger-soft-ink"
-        >
-          There was a problem with your submission. Fix the highlighted fields and
-          try again.
-        </p>
-      ) : null}
-      <form action={formAction} noValidate className="flex flex-col gap-4">
+      <form
+        ref={formRef}
+        action={formAction}
+        noValidate
+        className="flex flex-col gap-4"
+      >
         {next ? <input type="hidden" name="next" value={next} /> : null}
         <p className="text-sm leading-6 text-ink-muted">All fields are required.</p>
         <FormField
