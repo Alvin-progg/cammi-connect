@@ -37,7 +37,7 @@ export function FormField({
         required
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}
-        className="min-h-11 w-full rounded-md border border-control-line bg-surface px-3 text-base text-ink placeholder:text-ink-muted focus-ring aria-[invalid=true]:border-danger"
+        className="min-h-11 w-full rounded-lg border border-control-line bg-surface px-3 text-base text-ink placeholder:text-ink-muted focus-ring aria-[invalid=true]:border-danger"
       />
       {error ? (
         <p id={`${id}-error`} className="text-sm leading-6 text-danger">

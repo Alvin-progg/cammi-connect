@@ -23,11 +23,15 @@ export default async function LoginPage({
   const { next, error } = await searchParams;
 
   return (
-    <main className="flex flex-1 bg-grid">
+    <main id="main" className="relative isolate flex flex-1 bg-wash">
+      <div
+        aria-hidden="true"
+        className="bg-grid-fade pointer-events-none absolute inset-0 -z-10"
+      />
       <div className="page-container flex flex-1 flex-col items-center justify-center py-12 lg:py-24">
         <Link
           href="/"
-          className="mb-6 w-full max-w-md rounded-sm text-sm font-semibold tracking-tight text-ink focus-ring"
+          className="mb-6 w-full max-w-md rounded-lg text-base font-semibold tracking-tight text-ink focus-ring"
         >
           CamiConnect
         </Link>

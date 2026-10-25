@@ -51,7 +51,7 @@ export function LoginForm({
           ref={summaryRef}
           tabIndex={-1}
           role="alert"
-          className="rounded-md border border-danger/30 bg-danger-soft px-4 py-3 text-sm leading-6 text-danger-soft-ink"
+          className="rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm leading-6 text-danger-soft-ink"
         >
           {formError}
         </p>
@@ -61,7 +61,7 @@ export function LoginForm({
           ref={summaryRef}
           tabIndex={-1}
           role="alert"
-          className="rounded-md border border-danger/30 bg-danger-soft px-4 py-3 text-sm leading-6 text-danger-soft-ink"
+          className="rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm leading-6 text-danger-soft-ink"
         >
           There was a problem with your submission. Fix the highlighted fields and
           try again.
@@ -94,7 +94,7 @@ export function LoginForm({
           type="submit"
           disabled={pending}
           aria-busy={pending}
-          className="focus-ring inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-primary bg-primary px-4 text-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none"
+          className="focus-ring inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none"
         >
           {pending ? "Signing in…" : "Sign in"}
         </button>

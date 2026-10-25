@@ -4,33 +4,33 @@
   color-scheme: light;
 
   /* Surfaces */
-  --canvas: #f7f9fb;
+  --canvas: #f5f9ff;
   --surface: #ffffff;
-  --surface-muted: #f1f5f9;
+  --surface-muted: #eef4fc;
 
   /* Text */
-  --ink: #0b1f2a;
-  --ink-secondary: #3f5563;
-  --ink-muted: #5f7480;
+  --ink: #0f2342;
+  --ink-secondary: #3b5275;
+  --ink-muted: #587093;
 
   /* Structure */
-  --line: #d7e0e7;
-  --line-strong: #b9c8d2;
-  --control-line: #7c91a0;
-  --grid-line: rgb(11 31 42 / 0.07);
+  --line: #dce6f5;
+  --line-strong: #bfd0ea;
+  --control-line: #7a8fb0;
+  --grid-line: rgb(29 78 216 / 0.06);
   --grid-cell: 3rem;
   --page-padding: 1rem;
-  --overlay: rgb(11 31 42 / 0.45);
+  --overlay: rgb(15 35 66 / 0.45);
 
   /* Brand and interaction */
-  --primary: #075985;
-  --primary-hover: #0c4a6e;
-  --primary-soft: #e0f2fe;
+  --primary: #1d4ed8;
+  --primary-hover: #1e40af;
+  --primary-soft: #eaf2ff;
   --primary-ink: #ffffff;
-  --accent: #0f766e;
-  --accent-soft: #ccfbf1;
+  --accent: #0369a1;
+  --accent-soft: #e0f2fe;
   --accent-ink: #ffffff;
-  --focus: #0284c7;
+  --focus: #2563eb;
 
   /* Status */
   --success: #166534;
@@ -46,16 +46,19 @@
   --danger-soft-ink: #991b1b;
 
   /* Charts */
-  --chart-1: #075985;
-  --chart-2: #0f766e;
+  --chart-1: #1d4ed8;
+  --chart-2: #0369a1;
   --chart-3: #6d28d9;
   --chart-4: #b45309;
   --chart-5: #be123c;
   --chart-6: #475569;
 
+  /* Header wash */
+  --wash: linear-gradient(to bottom, #eaf2ff, #f5f9ff);
+
   /* Elevation */
-  --elevation-card: 0 1px 2px rgb(11 31 42 / 0.05);
-  --elevation-overlay: 0 20px 50px -20px rgb(11 31 42 / 0.35);
+  --elevation-card: 0 1px 2px rgb(15 35 66 / 0.04), 0 4px 12px -4px rgb(29 78 216 / 0.08);
+  --elevation-overlay: 0 24px 56px -24px rgb(15 35 66 / 0.35);
 }
 
 @media (min-width: 40rem) {
@@ -80,28 +83,28 @@
   :root {
     color-scheme: dark;
 
-    --canvas: #07131a;
-    --surface: #0c1c25;
-    --surface-muted: #102731;
+    --canvas: #0a1628;
+    --surface: #0f1f38;
+    --surface-muted: #14284a;
 
-    --ink: #e6f0f5;
-    --ink-secondary: #b8cbd5;
-    --ink-muted: #8fa6b2;
+    --ink: #e8f0fe;
+    --ink-secondary: #bccbe3;
+    --ink-muted: #93a7c6;
 
-    --line: #23404c;
-    --line-strong: #355865;
-    --control-line: #5e7d8c;
-    --grid-line: rgb(230 240 245 / 0.07);
+    --line: #223a5e;
+    --line-strong: #33507d;
+    --control-line: #6482ad;
+    --grid-line: rgb(190 215 255 / 0.07);
     --overlay: rgb(0 0 0 / 0.65);
 
-    --primary: #7dd3fc;
-    --primary-hover: #bae6fd;
-    --primary-soft: #0c2f3d;
-    --primary-ink: #07131a;
-    --accent: #5eead4;
-    --accent-soft: #103b3a;
-    --accent-ink: #07131a;
-    --focus: #7dd3fc;
+    --primary: #8ab8ff;
+    --primary-hover: #b6d3ff;
+    --primary-soft: #12305c;
+    --primary-ink: #0a1628;
+    --accent: #7dd3fc;
+    --accent-soft: #0f2f47;
+    --accent-ink: #0a1628;
+    --focus: #8ab8ff;
 
     --success: #86efac;
     --success-soft: #0f2e1d;
@@ -115,27 +118,28 @@
     --danger-soft: #3b1215;
     --danger-soft-ink: #fecaca;
 
-    --chart-1: #7dd3fc;
-    --chart-2: #5eead4;
+    --chart-1: #8ab8ff;
+    --chart-2: #7dd3fc;
     --chart-3: #c4b5fd;
     --chart-4: #fcd34d;
     --chart-5: #fda4af;
     --chart-6: #cbd5e1;
 
-    --elevation-card: 0 1px 2px rgb(0 0 0 / 0.25);
-    --elevation-overlay: 0 20px 50px -20px rgb(0 0 0 / 0.65);
+    --wash: linear-gradient(to bottom, #0f2547, #0a1628);
+    --elevation-card: 0 1px 2px rgb(0 0 0 / 0.3);
+    --elevation-overlay: 0 24px 56px -24px rgb(0 0 0 / 0.7);
   }
 }
 
 @media (prefers-contrast: more) {
   :root {
-    --grid-line: rgb(11 31 42 / 0.14);
+    --grid-line: rgb(29 78 216 / 0.14);
   }
 }
 
 @media (prefers-color-scheme: dark) and (prefers-contrast: more) {
   :root {
-    --grid-line: rgb(230 240 245 / 0.14);
+    --grid-line: rgb(190 215 255 / 0.14);
   }
 }
 
@@ -192,11 +196,25 @@
   --color-foreground: var(--ink);
 }
 
+/* Full-strength grid (use only inside an opaque-card shell such as auth) */
 @utility bg-grid {
   background-image:
     linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
     linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
   background-size: var(--grid-cell) var(--grid-cell);
+}
+
+/* Grid that fades out toward the bottom of its band (hero, page header) */
+@utility bg-grid-fade {
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: var(--grid-cell) var(--grid-cell);
+  mask-image: linear-gradient(to bottom, black 30%, transparent 100%);
+}
+
+@utility bg-wash {
+  background-image: var(--wash);
 }
 
 @utility page-container {
@@ -214,13 +232,17 @@
 }
 
 @media (forced-colors: active) {
-  .bg-grid {
+  .bg-grid,
+  .bg-grid-fade,
+  .bg-wash {
     background-image: none;
   }
 }
 
 @media print {
-  .bg-grid {
+  .bg-grid,
+  .bg-grid-fade,
+  .bg-wash {
     background-image: none;
   }
 }

@@ -5,7 +5,7 @@ export function SignOutButton() {
     <form action={signOutAction}>
       <button
         type="submit"
-        className="rounded border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-900"
+        className="focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-primary transition-colors hover:bg-primary-soft motion-reduce:transition-none"
       >
         Sign out
       </button>

@@ -17,15 +17,15 @@ export function AppToaster() {
         unstyled: true,
         classNames: {
           toast:
-            "flex w-full items-start gap-3 rounded-lg border border-line bg-surface p-4 text-ink shadow-overlay",
+            "flex w-full items-start gap-3 rounded-xl border border-line bg-surface p-4 text-ink shadow-overlay",
           title: "text-sm font-medium",
           description: "text-sm text-ink-secondary",
           actionButton:
-            "rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-ink focus-ring",
+            "rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-ink focus-ring",
           cancelButton:
-            "rounded-md border border-line px-3 py-1.5 text-sm font-medium text-ink focus-ring",
+            "rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink focus-ring",
           closeButton:
-            "rounded-md p-1 text-ink-muted hover:text-ink focus-ring",
+            "rounded-lg p-1 text-ink-muted hover:text-ink focus-ring",
         },
       }}
     />
