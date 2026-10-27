@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "db:seed": "node --env-file=.env.local scripts/seed.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

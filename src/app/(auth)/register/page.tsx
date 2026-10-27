@@ -20,11 +20,7 @@ export default async function RegisterPage({
   const { next } = await searchParams;
 
   return (
-    <main id="main" className="relative isolate flex flex-1 bg-wash">
-      <div
-        aria-hidden="true"
-        className="bg-grid-fade pointer-events-none absolute inset-0 -z-10"
-      />
+    <main id="main" className="flex flex-1 flex-col bg-canvas">
       <div className="page-container flex flex-1 flex-col items-center justify-center py-12 lg:py-24">
         <Link
           href="/"

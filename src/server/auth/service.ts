@@ -13,7 +13,7 @@ export type SignUpPatientInput = {
 };
 
 export type ServiceError = { ok: false; code: string | undefined };
-export type SignInResult = { ok: true } | ServiceError;
+export type SignInResult = { ok: true; userId: string } | ServiceError;
 export type SignUpPatientResult =
   | { ok: true; sessionCreated: boolean }
   | ServiceError;
@@ -22,11 +22,11 @@ export type SessionUser = { id: string; email: string };
 
 export async function signIn(input: SignInInput): Promise<SignInResult> {
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword(input);
-  if (error) {
-    return { ok: false, code: error.code ?? undefined };
+  const { data, error } = await supabase.auth.signInWithPassword(input);
+  if (error || !data.user) {
+    return { ok: false, code: error?.code ?? undefined };
   }
-  return { ok: true };
+  return { ok: true, userId: data.user.id };
 }
 
 async function getRequestOrigin(): Promise<string> {

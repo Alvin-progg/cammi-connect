@@ -4,9 +4,9 @@
   color-scheme: light;
 
   /* Surfaces */
-  --canvas: #f5f9ff;
+  --canvas: #ffffff;
   --surface: #ffffff;
-  --surface-muted: #eef4fc;
+  --surface-muted: #f1f5fb;
 
   /* Text */
   --ink: #0f2342;
@@ -14,8 +14,8 @@
   --ink-muted: #587093;
 
   /* Structure */
-  --line: #dce6f5;
-  --line-strong: #bfd0ea;
+  --line: #e2e9f5;
+  --line-strong: #c6d3ea;
   --control-line: #7a8fb0;
   --grid-line: rgb(29 78 216 / 0.06);
   --grid-cell: 3rem;
@@ -54,7 +54,7 @@
   --chart-6: #475569;
 
   /* Header wash */
-  --wash: linear-gradient(to bottom, #eaf2ff, #f5f9ff);
+  --wash: linear-gradient(to bottom, #f7faff, #ffffff);
 
   /* Elevation */
   --elevation-card: 0 1px 2px rgb(15 35 66 / 0.04), 0 4px 12px -4px rgb(29 78 216 / 0.08);

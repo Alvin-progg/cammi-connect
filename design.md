@@ -1,6 +1,6 @@
 # CamiConnect — Visual Design System and Frontend Guidelines
 
-- **Status:** Draft v0.3 — redesign proposal, **pending owner approval** (v0.2 remains in force for the auth slice until approved)
+- **Status:** Draft v0.3 — redesign proposal, **pending owner approval** (v0.2 remains in force for the auth slice until approved). Amended 2026-10-25: white page/auth backgrounds and the doctor workspace shell were approved by the owner.
 - **Date:** 2026-10-25
 - **Applies to:** all frontend work in this repository
 - **Direction:** "Calm Care" — clean clinical blue and white, soft surfaces, generous space
@@ -280,9 +280,9 @@ Target for `src/app/globals.css`. Apply in a focused task; keep temporary aliase
   color-scheme: light;
 
   /* Surfaces */
-  --canvas: #f5f9ff;
+  --canvas: #ffffff;
   --surface: #ffffff;
-  --surface-muted: #eef4fc;
+  --surface-muted: #f1f5fb;
 
   /* Text */
   --ink: #0f2342;
@@ -290,8 +290,8 @@ Target for `src/app/globals.css`. Apply in a focused task; keep temporary aliase
   --ink-muted: #587093;
 
   /* Structure */
-  --line: #dce6f5;
-  --line-strong: #bfd0ea;
+  --line: #e2e9f5;
+  --line-strong: #c6d3ea;
   --control-line: #7a8fb0;
   --grid-line: rgb(29 78 216 / 0.06);
   --grid-cell: 3rem;
@@ -330,7 +330,7 @@ Target for `src/app/globals.css`. Apply in a focused task; keep temporary aliase
   --chart-6: #475569;
 
   /* Header wash */
-  --wash: linear-gradient(to bottom, #eaf2ff, #f5f9ff);
+  --wash: linear-gradient(to bottom, #f7faff, #ffffff);
 
   /* Elevation (soft, blue-tinted) */
   --elevation-card: 0 1px 2px rgb(15 35 66 / 0.04), 0 4px 12px -4px rgb(29 78 216 / 0.08);
@@ -587,14 +587,14 @@ White carries content. A very pale blue canvas gives the page a clean, clinical 
 
 | Token | Light | Dark | Role |
 |---|---|---|---|
-| `canvas` | `#F5F9FF` | `#0A1628` | Page background (pale blue-white) |
+| `canvas` | `#FFFFFF` | `#0A1628` | Page background (white, owner-approved 2026-10-25) |
 | `surface` | `#FFFFFF` | `#0F1F38` | Cards, tables, dialogs, header |
-| `surface-muted` | `#EEF4FC` | `#14284A` | Secondary panels, disabled fields, user chat bubbles |
+| `surface-muted` | `#F1F5FB` | `#14284A` | Secondary panels, kanban columns, disabled fields, user chat bubbles |
 | `ink` | `#0F2342` | `#E8F0FE` | Primary text (deep navy) |
 | `ink-secondary` | `#3B5275` | `#BCCBE3` | Supporting text |
 | `ink-muted` | `#587093` | `#93A7C6` | Metadata, captions |
-| `line` | `#DCE6F5` | `#223A5E` | Decorative and structural borders |
-| `line-strong` | `#BFD0EA` | `#33507D` | Hover borders, selected containers |
+| `line` | `#E2E9F5` | `#223A5E` | Decorative and structural borders |
+| `line-strong` | `#C6D3EA` | `#33507D` | Hover borders, selected containers |
 | `control-line` | `#7A8FB0` | `#6482AD` | Input, select, textarea boundaries |
 | `primary` | `#1D4ED8` | `#8AB8FF` | Primary action, active navigation, links |
 | `primary-hover` | `#1E40AF` | `#B6D3FF` | Primary hover |
@@ -1112,7 +1112,7 @@ All screens share tokens, grid, typography, focus treatment, and state patterns.
 
 Applies to `/login`, `/register`, and account/session states (`UI-002`).
 
-- Page background: `canvas` with `bg-wash` and a fading grid layer; the form sits in an opaque `surface` card.
+- Page background: plain white `canvas` (owner-approved 2026-10-25; no wash or grid on auth pages); the form sits in a bordered `surface` card.
 - Card width `max-w-md`; center with enough top/bottom padding. Not a glass panel.
 - Card: 1px `line` border, `rounded-xl`, `p-6 sm:p-8`, `shadow-card`.
 - One `<h1>` per page; a text wordmark may link above the card.

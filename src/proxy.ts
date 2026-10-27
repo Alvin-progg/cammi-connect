@@ -3,13 +3,32 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { getPublicEnv } from "@/lib/config.public";
 
+const PROTECTED_PREFIXES = ["/account", "/doctor"];
+
+function isProtectedPath(pathname: string): boolean {
+  return PROTECTED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+function withPrivateCacheHeaders<T extends NextResponse>(response: T): T {
+  response.headers.set("Cache-Control", "private, no-store");
+  return response;
+}
+
 /**
  * Refreshes and verifies Supabase session cookies, then performs an optimistic
- * redirect of unauthenticated visitors away from /account. Authorization is
- * re-checked in the DAL; this proxy is never the enforcement point.
+ * redirect of unauthenticated visitors away from protected routes. Authorization
+ * is re-checked in the DAL; this proxy is never the enforcement point.
  */
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const isProtected = isProtectedPath(pathname);
+
   let response = NextResponse.next({ request });
+  if (isProtected) {
+    response = withPrivateCacheHeaders(response);
+  }
 
   let env;
   try {
@@ -42,21 +61,20 @@ export async function proxy(request: NextRequest) {
   // Refresh and verify tokens with verified JWT claims.
   const { data } = await supabase.auth.getClaims();
 
-  const { pathname } = request.nextUrl;
-
-  if (pathname.startsWith("/account")) {
-    if (!data) {
-      const url = new URL("/login", request.url);
-      url.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
-      return NextResponse.redirect(url);
-    }
-    // A-CACHE-01: never cache user-specific responses.
-    response.headers.set("Cache-Control", "private, no-store");
+  if (isProtected) {
+    // A-CACHE-01: never cache user-specific responses, including redirects.
+    response = withPrivateCacheHeaders(response);
   }
 
-  return response;
+  if (!isProtected || data) {
+    return response;
+  }
+
+  const url = new URL("/login", request.url);
+  url.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+  return withPrivateCacheHeaders(NextResponse.redirect(url));
 }
 
 export const config = {
-  matcher: ["/account/:path*"],
+  matcher: ["/account/:path*", "/doctor/:path*"],
 };

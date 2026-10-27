@@ -2,23 +2,25 @@
 
 ## Current state
 
-- Next.js 16 App Router scaffold only: `src/app/` contains the stock create-next-app page. No API routes, database, auth, tests, CI, or pre-commit hooks yet.
-- `SPEC.md` is the target design and requirements; `TEST.md` is the test plan. Neither describes implemented code. Verify paths and scripts before relying on them.
+- Implemented slices: Supabase Auth (`/login`, `/register`, `/account`, `/auth/callback`), and the doctor dashboard suite at `/doctor` (kanban board, list, schedule & availability calendar, notifications, statistics, profile) with Supabase-backed appointments, schedules, blocked slots, notifications, and status history.
+- Database schema is hand-written SQL in `db/migrations/` (`0001`, `0002`); apply manually in the hosted Supabase SQL editor (see `db/README.md`). Synthetic seed: `npm run db:seed`.
+- `SPEC.md` is the target design and requirements; `TEST.md` is the test plan. Not everything in them is implemented. Verify paths and scripts before relying on them.
 - `README.md` is the untouched create-next-app readme. Trust `package.json` and config files over prose.
-- `specs/features`, `specs/decisions`, and `specs/tasks` exist but are empty.
+- `design.md` is the visual source of truth (Calm Care tokens; white page/auth backgrounds approved 2026-10-25).
 
 ## Commands
 
 ```bash
 npm run dev          # http://localhost:3000
 npm run lint         # ESLint flat config (eslint-config-next)
-npx tsc --noEmit     # typecheck; there is no npm script
+npm test             # Vitest unit + component tests
+npm run typecheck    # tsc --noEmit
+npm run db:seed      # synthetic seed (needs .env.local; see db/README.md)
 npm run build
 ```
 
 - Use npm; `package-lock.json` is the lockfile.
-- No test framework is installed. `npm test`, `npm run test:e2e`, `npm run typecheck`, and the database/migration commands in `TEST.md` §2.2 do not exist yet.
-- Before reporting done: run `npm run lint` and `npx tsc --noEmit`; run `npm run build` after route or config changes.
+- Before reporting done: run `npm test`, `npm run lint`, and `npm run typecheck`; run `npm run build` after route or config changes.
 
 ## Wiring
 
@@ -100,14 +102,7 @@ For each completed task, report:
 
 Do not claim completion of acceptance criteria that have not been verified.
 
-<!-- BEGIN:nextjs-agent-rules -->### Implementation discipline
-
-Before adding an abstraction, helper, dependency, or architectural layer, determine whether it is necessary for the current approved task.
-
-Prefer the smallest maintainable change that satisfies the acceptance criteria. Do not build for hypothetical requirements, refactor unrelated code, or introduce patterns solely because they are considered best practices.
-
-When multiple reasonable solutions exist, prefer the simplest solution consistent with the approved architecture, existing conventions, security requirements, and testability.
-My recommendation: keep this section alongside your existing TDD, security, and autonomy rules. These principles should guide every ticket, while the ticket's acceptance criteria determine what actually needs to be implemented.
+<!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know
 
@@ -142,8 +137,6 @@ Continue the current user request without reporting immediately. Routine debuggi
 Retain qualifying friction even if it is later fixed or worked around; record the final outcome during the reporting pass.
 
 Before the final response, run one reporting pass. If candidates remain, from this file's directory run `npx --no-install next internal agent-feedback-instructions` once without piping or truncating its output. Follow its output or error guidance. If a network sandbox blocks it, retry with network access; if it still returns no output, continue normally.
-
-
 
 <!-- END:nextjs-agent-feedback -->
 ## Code Quality and Readability
