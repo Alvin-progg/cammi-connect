@@ -1125,6 +1125,13 @@ Applies to `/login`, `/register`, and account/session states (`UI-002`).
 - Session-expired and access-denied states use plain page-level messages, not toasts. 403 states never reveal whether a protected resource exists.
 - Keep behavior and tests unchanged when adjusting visual details.
 
+**Amendment 2026-10-29 (owner request, "make it professional"):**
+
+- Above the card sits a brand lockup: the stethoscope mark in a `primary` tile (same as the doctor rail) next to the "CamiConnect" wordmark, linking home.
+- The card uses `rounded-2xl` and `p-6 sm:p-10` with a `text-2xl` title, matching the doctor workspace cards. The "switch page" link sits under a `line` rule at the bottom of the card, and a muted note under the card says which accounts are provided by the hospital.
+- Password fields have a show/hide toggle (§5.3) that is `aria-pressed` and labelled "Show password" / "Hide password". Field errors carry an alert icon and a screen-reader "Error:" prefix. The registration password shows its minimum-length hint before submit (it shares `PASSWORD_MIN_LENGTH` with the schema).
+- The submit button shows a spinner alongside the pending label. Registration success uses the `success-soft` panel with a check icon.
+
 ### 6.3 Patient appointment booking
 
 Applies to department/doctor browsing, availability, booking, and confirmation (`UI-003`).

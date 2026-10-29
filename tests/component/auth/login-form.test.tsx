@@ -147,6 +147,37 @@ describe("LoginForm", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("ties a field error to its input with an explicit Error prefix", async () => {
+    const user = userEvent.setup();
+    vi.mocked(loginAction).mockResolvedValue({
+      fieldErrors: { email: ["Enter a valid email address."] },
+    });
+    render(<LoginForm />);
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await screen.findByText("Enter a valid email address.");
+    expect(screen.getByLabelText("Email")).toHaveAccessibleDescription(
+      "Error: Enter a valid email address.",
+    );
+  });
+
+  it("reveals and hides the password with a labelled toggle", async () => {
+    const user = userEvent.setup();
+    render(<LoginForm />);
+    const password = screen.getByLabelText("Password");
+    expect(password).toHaveAttribute("type", "password");
+
+    const toggle = screen.getByRole("button", { name: "Show password" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await user.click(toggle);
+    expect(password).toHaveAttribute("type", "text");
+    expect(
+      screen.getByRole("button", { name: "Hide password" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: "Hide password" }));
+    expect(password).toHaveAttribute("type", "password");
+  });
+
   it("links to the registration page", () => {
     render(<LoginForm />);
     expect(screen.getByRole("link", { name: "Create one" })).toHaveAttribute(

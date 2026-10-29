@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { AuthCard } from "@/components/auth/auth-card";
 import { RegisterForm } from "@/components/auth/register-form";
@@ -21,16 +20,11 @@ export default async function RegisterPage({
 
   return (
     <main id="main" className="flex flex-1 flex-col bg-canvas">
-      <div className="page-container flex flex-1 flex-col items-center justify-center py-12 lg:py-24">
-        <Link
-          href="/"
-          className="mb-6 w-full max-w-md rounded-lg text-base font-semibold tracking-tight text-ink focus-ring"
-        >
-          CamiConnect
-        </Link>
+      <div className="page-container flex flex-1 flex-col items-center justify-center py-12 lg:py-20">
         <AuthCard
           title="Create your account"
-          subtitle="Patient accounts can be created here. Doctor and admin accounts are provisioned by hospital administrators."
+          subtitle="Register as a patient to book and follow your appointments."
+          note="Doctor and administrator accounts are provided by the hospital and cannot be created here."
         >
           <RegisterForm next={typeof next === "string" ? next : undefined} />
         </AuthCard>

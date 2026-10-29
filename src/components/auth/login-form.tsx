@@ -9,6 +9,7 @@ import type { AuthFormState } from "@/lib/auth/form-state";
 import { LOGIN_ERROR_TOAST_ID } from "@/lib/auth/toast-ids";
 
 import { FormField } from "./form-field";
+import { SubmitButton } from "./submit-button";
 
 const INITIAL_STATE: AuthFormState = {};
 
@@ -45,15 +46,14 @@ export function LoginForm({
   }, [state.fieldErrors]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <form
         ref={formRef}
         action={formAction}
         noValidate
-        className="flex flex-col gap-4"
+        className="flex flex-col gap-5"
       >
         {next ? <input type="hidden" name="next" value={next} /> : null}
-        <p className="text-sm leading-6 text-ink-muted">All fields are required.</p>
         <FormField
           id="email"
           label="Email"
@@ -74,20 +74,13 @@ export function LoginForm({
           autoComplete="current-password"
           error={state.fieldErrors?.password}
         />
-        <button
-          type="submit"
-          disabled={pending}
-          aria-busy={pending}
-          className="focus-ring inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none"
-        >
-          {pending ? "Signing in…" : "Sign in"}
-        </button>
+        <SubmitButton pending={pending} label="Sign in" pendingLabel="Signing in…" />
       </form>
-      <p className="text-sm leading-6 text-ink-secondary">
+      <p className="border-t border-line pt-6 text-center text-sm leading-6 text-ink-secondary">
         No account yet?{" "}
         <Link
           href="/register"
-          className="rounded-sm font-medium text-primary underline underline-offset-4 hover:text-primary-hover focus-ring"
+          className="rounded-sm font-medium text-primary underline decoration-primary/40 underline-offset-4 transition-colors hover:text-primary-hover hover:decoration-current focus-ring motion-reduce:transition-none"
         >
           Create one
         </Link>

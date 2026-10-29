@@ -24,6 +24,23 @@ describe("RegisterForm", () => {
     expect(screen.getByRole("button", { name: "Create account" })).toBeInTheDocument();
   });
 
+  it("describes the password requirement before submit", () => {
+    render(<RegisterForm />);
+    expect(screen.getByLabelText("Password")).toHaveAccessibleDescription(
+      "Use at least 6 characters.",
+    );
+  });
+
+  it("gives each password field its own reveal toggle", () => {
+    render(<RegisterForm />);
+    expect(
+      screen.getByRole("button", { name: "Show password" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Show confirm password" }),
+    ).toBeInTheDocument();
+  });
+
   it("shows field errors returned by the action", async () => {
     const user = userEvent.setup();
     vi.mocked(registerAction).mockResolvedValue({
