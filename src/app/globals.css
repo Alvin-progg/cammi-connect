@@ -6,7 +6,7 @@
   /* Surfaces */
   --canvas: #ffffff;
   --surface: #ffffff;
-  --surface-muted: #f1f5fb;
+  --surface-muted: #f3f7fe;
 
   /* Text */
   --ink: #0f2342;
@@ -14,8 +14,8 @@
   --ink-muted: #587093;
 
   /* Structure */
-  --line: #e2e9f5;
-  --line-strong: #c6d3ea;
+  --line: #e3eaf6;
+  --line-strong: #c9d6ec;
   --control-line: #7a8fb0;
   --grid-line: rgb(29 78 216 / 0.06);
   --grid-cell: 3rem;
@@ -23,9 +23,9 @@
   --overlay: rgb(15 35 66 / 0.45);
 
   /* Brand and interaction */
-  --primary: #1d4ed8;
-  --primary-hover: #1e40af;
-  --primary-soft: #eaf2ff;
+  --primary: #1a62f2;
+  --primary-hover: #1450cc;
+  --primary-soft: #e9f1ff;
   --primary-ink: #ffffff;
   --accent: #0369a1;
   --accent-soft: #e0f2fe;
@@ -44,6 +44,18 @@
   --danger-ink: #ffffff;
   --danger-soft: #fee2e2;
   --danger-soft-ink: #991b1b;
+
+  /* Week-grid appointment slots, tinted by status (ink text on top) */
+  --slot-pending: #f2eefe;
+  --slot-pending-edge: #ded3fb;
+  --slot-confirmed: #eaf2ff;
+  --slot-confirmed-edge: #cfe0ff;
+  --slot-completed: #e9f8ee;
+  --slot-completed-edge: #c9ecd5;
+  --slot-cancelled: #fdecee;
+  --slot-cancelled-edge: #f7cdd3;
+  --slot-noshow: #f0f4fa;
+  --slot-noshow-edge: #d9e2ef;
 
   /* Charts */
   --chart-1: #1d4ed8;
@@ -79,67 +91,9 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-
-    --canvas: #0a1628;
-    --surface: #0f1f38;
-    --surface-muted: #14284a;
-
-    --ink: #e8f0fe;
-    --ink-secondary: #bccbe3;
-    --ink-muted: #93a7c6;
-
-    --line: #223a5e;
-    --line-strong: #33507d;
-    --control-line: #6482ad;
-    --grid-line: rgb(190 215 255 / 0.07);
-    --overlay: rgb(0 0 0 / 0.65);
-
-    --primary: #8ab8ff;
-    --primary-hover: #b6d3ff;
-    --primary-soft: #12305c;
-    --primary-ink: #0a1628;
-    --accent: #7dd3fc;
-    --accent-soft: #0f2f47;
-    --accent-ink: #0a1628;
-    --focus: #8ab8ff;
-
-    --success: #86efac;
-    --success-soft: #0f2e1d;
-    --success-soft-ink: #bbf7d0;
-    --warning: #fcd34d;
-    --warning-soft: #3a2a0a;
-    --warning-soft-ink: #fde68a;
-    --danger: #fca5a5;
-    --danger-hover: #fecaca;
-    --danger-ink: #3b1215;
-    --danger-soft: #3b1215;
-    --danger-soft-ink: #fecaca;
-
-    --chart-1: #8ab8ff;
-    --chart-2: #7dd3fc;
-    --chart-3: #c4b5fd;
-    --chart-4: #fcd34d;
-    --chart-5: #fda4af;
-    --chart-6: #cbd5e1;
-
-    --wash: linear-gradient(to bottom, #0f2547, #0a1628);
-    --elevation-card: 0 1px 2px rgb(0 0 0 / 0.3);
-    --elevation-overlay: 0 24px 56px -24px rgb(0 0 0 / 0.7);
-  }
-}
-
 @media (prefers-contrast: more) {
   :root {
     --grid-line: rgb(29 78 216 / 0.14);
-  }
-}
-
-@media (prefers-color-scheme: dark) and (prefers-contrast: more) {
-  :root {
-    --grid-line: rgb(190 215 255 / 0.14);
   }
 }
 
@@ -180,6 +134,20 @@
   --color-danger-ink: var(--danger-ink);
   --color-danger-soft: var(--danger-soft);
   --color-danger-soft-ink: var(--danger-soft-ink);
+
+  --color-slot-pending: var(--slot-pending);
+  --color-slot-pending-edge: var(--slot-pending-edge);
+  --color-slot-confirmed: var(--slot-confirmed);
+  --color-slot-confirmed-edge: var(--slot-confirmed-edge);
+  --color-slot-completed: var(--slot-completed);
+  --color-slot-completed-edge: var(--slot-completed-edge);
+  --color-slot-cancelled: var(--slot-cancelled);
+  --color-slot-cancelled-edge: var(--slot-cancelled-edge);
+  --color-slot-noshow: var(--slot-noshow);
+  --color-slot-noshow-edge: var(--slot-noshow-edge);
+
+  /* Strong ease-out for UI entrances and press feedback */
+  --ease-snappy: cubic-bezier(0.23, 1, 0.32, 1);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);

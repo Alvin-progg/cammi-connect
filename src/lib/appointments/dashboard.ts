@@ -1,9 +1,5 @@
 import { isAppointmentStatus, type AppointmentStatus } from "./status";
-import {
-  isValidManilaDate,
-  manilaDayRange,
-  todayInManila,
-} from "./filters";
+import { isValidManilaDate, manilaDayRange, todayInManila } from "./filters";
 
 /**
  * URL contract for the doctor dashboard views and appointment filters.
@@ -11,8 +7,7 @@ import {
  * page and the filter components.
  */
 export const DOCTOR_VIEWS = [
-  "board",
-  "list",
+  "week",
   "calendar",
   "stats",
   "notifications",
@@ -21,33 +16,16 @@ export const DOCTOR_VIEWS = [
 
 export type DoctorView = (typeof DOCTOR_VIEWS)[number];
 
-export const APPOINTMENT_RANGES = [
-  "today",
-  "upcoming",
-  "history",
-  "day",
-] as const;
-
-export type AppointmentRange = (typeof APPOINTMENT_RANGES)[number];
-
 export const STATS_PERIODS = ["7d", "30d", "month", "all"] as const;
 
 export type StatsPeriod = (typeof STATS_PERIODS)[number];
 
 export const DOCTOR_VIEW_LABELS: Record<DoctorView, string> = {
-  board: "Board",
-  list: "List",
-  calendar: "Schedule",
+  week: "Schedule",
+  calendar: "Availability",
   stats: "Statistics",
   notifications: "Notifications",
   profile: "Profile",
-};
-
-export const APPOINTMENT_RANGE_LABELS: Record<AppointmentRange, string> = {
-  today: "Today",
-  upcoming: "Upcoming",
-  history: "History",
-  day: "Specific day",
 };
 
 export const STATS_PERIOD_LABELS: Record<StatsPeriod, string> = {
@@ -67,7 +45,7 @@ export function parseDashboardView(
   const raw = firstValue(value);
   return DOCTOR_VIEWS.some((view) => view === raw)
     ? (raw as DoctorView)
-    : "board";
+    : "week";
 }
 
 export function parseAppointmentStatusFilter(
@@ -77,67 +55,7 @@ export function parseAppointmentStatusFilter(
   return raw && isAppointmentStatus(raw) ? raw : null;
 }
 
-/**
- * A specific valid `date` parameter always wins and implies the "day" range.
- * Otherwise the `range` parameter decides, defaulting to "today".
- */
-export function parseAppointmentRange(input: {
-  range?: string | string[];
-  date?: string | string[];
-}): { range: AppointmentRange; date: string } {
-  const date = firstValue(input.date);
-  if (date && isValidManilaDate(date)) {
-    return { range: "day", date };
-  }
-
-  const raw = firstValue(input.range);
-  if (raw === "upcoming" || raw === "history") {
-    return { range: raw, date: todayInManila() };
-  }
-  return { range: "today", date: todayInManila() };
-}
-
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
-const UPCOMING_DAYS = 7;
-const HISTORY_DAYS = 30;
-
-export type ResolvedRange = {
-  start: Date;
-  end: Date;
-  description: string;
-};
-
-export function resolveRangeBounds(input: {
-  range: AppointmentRange;
-  date: string;
-}): ResolvedRange {
-  if (input.range === "day" || input.range === "today") {
-    const { start, end } = manilaDayRange(input.date);
-    return {
-      start,
-      end,
-      description:
-        input.range === "today" ? "Today" : `Day of ${input.date}`,
-    };
-  }
-
-  const todayStart = manilaDayRange(todayInManila()).start;
-  if (input.range === "upcoming") {
-    return {
-      start: todayStart,
-      end: new Date(todayStart.getTime() + UPCOMING_DAYS * DAY_IN_MILLISECONDS),
-      description: `Next ${UPCOMING_DAYS} days`,
-    };
-  }
-
-  return {
-    start: new Date(
-      todayStart.getTime() - HISTORY_DAYS * DAY_IN_MILLISECONDS,
-    ),
-    end: todayStart,
-    description: `Past ${HISTORY_DAYS} days`,
-  };
-}
 
 export function parseStatsPeriod(
   value: string | string[] | undefined,
@@ -200,4 +118,61 @@ export function calendarMonthLabel(month: string): string {
     month: "long",
     year: "numeric",
   }).format(new Date(Date.UTC(year, monthIndex - 1, 1)));
+}
+
+const WEEK_LABEL_FORMATTER = new Intl.DateTimeFormat("en-PH", {
+  timeZone: "UTC",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+function utcDateOf(date: string): Date {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function isoDateOf(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Week-grid `week` parameter: the Sunday (YYYY-MM-DD) that starts the Manila
+ * week containing the given date, defaulting to the current week.
+ */
+export function parseWeekStart(
+  value: string | string[] | undefined,
+  now: Date = new Date(),
+): string {
+  const raw = firstValue(value);
+  const anchor = raw && isValidManilaDate(raw) ? raw : todayInManila(now);
+  const date = utcDateOf(anchor);
+  date.setUTCDate(date.getUTCDate() - date.getUTCDay());
+  return isoDateOf(date);
+}
+
+export function shiftWeek(weekStart: string, offset: number): string {
+  const date = utcDateOf(weekStart);
+  date.setUTCDate(date.getUTCDate() + offset * 7);
+  return isoDateOf(date);
+}
+
+/** "18 – 24 Oct 2026", "29 Nov – 5 Dec 2026", "27 Dec 2026 – 2 Jan 2027". */
+export function weekRangeLabel(weekStart: string): string {
+  const start = utcDateOf(weekStart);
+  const end = utcDateOf(shiftWeek(weekStart, 1));
+  end.setUTCDate(end.getUTCDate() - 1);
+
+  const part = (date: Date, type: Intl.DateTimeFormatPartTypes) =>
+    WEEK_LABEL_FORMATTER.formatToParts(date).find((p) => p.type === type)
+      ?.value ?? "";
+  const endLabel = `${part(end, "day")} ${part(end, "month")} ${part(end, "year")}`;
+
+  if (start.getUTCFullYear() !== end.getUTCFullYear()) {
+    return `${part(start, "day")} ${part(start, "month")} ${part(start, "year")} – ${endLabel}`;
+  }
+  if (start.getUTCMonth() !== end.getUTCMonth()) {
+    return `${part(start, "day")} ${part(start, "month")} – ${endLabel}`;
+  }
+  return `${part(start, "day")} – ${endLabel}`;
 }

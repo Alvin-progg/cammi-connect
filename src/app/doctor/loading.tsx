@@ -1,25 +1,19 @@
+const PULSE = "bg-surface-muted motion-safe:animate-pulse";
+
 export default function DoctorLoading() {
   return (
     <div className="flex min-h-full flex-1 bg-canvas">
       <aside
         aria-hidden="true"
-        className="hidden w-60 shrink-0 flex-col border-r border-line bg-surface lg:flex"
+        className="sticky top-0 flex h-dvh w-16 shrink-0 flex-col items-center gap-3 border-r border-line bg-surface py-3.5"
       >
-        <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-          <div className="size-9 rounded-lg bg-surface-muted motion-safe:animate-pulse" />
-          <div className="flex flex-col gap-1.5">
-            <div className="h-4 w-28 rounded bg-surface-muted motion-safe:animate-pulse" />
-            <div className="h-3 w-20 rounded bg-surface-muted motion-safe:animate-pulse" />
-          </div>
-        </div>
-        <div className="flex flex-col gap-2 px-3 py-4">
-          {Array.from({ length: 6 }, (_, index) => (
-            <div
-              key={index}
-              className="h-10 rounded-lg bg-surface-muted motion-safe:animate-pulse"
-            />
+        <div className="size-9 rounded-xl bg-primary-soft" />
+        <div className="mt-4 flex flex-col gap-2">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className={`size-11 rounded-xl ${PULSE}`} />
           ))}
         </div>
+        <div className={`mt-auto size-8 rounded-full ${PULSE}`} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -28,34 +22,31 @@ export default function DoctorLoading() {
             Loading your dashboard…
           </p>
           <div aria-hidden="true" className="border-b border-line bg-surface">
-            <div className="mx-auto w-full max-w-[90rem] px-4 sm:px-6 lg:px-8">
-              <div className="flex min-h-16 items-center justify-between gap-3 py-2">
-                <div className="h-4 w-32 rounded bg-surface-muted motion-safe:animate-pulse" />
-                <div className="h-9 w-28 rounded-lg bg-surface-muted motion-safe:animate-pulse" />
-              </div>
-              <div className="h-8 w-64 rounded bg-surface-muted motion-safe:animate-pulse" />
-              <div className="mt-4 flex gap-2 pb-3">
-                {Array.from({ length: 6 }, (_, index) => (
-                  <div
-                    key={index}
-                    className="h-8 w-20 rounded bg-surface-muted motion-safe:animate-pulse"
-                  />
-                ))}
-              </div>
+            <div className="mx-auto flex min-h-16 w-full max-w-[90rem] items-center justify-between px-4 sm:px-6 lg:px-8">
+              <div className={`h-6 w-40 rounded-md ${PULSE}`} />
+              <div className={`size-10 rounded-full ${PULSE}`} />
             </div>
           </div>
-          <div className="mx-auto w-full max-w-[90rem] px-4 py-6 sm:px-6 lg:px-8">
-            <div className="flex gap-4 overflow-hidden">
-              {Array.from({ length: 5 }, (_, index) => (
-                <div
-                  key={index}
-                  className="flex w-72 shrink-0 flex-col gap-3 rounded-xl border border-line bg-surface-muted p-3"
-                >
-                  <div className="h-5 w-24 rounded bg-surface motion-safe:animate-pulse" />
-                  <div className="h-32 rounded-xl border border-line bg-surface motion-safe:animate-pulse" />
-                  <div className="h-32 rounded-xl border border-line bg-surface motion-safe:animate-pulse" />
-                </div>
-              ))}
+          <div
+            aria-hidden="true"
+            className="mx-auto w-full max-w-[90rem] px-4 py-6 sm:px-6 lg:px-8"
+          >
+            <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+              <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
+                <div className={`h-10 w-56 rounded-xl ${PULSE}`} />
+                <div className={`h-10 w-32 rounded-xl ${PULSE}`} />
+              </div>
+              <div className="grid h-[28rem] grid-cols-[3.5rem_repeat(7,minmax(0,1fr))]">
+                <div />
+                {Array.from({ length: 7 }, (_, index) => (
+                  <div key={index} className="flex flex-col gap-3 border-l border-line p-2">
+                    <div className={`mx-auto h-10 w-10 rounded-full ${PULSE}`} />
+                    {index % 2 === 0 ? (
+                      <div className={`h-20 rounded-lg ${PULSE}`} />
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </main>

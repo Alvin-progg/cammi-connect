@@ -1216,6 +1216,16 @@ Applies to `UI-004` and `FR-005`.
 - Avoid decorative cards. Use one bordered work surface with section rules.
 - Empty schedule: empty state and next action, not fake slots.
 
+**Amendment 2026-10-27 (owner-approved mockup):**
+
+- Navigation is a 64px icon rail (tooltips when collapsed) that expands to 224px with labels. It pushes content at `lg`+ and overlays below `lg`. The doctor's profile and sign-out sit at the bottom of the rail; the header carries only the view title, date, and a notifications bell. No search bar, no period dropdown, no doctor/treatment/patient-queue filter panel.
+- The default appointments view is a weekly time grid (Sun–Sat, Manila time) inside one white card. The card toolbar holds the week navigator, a Schedule | Kanban | List switch, and **Block time**. Blocks are tinted by status with the `--slot-*` tokens (ink text on top for contrast). The current-time line is a dashed primary rule.
+- Clicking a block opens an anchored detail popover: name, Manila date and time, reason, status, duration, status history, and the existing actions. It shows no contact details. Below `sm` it becomes a bottom sheet.
+- The palette is cooler and grayer, with primary #1a62f2. The workspace background is white (`--canvas`), like the page and auth backgrounds; white cards separate from it with a `line` border and the card shadow. `surface-muted` (#f4f6fa) is used only for Kanban columns, segmented controls, and hover states.
+- **Amended 2026-10-29 (owner request):** the Kanban and List views are removed. The weekly time grid is the only appointments view; the card toolbar holds the week navigator and **Block time**, with the status filter below. Old `?view=board` / `?view=list` links fall back to the week grid.
+- **Amended 2026-10-29 (owner request):** the palette returns to blue and white. Neutrals are blue-tinted again (`ink` #0f2342, `ink-secondary` #3b5275, `ink-muted` #587093, `line` #e3eaf6, `line-strong` #c9d6ec, `control-line` #7a8fb0, `surface-muted` #f3f7fe); primary stays #1a62f2. The app is light-only: the `prefers-color-scheme: dark` overrides are removed so every page renders on white.
+- Motion uses `ease-snappy` (`cubic-bezier(0.23, 1, 0.32, 1)`). Popovers and tooltips enter in 150ms from `scale(0.97)` with opacity, using `@starting-style`. Pressables use `active:scale-[0.97]`, and hover effects are gated to `(hover: hover)`. Reduced motion drops the scale but keeps the fade.
+
 ### 6.7 Administrator dashboard
 
 Applies to `UI-005`, `FR-002`, and `FR-006`.

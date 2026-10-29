@@ -1,24 +1,25 @@
 import type { Metadata } from "next";
 
-import { AppointmentTable } from "@/components/appointments/appointment-table";
 import { AccessDenied } from "@/components/auth/access-denied";
-import { AppointmentBoard } from "@/components/doctor/appointment-board";
+import { AppointmentsCard } from "@/components/doctor/appointments-card";
 import { DoctorHeader } from "@/components/doctor/doctor-header";
 import { DoctorProfileView } from "@/components/doctor/doctor-profile-view";
 import { DoctorShell } from "@/components/doctor/doctor-shell";
 import { DoctorStatsPanel } from "@/components/doctor/doctor-stats-panel";
 import { NotificationsPanel } from "@/components/doctor/notifications-panel";
+import { toHistoryItems } from "@/components/doctor/history-items";
 import { ScheduleManager } from "@/components/doctor/schedule-manager";
+import { WeekSchedule } from "@/components/doctor/week-schedule";
 import {
-  parseAppointmentRange,
+  DOCTOR_VIEW_LABELS,
   parseAppointmentStatusFilter,
   parseCalendarMonth,
   parseDashboardView,
   parseStatsPeriod,
-  resolveRangeBounds,
+  parseWeekStart,
   resolveStatsPeriodBounds,
   shiftCalendarMonth,
-  type DoctorView,
+  shiftWeek,
 } from "@/lib/appointments/dashboard";
 import { formatManilaDate } from "@/lib/appointments/format";
 import {
@@ -27,12 +28,12 @@ import {
 } from "@/lib/appointments/filters";
 import { manilaDateOfTimestamp } from "@/lib/appointments/stats";
 import type { AppointmentStatus } from "@/lib/appointments/status";
+import { buildWeekLayout } from "@/lib/appointments/week";
 import type { BlockedSlot } from "@/lib/schedules/types";
 import { formatScheduleSummary } from "@/lib/schedules/types";
 import { buildMonthGrid } from "@/lib/schedules/calendar";
 import { supabaseDoctorAppointmentsRepository } from "@/server/appointments/repository";
 import {
-  countDoctorAppointments,
   getAppointmentHistoryMap,
   getDoctorAppointmentStats,
   listDoctorAppointmentsInRange,
@@ -46,8 +47,6 @@ import {
 } from "@/server/notifications/service";
 import {
   getDoctorProfileDetails,
-  listDepartmentColleagues,
-  type DepartmentColleague,
   type DoctorProfileDetails,
 } from "@/server/profiles/service";
 import { supabaseDoctorSchedulesRepository } from "@/server/schedules/repository";
@@ -62,11 +61,10 @@ export const metadata: Metadata = { title: "Doctor dashboard" };
 
 type DoctorSearchParams = {
   view?: string | string[];
-  range?: string | string[];
-  date?: string | string[];
   status?: string | string[];
   month?: string | string[];
   period?: string | string[];
+  week?: string | string[];
 };
 
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
@@ -94,22 +92,31 @@ function expandBlocksToDates(blocks: BlockedSlot[]): string[] {
   return [...dates];
 }
 
+function appointmentCountLabel(count: number, description: string): string {
+  return count === 0
+    ? `No appointments · ${description}`
+    : `${count} appointment${count === 1 ? "" : "s"} · ${description}`;
+}
+
 async function AppointmentsWorkspace({
   doctorId,
-  view,
   params,
 }: {
   doctorId: string;
-  view: DoctorView;
   params: DoctorSearchParams;
 }) {
-  const { range, date } = parseAppointmentRange(params);
   const status = parseAppointmentStatusFilter(params.status);
-  const bounds = resolveRangeBounds({ range, date });
+  const weekStart = parseWeekStart(params.week);
+  const currentWeekStart = parseWeekStart(undefined);
 
   const [appointments, schedules] = await Promise.all([
     listDoctorAppointmentsInRange(
-      { doctorId, start: bounds.start, end: bounds.end, status },
+      {
+        doctorId,
+        start: manilaDayRange(weekStart).start,
+        end: manilaDayRange(shiftWeek(weekStart, 1)).start,
+        status,
+      },
       supabaseDoctorAppointmentsRepository,
     ),
     listDoctorSchedules(doctorId, supabaseDoctorSchedulesRepository),
@@ -121,39 +128,26 @@ async function AppointmentsWorkspace({
   const scheduleHint = formatScheduleSummary(schedules);
 
   return (
-    <>
-      <p className="mb-4 text-sm text-ink-muted" role="status">
-        {appointments.length === 0
-          ? `No appointments · ${bounds.description}`
-          : `${appointments.length} appointment${appointments.length === 1 ? "" : "s"} · ${bounds.description}`}
-      </p>
-      {view === "board" ? (
-        <AppointmentBoard
-          appointments={appointments}
-          historyMap={historyMap}
-          scheduleHint={scheduleHint}
-        />
-      ) : (
-        <section
-          aria-labelledby="appointments-heading"
-          className="overflow-hidden rounded-xl border border-line bg-surface"
-        >
-          <div className="border-b border-line px-4 py-3 sm:px-6">
-            <h2
-              id="appointments-heading"
-              className="text-lg font-semibold text-ink"
-            >
-              Appointments
-            </h2>
-          </div>
-          <AppointmentTable
-            appointments={appointments}
-            historyMap={historyMap}
-            scheduleHint={scheduleHint}
-          />
-        </section>
+    <AppointmentsCard
+      weekStart={weekStart}
+      currentWeekStart={currentWeekStart}
+      status={status}
+      summary={appointmentCountLabel(
+        appointments.length,
+        weekStart === currentWeekStart ? "This week" : "Selected week",
       )}
-    </>
+    >
+      <WeekSchedule
+        layout={buildWeekLayout({ weekStart, appointments })}
+        historyById={Object.fromEntries(
+          appointments.map((appointment) => [
+            appointment.id,
+            toHistoryItems(historyMap.get(appointment.id)),
+          ]),
+        )}
+        scheduleHint={scheduleHint}
+      />
+    </AppointmentsCard>
   );
 }
 
@@ -265,55 +259,30 @@ export default async function DoctorPage({
 
   const doctorId = session.doctor.id;
   const view = parseDashboardView(params.view);
-  const todayRange = manilaDayRange(todayInManila());
 
-  const details = await getDoctorProfileDetails(doctorId);
-  const [colleagues, todayCount, unreadCount]: [
-    DepartmentColleague[],
-    number,
-    number,
-  ] = await Promise.all([
-    details?.department
-      ? listDepartmentColleagues({
-          departmentId: details.department.id,
-          excludeProfileId: doctorId,
-        })
-      : Promise.resolve([]),
-    countDoctorAppointments(
-      { doctorId, start: todayRange.start, end: todayRange.end },
-      supabaseDoctorAppointmentsRepository,
-    ),
+  const [details, unreadCount] = await Promise.all([
+    getDoctorProfileDetails(doctorId),
     countUnreadDoctorNotifications(
       doctorId,
       supabaseDoctorNotificationsRepository,
     ),
   ]);
 
-  const { range, date } = parseAppointmentRange(params);
-  const status = parseAppointmentStatusFilter(params.status);
-
   return (
     <DoctorShell
       activeView={view}
       doctorName={session.doctor.fullName}
       specialty={details?.specialty ?? null}
-      departmentName={details?.department?.name ?? null}
-      colleagues={colleagues}
-      todayCount={todayCount}
       unreadCount={unreadCount}
     >
       <DoctorHeader
-        view={view}
-        doctorName={session.doctor.fullName}
-        departmentName={details?.department?.name ?? null}
+        title={view === "week" ? "Appointments" : DOCTOR_VIEW_LABELS[view]}
         todayLabel={formatManilaDate(todayInManila())}
-        range={range}
-        status={status}
-        date={date}
+        unreadCount={unreadCount}
       />
       <div className="mx-auto w-full max-w-[90rem] px-4 py-6 sm:px-6 lg:px-8">
-        {view === "board" || view === "list" ? (
-          <AppointmentsWorkspace doctorId={doctorId} view={view} params={params} />
+        {view === "week" ? (
+          <AppointmentsWorkspace doctorId={doctorId} params={params} />
         ) : null}
         {view === "calendar" ? (
           <CalendarWorkspace doctorId={doctorId} params={params} />

@@ -24,29 +24,6 @@ function BaseIcon({
   );
 }
 
-export function BoardIcon({ className }: IconProps) {
-  return (
-    <BaseIcon className={className}>
-      <rect x="3" y="3" width="5" height="18" rx="1.5" />
-      <rect x="10" y="3" width="5" height="12" rx="1.5" />
-      <rect x="17" y="3" width="4" height="8" rx="1.5" />
-    </BaseIcon>
-  );
-}
-
-export function ListIcon({ className }: IconProps) {
-  return (
-    <BaseIcon className={className}>
-      <line x1="9" y1="6" x2="21" y2="6" />
-      <line x1="9" y1="12" x2="21" y2="12" />
-      <line x1="9" y1="18" x2="21" y2="18" />
-      <circle cx="4.5" cy="6" r="0.75" />
-      <circle cx="4.5" cy="12" r="0.75" />
-      <circle cx="4.5" cy="18" r="0.75" />
-    </BaseIcon>
-  );
-}
-
 export function CalendarIcon({ className }: IconProps) {
   return (
     <BaseIcon className={className}>
@@ -87,15 +64,6 @@ export function UserIcon({ className }: IconProps) {
   );
 }
 
-export function ClockIcon({ className }: IconProps) {
-  return (
-    <BaseIcon className={className}>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" />
-    </BaseIcon>
-  );
-}
-
 export function PlusIcon({ className }: IconProps) {
   return (
     <BaseIcon className={className}>
@@ -111,6 +79,52 @@ export function StethoscopeIcon({ className }: IconProps) {
       <path d="M5 3v6a5 5 0 0 0 10 0V3" />
       <path d="M10 14v3a4 4 0 0 0 8 0v-2" />
       <circle cx="18" cy="13" r="2" />
+    </BaseIcon>
+  );
+}
+
+export function ClipboardIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4V3h6v1" />
+      <line x1="9" y1="11" x2="15" y2="11" />
+      <line x1="9" y1="15" x2="13" y2="15" />
+    </BaseIcon>
+  );
+}
+
+export function ChevronLeftIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M15 6l-6 6 6 6" />
+    </BaseIcon>
+  );
+}
+
+export function ChevronRightIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M9 6l6 6-6 6" />
+    </BaseIcon>
+  );
+}
+
+export function CloseIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <line x1="6" y1="6" x2="18" y2="18" />
+      <line x1="18" y1="6" x2="6" y2="18" />
+    </BaseIcon>
+  );
+}
+
+export function SignOutIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
+      <path d="M10 16l-4-4 4-4" />
+      <line x1="6" y1="12" x2="15" y2="12" />
     </BaseIcon>
   );
 }

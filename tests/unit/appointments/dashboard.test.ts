@@ -1,26 +1,32 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DOCTOR_VIEW_LABELS,
   calendarMonthLabel,
-  parseAppointmentRange,
   parseAppointmentStatusFilter,
   parseCalendarMonth,
   parseDashboardView,
   parseStatsPeriod,
-  resolveRangeBounds,
+  parseWeekStart,
   shiftCalendarMonth,
+  shiftWeek,
+  weekRangeLabel,
 } from "@/lib/appointments/dashboard";
 
 const NOW = new Date("2026-10-25T04:00:00.000Z"); // 2026-10-25 12:00 PHT
 
 describe("parseDashboardView", () => {
-  it("defaults to the board view", () => {
-    expect(parseDashboardView(undefined)).toBe("board");
-    expect(parseDashboardView("nonsense")).toBe("board");
+  it("defaults to the week schedule view", () => {
+    expect(parseDashboardView(undefined)).toBe("week");
+    expect(parseDashboardView("nonsense")).toBe("week");
+  });
+
+  it("falls back to the week schedule for the removed board and list views", () => {
+    expect(parseDashboardView("board")).toBe("week");
+    expect(parseDashboardView("list")).toBe("week");
   });
 
   it("accepts known views", () => {
-    expect(parseDashboardView("list")).toBe("list");
     expect(parseDashboardView("calendar")).toBe("calendar");
     expect(parseDashboardView("stats")).toBe("stats");
     expect(parseDashboardView("notifications")).toBe("notifications");
@@ -33,47 +39,6 @@ describe("parseAppointmentStatusFilter", () => {
     expect(parseAppointmentStatusFilter("confirmed")).toBe("confirmed");
     expect(parseAppointmentStatusFilter("bogus")).toBeNull();
     expect(parseAppointmentStatusFilter(undefined)).toBeNull();
-  });
-});
-
-describe("parseAppointmentRange", () => {
-  it("lets a valid specific date win and implies the day range", () => {
-    expect(
-      parseAppointmentRange({ range: "upcoming", date: "2026-10-20" }),
-    ).toEqual({ range: "day", date: "2026-10-20" });
-  });
-
-  it("rejects invalid dates and falls back to the range parameter", () => {
-    const parsed = parseAppointmentRange({ range: "history", date: "20-10" });
-    expect(parsed.range).toBe("history");
-  });
-
-  it("defaults to today", () => {
-    const parsed = parseAppointmentRange({});
-    expect(parsed.range).toBe("today");
-    expect(parsed.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-  });
-});
-
-describe("resolveRangeBounds", () => {
-  it("resolves a single Manila day", () => {
-    const bounds = resolveRangeBounds({ range: "day", date: "2026-10-20" });
-    expect(bounds.start.toISOString()).toBe("2026-10-19T16:00:00.000Z");
-    expect(bounds.end.toISOString()).toBe("2026-10-20T16:00:00.000Z");
-  });
-
-  it("resolves the upcoming window to seven days from today", () => {
-    const bounds = resolveRangeBounds({ range: "upcoming", date: "2026-10-25" });
-    expect(bounds.end.getTime() - bounds.start.getTime()).toBe(
-      7 * 24 * 60 * 60 * 1000,
-    );
-  });
-
-  it("resolves history to the thirty days before today", () => {
-    const bounds = resolveRangeBounds({ range: "history", date: "2026-10-25" });
-    expect(bounds.end.getTime() - bounds.start.getTime()).toBe(
-      30 * 24 * 60 * 60 * 1000,
-    );
   });
 });
 
@@ -107,5 +72,40 @@ describe("calendar month helpers", () => {
 
   it("labels months in English with the year", () => {
     expect(calendarMonthLabel("2026-10")).toBe("October 2026");
+  });
+});
+
+describe("view labels", () => {
+  it("names the week grid Schedule and the availability calendar Availability", () => {
+    expect(DOCTOR_VIEW_LABELS.week).toBe("Schedule");
+    expect(DOCTOR_VIEW_LABELS.calendar).toBe("Availability");
+  });
+});
+
+describe("week helpers", () => {
+  it("defaults to the Sunday of the current Manila week", () => {
+    // NOW is Sunday 2026-10-25 in Manila.
+    expect(parseWeekStart(undefined, NOW)).toBe("2026-10-25");
+    expect(parseWeekStart("bogus", NOW)).toBe("2026-10-25");
+    expect(parseWeekStart("2026-02-30", NOW)).toBe("2026-10-25");
+  });
+
+  it("snaps any valid date to the Sunday starting its week", () => {
+    expect(parseWeekStart("2026-10-28", NOW)).toBe("2026-10-25");
+    expect(parseWeekStart("2026-10-31", NOW)).toBe("2026-10-25");
+    expect(parseWeekStart("2026-11-01", NOW)).toBe("2026-11-01");
+  });
+
+  it("shifts weeks across month and year boundaries", () => {
+    expect(shiftWeek("2026-10-25", -1)).toBe("2026-10-18");
+    expect(shiftWeek("2026-10-25", 1)).toBe("2026-11-01");
+    expect(shiftWeek("2026-12-27", 1)).toBe("2027-01-03");
+  });
+
+  it("labels the week compactly", () => {
+    expect(weekRangeLabel("2026-10-18")).toBe("18 – 24 Oct 2026");
+    expect(weekRangeLabel("2026-10-25")).toBe("25 – 31 Oct 2026");
+    expect(weekRangeLabel("2026-11-29")).toBe("29 Nov – 5 Dec 2026");
+    expect(weekRangeLabel("2026-12-27")).toBe("27 Dec 2026 – 2 Jan 2027");
   });
 });
