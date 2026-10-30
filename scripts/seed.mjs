@@ -5,10 +5,14 @@
  * Run with: npm run db:seed
  * Requires .env.local with NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
  * SEED_DOCTOR_EMAIL, and optionally SEED_DOCTOR_PASSWORD / SEED_DOCTOR_NAME.
+ * Set SEED_ADMIN_EMAIL (and optionally SEED_ADMIN_PASSWORD / SEED_ADMIN_NAME)
+ * to also provision a synthetic administrator.
  *
- * The script is idempotent for the seed profiles, the doctor account link,
- * schedules, blocks, notifications, and the listed appointments. Re-running
- * it resets those rows to the values below. It never deletes rows.
+ * The script is idempotent for the seed profiles, the doctor and admin account
+ * links, the directory (departments, specialties, doctors), schedule periods,
+ * exceptions, notifications, and the listed appointments. Re-running it resets
+ * those rows to the values below. It never deletes rows; other active schedule
+ * periods of the seed doctors are deactivated so the seeded periods apply.
  */
 import { createClient } from "@supabase/supabase-js";
 
@@ -34,6 +38,13 @@ const DEPARTMENT_INTERNAL_MEDICINE_ID =
   "00000000-0000-4000-8000-000000000501";
 const DEPARTMENT_PEDIATRICS_ID = "00000000-0000-4000-8000-000000000502";
 
+const SPECIALTY_NAMES = [
+  "Internal Medicine",
+  "Cardiology",
+  "Pediatrics",
+  "Family Medicine",
+];
+
 function requireEnv(name, value) {
   if (!value) {
     throw new Error(`Missing ${name}. Add it to .env.local and rerun the seed.`);
@@ -55,7 +66,7 @@ function at(date, time) {
   return `${date}T${time}:00+08:00`;
 }
 
-async function findAuthUserByEmail(supabase, email) {
+async function findAuthUserByEmail(supabase, email, label) {
   const perPage = 200;
   for (let page = 1; page <= 25; page += 1) {
     const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
@@ -71,12 +82,16 @@ async function findAuthUserByEmail(supabase, email) {
   }
 
   throw new Error(
-    "Unable to find the seed doctor after scanning auth users. Create the user or reduce the auth user count.",
+    `Unable to find the seed ${label} after scanning auth users. Create the user or reduce the auth user count.`,
   );
 }
 
-async function ensureDoctorAuthUser(supabase, email, password, fullName) {
-  const existing = await findAuthUserByEmail(supabase, email);
+/**
+ * Finds (or, with a password, creates) a confirmed auth user. `label` and
+ * `passwordEnv` only shape the error messages.
+ */
+async function ensureAuthUser(supabase, { email, password, fullName, label, passwordEnv }) {
+  const existing = await findAuthUserByEmail(supabase, email, label);
   if (existing) {
     if (!existing.email_confirmed_at) {
       const { error } = await supabase.auth.admin.updateUserById(existing.id, {
@@ -84,7 +99,7 @@ async function ensureDoctorAuthUser(supabase, email, password, fullName) {
       });
       if (error) {
         throw new Error(
-          `Unable to confirm the seed doctor auth user: ${error.message}`,
+          `Unable to confirm the seed ${label} auth user: ${error.message}`,
         );
       }
     }
@@ -93,7 +108,7 @@ async function ensureDoctorAuthUser(supabase, email, password, fullName) {
 
   if (!password) {
     throw new Error(
-      `No Supabase Auth user exists for ${email}. Create it in Supabase Auth, or set SEED_DOCTOR_PASSWORD in .env.local so the seed can create it.`,
+      `No Supabase Auth user exists for ${email}. Create it in Supabase Auth, or set ${passwordEnv} in .env.local so the seed can create it.`,
     );
   }
 
@@ -104,7 +119,7 @@ async function ensureDoctorAuthUser(supabase, email, password, fullName) {
     user_metadata: { full_name: fullName },
   });
   if (error || !data.user) {
-    throw new Error(`Unable to create the seed doctor auth user: ${error?.message}`);
+    throw new Error(`Unable to create the seed ${label} auth user: ${error?.message}`);
   }
 
   return data.user;
@@ -119,7 +134,6 @@ async function upsertDoctorProfile(supabase, authUserId, fullName) {
         role: "doctor",
         full_name: fullName,
         department_id: DEPARTMENT_INTERNAL_MEDICINE_ID,
-        specialty: "Internal Medicine",
         phone: "+63 43 555 0100",
         clinic_note: "Room 204, Outpatient Department",
       },
@@ -133,6 +147,18 @@ async function upsertDoctorProfile(supabase, authUserId, fullName) {
   }
 
   return data.id;
+}
+
+async function upsertAdminProfile(supabase, authUserId, fullName) {
+  const { error } = await supabase
+    .from("profiles")
+    .upsert(
+      { auth_user_id: authUserId, role: "admin", full_name: fullName },
+      { onConflict: "auth_user_id" },
+    );
+  if (error) {
+    throw new Error(`Unable to upsert the seed admin profile: ${error.message}`);
+  }
 }
 
 async function main() {
@@ -151,6 +177,7 @@ async function main() {
   const doctorName =
     process.env.SEED_DOCTOR_NAME?.trim() || "Dr. Maya Santos";
   const doctorPassword = process.env.SEED_DOCTOR_PASSWORD;
+  const adminEmail = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: {
@@ -166,8 +193,16 @@ async function main() {
         id: DEPARTMENT_INTERNAL_MEDICINE_ID,
         name: "Internal Medicine",
         code: "IM",
+        description: "Adult outpatient consultations and chronic care.",
+        is_active: true,
       },
-      { id: DEPARTMENT_PEDIATRICS_ID, name: "Pediatrics", code: "PED" },
+      {
+        id: DEPARTMENT_PEDIATRICS_ID,
+        name: "Pediatrics",
+        code: "PED",
+        description: "Consultations for infants, children, and adolescents.",
+        is_active: true,
+      },
     ],
     { onConflict: "id" },
   );
@@ -175,12 +210,13 @@ async function main() {
     throw new Error(`Unable to upsert departments: ${departmentError.message}`);
   }
 
-  const doctorUser = await ensureDoctorAuthUser(
-    supabase,
-    doctorEmail,
-    doctorPassword,
-    doctorName,
-  );
+  const doctorUser = await ensureAuthUser(supabase, {
+    email: doctorEmail,
+    password: doctorPassword,
+    fullName: doctorName,
+    label: "doctor",
+    passwordEnv: "SEED_DOCTOR_PASSWORD",
+  });
   const doctorProfileId = await upsertDoctorProfile(
     supabase,
     doctorUser.id,
@@ -200,7 +236,6 @@ async function main() {
       role: "doctor",
       full_name: "Dr. Paolo Reyes",
       department_id: DEPARTMENT_PEDIATRICS_ID,
-      specialty: "Pediatrics",
     },
     {
       id: COLLEAGUE_DOCTOR_ID,
@@ -208,7 +243,6 @@ async function main() {
       role: "doctor",
       full_name: "Dr. Liza Mercado",
       department_id: DEPARTMENT_INTERNAL_MEDICINE_ID,
-      specialty: "Internal Medicine",
     },
   ];
 
@@ -217,6 +251,91 @@ async function main() {
     .upsert(syntheticProfiles, { onConflict: "id" });
   if (profileError) {
     throw new Error(`Unable to upsert synthetic profiles: ${profileError.message}`);
+  }
+
+  // Specialties are matched by name: migration 0003 may already have created
+  // them from the old free-text column with generated ids.
+  const { data: specialtyRows, error: specialtyError } = await supabase
+    .from("specialties")
+    .upsert(
+      SPECIALTY_NAMES.map((name) => ({ name, is_active: true })),
+      { onConflict: "name" },
+    )
+    .select("id, name");
+  if (specialtyError || !specialtyRows) {
+    throw new Error(`Unable to upsert specialties: ${specialtyError?.message}`);
+  }
+  const specialtyId = Object.fromEntries(
+    specialtyRows.map((row) => [row.name, row.id]),
+  );
+
+  // Directory entries must exist before appointments, which reference doctors.
+  const doctors = [
+    {
+      id: doctorProfileId,
+      full_name: doctorName,
+      department_id: DEPARTMENT_INTERNAL_MEDICINE_ID,
+      specialties: ["Internal Medicine", "Cardiology"],
+    },
+    {
+      id: SECOND_DOCTOR_ID,
+      full_name: "Dr. Paolo Reyes",
+      department_id: DEPARTMENT_PEDIATRICS_ID,
+      specialties: ["Pediatrics", "Family Medicine"],
+    },
+    {
+      id: COLLEAGUE_DOCTOR_ID,
+      full_name: "Dr. Liza Mercado",
+      department_id: DEPARTMENT_INTERNAL_MEDICINE_ID,
+      specialties: ["Internal Medicine"],
+    },
+  ];
+
+  const { error: doctorError } = await supabase.from("doctors").upsert(
+    doctors.map(({ id, full_name, department_id }) => ({
+      id,
+      full_name,
+      department_id,
+      is_active: true,
+    })),
+    { onConflict: "id" },
+  );
+  if (doctorError) {
+    throw new Error(`Unable to upsert doctors: ${doctorError.message}`);
+  }
+
+  const { error: doctorSpecialtyError } = await supabase
+    .from("doctor_specialties")
+    .upsert(
+      doctors.flatMap((doctor) =>
+        doctor.specialties.map((name) => ({
+          doctor_id: doctor.id,
+          specialty_id: specialtyId[name],
+        })),
+      ),
+      { onConflict: "doctor_id,specialty_id", ignoreDuplicates: true },
+    );
+  if (doctorSpecialtyError) {
+    throw new Error(
+      `Unable to link doctor specialties: ${doctorSpecialtyError.message}`,
+    );
+  }
+
+  let adminLinked = false;
+  if (adminEmail) {
+    const adminUser = await ensureAuthUser(supabase, {
+      email: adminEmail,
+      password: process.env.SEED_ADMIN_PASSWORD,
+      fullName: process.env.SEED_ADMIN_NAME?.trim() || "Synthetic Administrator",
+      label: "admin",
+      passwordEnv: "SEED_ADMIN_PASSWORD",
+    });
+    await upsertAdminProfile(
+      supabase,
+      adminUser.id,
+      process.env.SEED_ADMIN_NAME?.trim() || "Synthetic Administrator",
+    );
+    adminLinked = true;
   }
 
   const today = dateInManila(new Date());
@@ -419,49 +538,97 @@ async function main() {
     throw new Error(`Unable to upsert appointments: ${appointmentError.message}`);
   }
 
-  // Regular consultation hours: main doctor Mon–Fri 09:00–17:00 (30 min
-  // slots); Dr. Reyes Mon/Wed/Fri mornings. day_of_week is Sunday-first.
+  // Consultation periods. day_of_week is Sunday-first. The main doctor has
+  // two periods per weekday (30-minute slots); Dr. Reyes has Mon/Wed/Fri
+  // mornings (30-minute slots); Dr. Mercado sees patients Tue/Thu afternoons
+  // in 60-minute slots.
+  const effectiveFrom = addManilaDays(today, -30);
   const schedules = [
-    ...[1, 2, 3, 4, 5].map((dayOfWeek) => ({
-      doctor_id: doctorProfileId,
-      day_of_week: dayOfWeek,
-      start_time: "09:00",
-      end_time: "17:00",
-      slot_duration_minutes: 30,
-      is_active: true,
-    })),
+    ...[1, 2, 3, 4, 5].flatMap((dayOfWeek) => [
+      {
+        id: `00000000-0000-4000-8000-00000000091${dayOfWeek}`,
+        doctor_id: doctorProfileId,
+        day_of_week: dayOfWeek,
+        start_time: "08:00",
+        end_time: "12:00",
+        slot_duration_minutes: 30,
+      },
+      {
+        id: `00000000-0000-4000-8000-00000000092${dayOfWeek}`,
+        doctor_id: doctorProfileId,
+        day_of_week: dayOfWeek,
+        start_time: "13:00",
+        end_time: "17:00",
+        slot_duration_minutes: 30,
+      },
+    ]),
     ...[1, 3, 5].map((dayOfWeek) => ({
+      id: `00000000-0000-4000-8000-00000000093${dayOfWeek}`,
       doctor_id: SECOND_DOCTOR_ID,
       day_of_week: dayOfWeek,
       start_time: "08:00",
       end_time: "12:00",
       slot_duration_minutes: 30,
-      is_active: true,
     })),
-  ];
+    ...[2, 4].map((dayOfWeek) => ({
+      id: `00000000-0000-4000-8000-00000000094${dayOfWeek}`,
+      doctor_id: COLLEAGUE_DOCTOR_ID,
+      day_of_week: dayOfWeek,
+      start_time: "13:00",
+      end_time: "17:00",
+      slot_duration_minutes: 60,
+    })),
+  ].map((schedule) => ({
+    ...schedule,
+    effective_from: effectiveFrom,
+    effective_until: null,
+    is_active: true,
+  }));
+
+  // Retire (never delete) other active periods of the seed doctors, such as
+  // pre-0003 one-per-day rows, so they cannot overlap the seeded periods.
+  const { error: retireError } = await supabase
+    .from("doctor_schedules")
+    .update({ is_active: false })
+    .in("doctor_id", doctors.map((doctor) => doctor.id))
+    .not("id", "in", `(${schedules.map((schedule) => schedule.id).join(",")})`);
+  if (retireError) {
+    throw new Error(`Unable to retire old schedules: ${retireError.message}`);
+  }
 
   const { error: scheduleError } = await supabase
     .from("doctor_schedules")
-    .upsert(schedules, { onConflict: "doctor_id,day_of_week" });
+    .upsert(schedules, { onConflict: "id" });
   if (scheduleError) {
     throw new Error(`Unable to upsert schedules: ${scheduleError.message}`);
   }
 
-  const blockedSlots = [
+  const scheduleExceptions = [
     {
       id: "00000000-0000-4000-8000-000000000401",
       doctor_id: doctorProfileId,
-      starts_at: at(tomorrow, "13:00"),
-      ends_at: at(tomorrow, "17:00"),
+      start_datetime: at(tomorrow, "13:00"),
+      end_datetime: at(tomorrow, "17:00"),
+      exception_type: "blocked_period",
       reason: "Hospital committee meeting",
+    },
+    {
+      id: "00000000-0000-4000-8000-000000000402",
+      doctor_id: COLLEAGUE_DOCTOR_ID,
+      start_datetime: at(addManilaDays(today, 6), "00:00"),
+      end_datetime: at(addManilaDays(today, 7), "00:00"),
+      exception_type: "leave",
+      reason: "Annual leave",
     },
   ];
 
-  const { error: blockError } = await supabase
-    .from("doctor_blocked_slots")
-    .upsert(blockedSlots, { onConflict: "id" });
-  if (blockError) {
-    throw new Error(`Unable to upsert blocked slots: ${blockError.message}`);
+  const { error: exceptionError } = await supabase
+    .from("schedule_exceptions")
+    .upsert(scheduleExceptions, { onConflict: "id" });
+  if (exceptionError) {
+    throw new Error(
+      `Unable to upsert schedule exceptions: ${exceptionError.message}`,
+    );
   }
 
   const notifications = [
@@ -509,13 +676,16 @@ async function main() {
 
   console.log("Seed complete.");
   console.log(`Doctor login: ${doctorEmail}`);
+  console.log(
+    adminLinked ? `Admin login: ${adminEmail}` : "Admin: not provisioned (set SEED_ADMIN_EMAIL)",
+  );
   console.log(`Doctor profile: ${doctorProfileId}`);
   console.log(`Synthetic profiles: ${syntheticProfiles.length}`);
   console.log(
     `Appointments: ${appointments.length} (${todayCount} today, ${appointments.length - todayCount} other days)`,
   );
   console.log(
-    `Schedules: ${schedules.length} · Blocked slots: ${blockedSlots.length} · Notifications: ${notifications.length}`,
+    `Doctors: ${doctors.length} · Specialties: ${SPECIALTY_NAMES.length} · Schedule periods: ${schedules.length} · Exceptions: ${scheduleExceptions.length} · Notifications: ${notifications.length}`,
   );
   console.log(
     `Manila dates: ${today} and ${tomorrow}. Re-running the seed resets these synthetic rows.`,

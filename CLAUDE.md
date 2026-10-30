@@ -44,7 +44,8 @@ Next.js 16 (App Router, `cacheComponents`), React 19, TypeScript, Tailwind v4 (v
 - Two Supabase clients:
   - `src/server/auth/client.ts`: per-request cookie-bound client using the publishable key, for **Auth only**.
   - `src/server/db/admin-client.ts`: cached service-role client for **all table reads and writes**. It bypasses RLS, and the migrations revoke `anon`/`authenticated` table access, so application-layer checks are the only authorization.
-- Roles (`patient`, `doctor`) live in `profiles.role`. A DB trigger creates a patient profile for every new auth user. Doctors are promoted only by the seed script, not through registration.
+- Roles (`patient`, `doctor`, `admin`) live in `profiles.role`. A DB trigger creates a patient profile for every new auth user. Doctors are promoted by an admin at `/admin` or by the seed script; admins only by the seed script. Neither comes from registration. `getAdminSession()` in `dal.ts` guards every admin page and action.
+- `doctors` is a 1:1 extension of doctor profiles (`doctors.id = profiles.id`) holding department, active flag, and (through `doctor_specialties`) specialties.
 - Env is validated lazily with Zod: `src/lib/config.public.ts` handles `NEXT_PUBLIC_*` and `src/server/config.ts` handles the service-role key.
 
 ### Database

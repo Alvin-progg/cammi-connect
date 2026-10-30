@@ -1,0 +1,174 @@
+import "server-only";
+
+import {
+  chatRequestSchema,
+  type ChatMessage,
+  type ChatRole,
+  type ConversationSummary,
+} from "@/lib/chat/schemas";
+import { ProviderError } from "@/server/ai/http";
+import type { PatientApiAccess } from "@/server/auth/dal";
+
+import { handleTurn, type TurnDeps } from "./orchestrator";
+
+/** ADR-0008: user messages per patient per minute, across all conversations. */
+export const CHAT_RATE_LIMIT_PER_MINUTE = 10;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const TITLE_MAX_LENGTH = 60;
+
+export type NewChatMessage = { role: ChatRole; content: string; createdAt: Date };
+
+export type ChatStore = {
+  /** Returns null when the conversation does not exist or is not the patient's. */
+  getConversation(patientId: string, conversationId: string): Promise<ConversationSummary | null>;
+  /** Callers must check ownership with getConversation first. */
+  listMessages(conversationId: string): Promise<ChatMessage[]>;
+  countRecentUserMessages(patientId: string, since: Date): Promise<number>;
+  createConversation(input: { id: string; patientId: string; title: string }): Promise<void>;
+  appendMessages(conversationId: string, messages: NewChatMessage[]): Promise<ChatMessage[]>;
+};
+
+export type ChatOutcome =
+  | "ok"
+  | "unauthenticated"
+  | "forbidden"
+  | "invalid_json"
+  | "invalid_request"
+  | "not_found"
+  | "rate_limited"
+  | "unavailable";
+
+/** Log entries hold IDs and outcomes only, never message text (SPEC §7.3). */
+export type ChatLogEntry = {
+  requestId: string;
+  outcome: ChatOutcome;
+  status: number;
+  /** For 503s: the provider and failure kind, or "internal". */
+  cause?: string;
+};
+
+export type ChatHandlerDeps = {
+  resolvePatient: () => Promise<PatientApiAccess>;
+  store: ChatStore;
+  generate: TurnDeps["generate"];
+  now: () => Date;
+  newId: () => string;
+  log: (entry: ChatLogEntry) => void;
+};
+
+const ERROR_MESSAGES: Record<Exclude<ChatOutcome, "ok">, string> = {
+  unauthenticated: "Please sign in to use the chat.",
+  forbidden: "The chat is only available to patient accounts.",
+  invalid_json: "The request could not be read.",
+  invalid_request: "Please enter a message of up to 1000 characters.",
+  not_found: "This conversation could not be found.",
+  rate_limited: "You're sending messages too quickly. Please wait a moment and try again.",
+  unavailable: "The assistant is unavailable right now. Please try again in a moment.",
+};
+
+const ERROR_STATUS: Record<Exclude<ChatOutcome, "ok">, number> = {
+  unauthenticated: 401,
+  forbidden: 403,
+  invalid_json: 400,
+  invalid_request: 422,
+  not_found: 404,
+  rate_limited: 429,
+  unavailable: 503,
+};
+
+const NO_STORE = { "cache-control": "private, no-store" };
+
+function conversationTitle(text: string): string {
+  return text.length <= TITLE_MAX_LENGTH ? text : `${text.slice(0, TITLE_MAX_LENGTH - 1)}…`;
+}
+
+/**
+ * POST /api/v1/chat. Authentication and validation run before any provider
+ * call, and messages are saved only after the assistant reply exists, so a
+ * failed turn leaves nothing behind and the client can retry its draft.
+ */
+export async function handleChatRequest(
+  request: Request,
+  deps: ChatHandlerDeps,
+): Promise<Response> {
+  const requestId = deps.newId();
+
+  function fail(outcome: Exclude<ChatOutcome, "ok">, cause?: string): Response {
+    const status = ERROR_STATUS[outcome];
+    deps.log({ requestId, outcome, status, ...(cause ? { cause } : {}) });
+    return Response.json(
+      { error: { code: outcome, message: ERROR_MESSAGES[outcome] }, requestId },
+      { status, headers: NO_STORE },
+    );
+  }
+
+  try {
+    const access = await deps.resolvePatient();
+    if (access.status !== "ok") {
+      return fail(access.status);
+    }
+    const patientId = access.patient.id;
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return fail("invalid_json");
+    }
+    const parsed = chatRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return fail("invalid_request");
+    }
+    const { conversationId: requestedId, event } = parsed.data;
+
+    if (requestedId && !(await deps.store.getConversation(patientId, requestedId))) {
+      return fail("not_found");
+    }
+
+    const now = deps.now();
+    const recentCount = await deps.store.countRecentUserMessages(
+      patientId,
+      new Date(now.getTime() - RATE_LIMIT_WINDOW_MS),
+    );
+    if (recentCount >= CHAT_RATE_LIMIT_PER_MINUTE) {
+      return fail("rate_limited");
+    }
+
+    const conversationId = requestedId ?? deps.newId();
+    const history = requestedId ? await deps.store.listMessages(requestedId) : [];
+    const { reply } = await handleTurn(
+      {
+        conversationId,
+        history: history.map(({ role, content }) => ({ role, content })),
+        event,
+      },
+      { generate: deps.generate },
+    );
+
+    if (!requestedId) {
+      await deps.store.createConversation({
+        id: conversationId,
+        patientId,
+        title: conversationTitle(event.text),
+      });
+    }
+    // Distinct timestamps keep the pair in order when the thread is reloaded.
+    const saved = await deps.store.appendMessages(conversationId, [
+      { role: "user", content: event.text, createdAt: now },
+      { role: "assistant", content: reply, createdAt: new Date(now.getTime() + 1) },
+    ]);
+
+    deps.log({ requestId, outcome: "ok", status: 200 });
+    // Booking state arrives in S3; S1 conversations have none.
+    return Response.json(
+      { conversationId, messages: saved, state: null, requestId },
+      { headers: NO_STORE },
+    );
+  } catch (error) {
+    // Provider errors, timeouts, missing AI config, and database failures all
+    // become a controlled 503 with no internal details for the client.
+    const cause =
+      error instanceof ProviderError ? `${error.provider}:${error.kind}` : "internal";
+    return fail("unavailable", cause);
+  }
+}

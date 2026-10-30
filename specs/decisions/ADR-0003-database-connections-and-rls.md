@@ -84,6 +84,24 @@ The migration revokes `anon`/`authenticated` access and creates no policies, so 
 Data API reads return nothing. The browser never queries `profiles` or `appointments`
 directly.
 
+## Note (2026-10-30, DOC-SCH-001)
+
+The doctor, specialty, and schedule tables added in migration `0003` follow the same
+model: RLS enabled with no permissive policies, `anon`/`authenticated` privileges
+revoked, and `service_role` granted. The `cammi_connect_book_appointment` database
+function is `security invoker` with `EXECUTE` revoked from `public`, `anon`, and
+`authenticated` and granted only to `service_role`. Front Desk and AI Chatbot access
+will also go through the server layer, not through RLS policies.
+
+## Note (2026-10-30, AI-APT-001)
+
+The chat and knowledge tables (`chat_conversations`, `chat_messages`,
+`knowledge_documents`, `knowledge_chunks`) follow the same model. pgvector is enabled in
+the `extensions` schema and used only through `security invoker` database functions
+(`cammi_connect_match_knowledge_chunks`, `cammi_connect_replace_document_chunks`)
+executable by `service_role` only, called through the Data API with `rpc()`. There is
+still no `DATABASE_URL` or direct Postgres connection.
+
 ## Consequences
 
 - No new database dependency and no database password is required.

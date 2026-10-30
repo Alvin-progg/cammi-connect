@@ -38,13 +38,18 @@ function createReader(
 const AVAILABILITY = {
   listSchedulesForDoctor: vi.fn().mockResolvedValue([
     {
+      id: "00000000-0000-4000-8000-000000000901",
+      doctorId: "doctor-1",
       dayOfWeek: 1,
       startTime: "09:00",
       endTime: "17:00",
+      slotDurationMinutes: 30,
+      effectiveFrom: "2026-01-01",
+      effectiveUntil: null,
       isActive: true,
     },
   ]),
-  listBlocksForDoctor: vi.fn().mockResolvedValue([]),
+  listExceptionsForDoctor: vi.fn().mockResolvedValue([]),
 };
 
 beforeEach(() => {

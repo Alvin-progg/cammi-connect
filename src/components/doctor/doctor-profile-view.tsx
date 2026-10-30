@@ -11,9 +11,12 @@ import { ProfileContactForm } from "./doctor-profile-panel";
 export function DoctorProfileView({
   details,
   schedules,
+  today,
 }: {
   details: DoctorProfileDetails;
   schedules: WeeklySchedule[];
+  /** Manila date; periods not effective today are left out of the summary. */
+  today: string;
 }) {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -53,7 +56,7 @@ export function DoctorProfileView({
               Consultation schedule
             </dt>
             <dd className="text-sm text-ink">
-              {formatScheduleSummary(schedules)}
+              {formatScheduleSummary(schedules, today)}
             </dd>
           </div>
         </dl>

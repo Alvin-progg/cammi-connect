@@ -106,6 +106,41 @@ collected, and a `scheduled_at` snapshot.
 - Cancellation windows, reschedule limits, and slot generation for patient self-booking
   remain deferred.
 
+### Doctor, specialty, and schedule management (amended 2026-10-30, DOC-SCH-001)
+
+This amendment supersedes the one-row-per-weekday model above.
+
+- **Doctors.** `doctors` is a 1:1 extension of `profiles` (`doctors.id` references
+  `profiles(id)`). It holds `department_id`, `full_name`, and `is_active`. Specialties are
+  a managed catalogue linked through `doctor_specialties` (many-to-many).
+  `appointments`, `doctor_schedules`, and `schedule_exceptions` reference `doctors(id)`.
+- **Schedule periods.** A doctor may have several `doctor_schedules` rows per weekday.
+  Each row has `effective_from` and an optional `effective_until` (Manila dates,
+  inclusive). Active rows for the same doctor and weekday may not overlap in time while
+  their effective ranges overlap; the service rejects this with a friendly error and an
+  exclusion constraint enforces it.
+- **Exceptions.** `doctor_blocked_slots` is renamed `schedule_exceptions` with
+  `start_datetime`, `end_datetime`, and an `exception_type` of `leave`,
+  `blocked_period`, `unavailable_date`, or `temporary_change`. Exceptions only remove
+  availability. Temporary added hours are modelled as effective-dated periods.
+- **Slot generation.** Slots are generated server-side from active periods on their
+  effective dates. A slot's length is the period's `slot_duration_minutes`; slots start
+  on a grid from the period start, and a partial last slot is not offered. Past slots,
+  slots that overlap an exception, and slots that overlap an active appointment are
+  excluded.
+- **Booking.** Bookings go through the `cammi_connect_book_appointment` database
+  function. In one transaction it locks the doctor row, re-checks the future time,
+  consultation hours, slot grid, and exceptions, inserts the `requested` appointment
+  with the schedule's duration, and writes the creation status-history row. The
+  `appointments_no_active_overlap` constraint still rejects overlaps. The patient ID
+  always comes from the session.
+- **Schedule edits.** Schedule changes never modify existing appointments. Saving a
+  schedule reports the number of future active appointments that now fall outside the
+  doctor's hours.
+- **Management.** Admins manage departments, specialties, doctors, and any doctor's
+  schedule. Doctors keep editing their own schedule periods and exceptions. Front Desk
+  and AI Chatbot roles are deferred.
+
 ## Consequences
 
 - The doctor dashboard can implement the approved mutation, schedule, notification,

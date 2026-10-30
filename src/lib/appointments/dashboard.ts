@@ -10,7 +10,6 @@ export const DOCTOR_VIEWS = [
   "week",
   "calendar",
   "stats",
-  "notifications",
   "profile",
 ] as const;
 
@@ -24,7 +23,6 @@ export const DOCTOR_VIEW_LABELS: Record<DoctorView, string> = {
   week: "Schedule",
   calendar: "Availability",
   stats: "Statistics",
-  notifications: "Notifications",
   profile: "Profile",
 };
 

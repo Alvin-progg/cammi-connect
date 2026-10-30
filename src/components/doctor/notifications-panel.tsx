@@ -17,8 +17,9 @@ const TYPE_TONES: Record<NotificationType, string> = {
 };
 
 /**
- * Notification center: computed next-24-hour reminders on top, then the
- * persisted notification feed (new requests, cancellations, reschedules).
+ * Notification center body, shown inside the notifications modal: computed
+ * next-24-hour reminders on top, then the persisted notification feed (new
+ * requests, cancellations, reschedules). The modal supplies the h2 title.
  */
 export function NotificationsPanel({
   notifications,
@@ -37,12 +38,12 @@ export function NotificationsPanel({
         aria-labelledby="reminders-heading"
         className="rounded-xl border border-accent/30 bg-accent-soft p-4 sm:p-5"
       >
-        <h2
+        <h3
           id="reminders-heading"
           className="text-base font-semibold text-ink"
         >
           Upcoming consultations (next 24 hours)
-        </h2>
+        </h3>
         {reminders.length === 0 ? (
           <p className="mt-2 text-sm text-ink-secondary">
             No confirmed consultations in the next 24 hours.
@@ -72,17 +73,17 @@ export function NotificationsPanel({
 
       <section aria-labelledby="notifications-heading">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2
+          <h3
             id="notifications-heading"
-            className="text-xl font-semibold text-ink"
+            className="text-base font-semibold text-ink"
           >
-            Notifications
+            Recent activity
             {unreadCount > 0 ? (
               <span className="ml-2 inline-flex min-w-6 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 align-middle text-xs font-semibold tabular-nums text-primary-ink">
                 {unreadCount}
               </span>
             ) : null}
-          </h2>
+          </h3>
           {unreadCount > 0 ? <MarkAllReadButton /> : null}
         </div>
 

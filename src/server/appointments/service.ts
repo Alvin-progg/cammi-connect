@@ -17,6 +17,7 @@ import {
   type AppointmentFilters,
 } from "@/lib/appointments/filters";
 import { validateAppointmentSlot } from "@/lib/schedules/availability";
+import type { DoctorSchedulesStore } from "@/server/schedules/service";
 
 export type ActiveInterval = { start: string; end: string };
 
@@ -77,22 +78,26 @@ export type DoctorAppointmentsReader = {
 };
 
 /** Minimal schedule-read contract needed for reschedule validation. */
-export type DoctorAvailabilityReader = {
-  listSchedulesForDoctor(
-    doctorId: string,
-  ): Promise<
-    {
-      dayOfWeek: number;
-      startTime: string;
-      endTime: string;
-      isActive: boolean;
-    }[]
-  >;
-  listBlocksForDoctor(input: {
+export type DoctorAvailabilityReader = Pick<
+  DoctorSchedulesStore,
+  "listSchedulesForDoctor" | "listExceptionsForDoctor"
+>;
+
+/**
+ * Atomic booking contract, implemented by the cammi_connect_book_appointment
+ * database function. A failure carries the raw database error so the service
+ * can translate it without leaking internals.
+ */
+export type AppointmentBooker = {
+  book(input: {
     doctorId: string;
-    start: string;
-    end: string;
-  }): Promise<{ startsAt: string; endsAt: string }[]>;
+    patientId: string;
+    scheduledAt: string;
+    reason: string | null;
+  }): Promise<
+    | { ok: true; appointmentId: string }
+    | { ok: false; error: { code: string; message: string } }
+  >;
 };
 
 export type MutationResult = { ok: true } | { ok: false; message: string };
@@ -207,14 +212,14 @@ const RESCHEDULE_REJECTION_MESSAGES = {
   past: "Choose a future date and time.",
   outside_hours:
     "That time is outside your regular consultation hours. Adjust your schedule first if needed.",
-  blocked: "That time overlaps one of your blocked slots.",
+  blocked: "That time overlaps one of your schedule exceptions.",
   overlap: "That time overlaps another appointment.",
 } as const;
 
 /**
  * Reschedules a requested/confirmed appointment to a new time. The new slot
- * must be in the future, inside an active weekly schedule window, outside
- * blocked slots, and free of overlaps with other active appointments.
+ * must be in the future, inside an active consultation period, outside
+ * schedule exceptions, and free of overlaps with other active appointments.
  */
 export async function rescheduleDoctorAppointment(
   input: {
@@ -246,7 +251,7 @@ export async function rescheduleDoctorAppointment(
   const day = manilaDayRange(manilaDateOf(input.newScheduledAt));
   const [schedules, blocks, existing] = await Promise.all([
     readers.availability.listSchedulesForDoctor(input.doctorId),
-    readers.availability.listBlocksForDoctor({
+    readers.availability.listExceptionsForDoctor({
       doctorId: input.doctorId,
       start: day.start.toISOString(),
       end: day.end.toISOString(),
@@ -299,6 +304,51 @@ export async function rescheduleDoctorAppointment(
     scheduledAtSnapshot: input.newScheduledAt.toISOString(),
   });
   return { ok: true };
+}
+
+/** Messages for the coded rejections raised by the booking function. */
+const BOOKING_REJECTION_MESSAGES: Record<string, string> = {
+  inactive_doctor: "This doctor is not accepting appointments.",
+  past: "Choose a future appointment time.",
+  outside_hours: "That time is outside the doctor's consultation hours.",
+  blocked: "The doctor is unavailable at that time.",
+};
+
+const RAISED_EXCEPTION = "P0001";
+const EXCLUSION_VIOLATION = "23P01";
+
+/**
+ * Books a slot for the session patient. Availability is re-checked and the
+ * appointment plus its history row are written in one database transaction,
+ * so a stale slot list cannot produce a double booking.
+ */
+export async function bookAppointment(
+  input: {
+    patientId: string;
+    doctorId: string;
+    scheduledAt: Date;
+    reason: string | null;
+  },
+  booker: AppointmentBooker,
+): Promise<{ ok: true; appointmentId: string } | { ok: false; message: string }> {
+  const result = await booker.book({
+    doctorId: input.doctorId,
+    patientId: input.patientId,
+    scheduledAt: input.scheduledAt.toISOString(),
+    reason: input.reason,
+  });
+  if (result.ok) {
+    return result;
+  }
+
+  const { code, message } = result.error;
+  if (code === EXCLUSION_VIOLATION) {
+    return { ok: false, message: "That slot was just booked. Choose another time." };
+  }
+  if (code === RAISED_EXCEPTION && Object.hasOwn(BOOKING_REJECTION_MESSAGES, message)) {
+    return { ok: false, message: BOOKING_REJECTION_MESSAGES[message] };
+  }
+  throw new Error("Unable to book the appointment.");
 }
 
 function manilaDateOf(date: Date): string {

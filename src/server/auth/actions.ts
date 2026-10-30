@@ -17,11 +17,12 @@ import { getProfileForAuthUser } from "@/server/profiles/service";
 import { signIn, signOut, signUpPatient } from "./service";
 
 const DEFAULT_AUTH_REDIRECT = "/account";
+const PATIENT_LANDING_PATH = "/chat";
 
 const ROLE_LANDING_PATHS: Record<UserRole, string> = {
   doctor: "/doctor",
   admin: DEFAULT_AUTH_REDIRECT, // No admin dashboard route yet.
-  patient: DEFAULT_AUTH_REDIRECT,
+  patient: PATIENT_LANDING_PATH,
 };
 
 function readString(value: FormDataEntryValue | null): string {
@@ -101,8 +102,9 @@ export async function registerAction(
   }
 
   const { fullName, email, password } = parsed.data;
+  // Registration only ever creates patients, so the fallback is the patient landing.
   const next =
-    sanitizeReturnPath(readString(formData.get("next"))) || DEFAULT_AUTH_REDIRECT;
+    sanitizeReturnPath(readString(formData.get("next"))) || PATIENT_LANDING_PATH;
 
   const result = await signUpPatient({ fullName, email, password, next });
   if (!result.ok) {

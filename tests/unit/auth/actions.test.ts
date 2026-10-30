@@ -52,9 +52,9 @@ beforeEach(() => {
 });
 
 describe("loginAction", () => {
-  it("redirects a patient to /account with a sign-in notice", async () => {
+  it("redirects a patient to /chat with a sign-in notice", async () => {
     await loginAction({}, loginFormData());
-    expect(redirect).toHaveBeenCalledWith("/account?auth_notice=signed-in");
+    expect(redirect).toHaveBeenCalledWith("/chat?auth_notice=signed-in");
   });
 
   it("redirects a doctor to the doctor dashboard", async () => {
@@ -120,9 +120,9 @@ describe("loginAction", () => {
     );
   });
 
-  it("falls back to /account when next is an open-redirect candidate", async () => {
+  it("falls back to the role landing path when next is an open-redirect candidate", async () => {
     await loginAction({}, loginFormData({ next: "//evil.example" }));
-    expect(redirect).toHaveBeenCalledWith("/account?auth_notice=signed-in");
+    expect(redirect).toHaveBeenCalledWith("/chat?auth_notice=signed-in");
   });
 
   it("returns field errors and skips sign-in for invalid input", async () => {
@@ -147,6 +147,12 @@ describe("registerAction", () => {
     expect(redirect).toHaveBeenCalledWith("/account");
   });
 
+  it("sends a new patient to /chat when no next path is given", async () => {
+    vi.mocked(signUpPatient).mockResolvedValue({ ok: true, sessionCreated: true });
+    await registerAction({}, registerFormData());
+    expect(redirect).toHaveBeenCalledWith("/chat");
+  });
+
   it("returns a neutral confirmation when email confirmation is required", async () => {
     vi.mocked(signUpPatient).mockResolvedValue({ ok: true, sessionCreated: false });
     const state = await registerAction({}, registerFormData());
@@ -160,7 +166,7 @@ describe("registerAction", () => {
     vi.mocked(signUpPatient).mockResolvedValue({ ok: true, sessionCreated: false });
     await registerAction({}, registerFormData({ next: "//evil.example" }));
     expect(signUpPatient).toHaveBeenCalledWith(
-      expect.objectContaining({ next: "/account" }),
+      expect.objectContaining({ next: "/chat" }),
     );
   });
 

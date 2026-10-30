@@ -1,7 +1,7 @@
 import type { AppointmentStatus } from "@/lib/appointments/status";
 import { manilaDateOfTimestamp } from "@/lib/appointments/stats";
 
-import type { WeeklySchedule } from "./types";
+import { isScheduleEffectiveOn, type WeeklySchedule } from "./types";
 
 export type CalendarDaySummary = {
   /** Manila calendar date, YYYY-MM-DD. */
@@ -29,13 +29,16 @@ function manilaShifted(date: Date): Date {
 
 /**
  * Builds a fixed 6-week Sunday-first grid for a Manila month ("YYYY-MM").
- * Schedule flags come from the weekly pattern; blocks and appointment counts
- * are matched by Manila calendar date.
+ * Schedule flags come from the weekly periods effective on each date; blocks
+ * and appointment counts are matched by Manila calendar date.
  */
 export function buildMonthGrid(input: {
   month: string;
   today: string;
-  schedules: Pick<WeeklySchedule, "dayOfWeek" | "isActive">[];
+  schedules: Pick<
+    WeeklySchedule,
+    "dayOfWeek" | "isActive" | "effectiveFrom" | "effectiveUntil"
+  >[];
   blockedDates: string[];
   countByDate: Map<string, Partial<Record<AppointmentStatus, number>>>;
 }): CalendarMonthGrid {
@@ -45,11 +48,7 @@ export function buildMonthGrid(input: {
   const daysInMonth = new Date(Date.UTC(year, monthIndex, 0)).getUTCDate();
 
   const blockedSet = new Set(input.blockedDates);
-  const activeDays = new Set(
-    input.schedules
-      .filter((schedule) => schedule.isActive)
-      .map((schedule) => schedule.dayOfWeek),
-  );
+  const activeSchedules = input.schedules.filter((schedule) => schedule.isActive);
 
   const days: CalendarDaySummary[] = [];
   for (let cell = 0; cell < 42; cell += 1) {
@@ -66,7 +65,10 @@ export function buildMonthGrid(input: {
       dayOfMonth: manilaShifted(cellDate).getUTCDate(),
       inMonth,
       isToday: date === input.today,
-      hasSchedule: activeDays.has(dayOfWeek),
+      hasSchedule: activeSchedules.some(
+        (schedule) =>
+          schedule.dayOfWeek === dayOfWeek && isScheduleEffectiveOn(schedule, date),
+      ),
       blocked: blockedSet.has(date),
       counts: input.countByDate.get(date) ?? {},
     });

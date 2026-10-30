@@ -36,9 +36,24 @@ a fixed dataset and recorded settings.
 
 No corpus or dataset is approved yet.
 
-## Decision
+## Decision (2026-10-30, AI-APT-001 — corpus only)
 
-TBD. Do not create evaluation fixtures until approved.
+Approved by the human owner through `PLN-002`:
+
+- **Corpus:** a small synthetic, clearly labelled Markdown corpus in
+  `db/knowledge/*.md` (created in AI-APT-001 S2) covering hospital services, a
+  departments overview, appointment requirements, required documents, and visit
+  guidelines.
+- **Excluded facts:** the corpus contains no doctor names, specialties per doctor, or
+  schedules. Those are answered from the database only, so RAG can never contradict
+  availability.
+- **Format and chunking:** Markdown with headings; heading-aware chunks of about 500
+  tokens with about 75 overlap; each chunk keeps its document title and section title.
+- **Real documents:** still not approved. Any real hospital document needs a new
+  decision here and a provider data-retention review (SPEC §7.3).
+- **Evaluation set:** deferred. No evaluation fixtures are created, and no retrieval
+  quality is claimed. S2 uses only targeted smoke checks (one cited answer, one
+  fallback).
 
 ## Consequences
 
@@ -48,7 +63,7 @@ TBD. Do not create evaluation fixtures until approved.
 
 ## Approval
 
-- [ ] Corpus manifest approved.
+- [x] Corpus manifest approved 2026-10-30 via `PLN-002` (synthetic topics above).
 - [ ] Evaluation categories and size approved.
 - [ ] Fixture locations approved.
 - [ ] Real-document approval process approved.
