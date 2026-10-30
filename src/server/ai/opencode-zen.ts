@@ -15,6 +15,12 @@ export type ChatTurn = { role: "user" | "assistant"; content: string };
 export type GenerateInput = {
   systemPrompt: string;
   messages: ChatTurn[];
+  /**
+   * Stable ID for one chat conversation, sent as `x-opencode-session`. OpenCode Go
+   * rejects requests without it (ADR-0006). Use a random conversation ID, never a
+   * patient or user identifier.
+   */
+  sessionId: string;
   /** Asks for `response_format: json_object`; callers still validate with Zod. */
   json?: boolean;
   signal?: AbortSignal;
@@ -29,6 +35,10 @@ export type OpenCodeZenDeps = {
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
 };
+
+// OpenCode Go asks clients to identify themselves rather than send a generic
+// HTTP-library user agent (ADR-0006).
+const USER_AGENT = "cammi-connect/0.1";
 
 const chatCompletionResponseSchema = z.object({
   choices: z
@@ -47,7 +57,7 @@ function depsFromEnv(): OpenCodeZenDeps {
   };
 }
 
-/** Generates one assistant reply through the OpenAI-compatible Zen endpoint. */
+/** Generates one assistant reply through the OpenAI-compatible OpenCode endpoint. */
 export async function generate(
   input: GenerateInput,
   deps: OpenCodeZenDeps = depsFromEnv(),
@@ -66,6 +76,8 @@ export async function generate(
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${deps.apiKey}`,
+        "user-agent": USER_AGENT,
+        "x-opencode-session": input.sessionId,
       },
       body: JSON.stringify(body),
     },

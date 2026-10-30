@@ -2,9 +2,9 @@
  * Small inline icon set for the doctor workspace. Line icons, 1.5px stroke on
  * a 24px grid, decorative only (always aria-hidden).
  */
-type IconProps = { className?: string };
+export type IconProps = { className?: string };
 
-function BaseIcon({
+export function BaseIcon({
   className = "size-5",
   children,
 }: IconProps & { children: React.ReactNode }) {

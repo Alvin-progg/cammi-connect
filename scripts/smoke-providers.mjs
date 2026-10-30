@@ -68,7 +68,13 @@ async function smokeZen() {
   const baseUrl = requireEnv("OPENCODE_ZEN_BASE_URL").replace(/\/+$/, "");
   const model = requireEnv("OPENCODE_ZEN_MODEL");
   const url = `${baseUrl}/chat/completions`;
-  const headers = { authorization: `Bearer ${apiKey}` };
+  // OpenCode Go rejects requests without a session ID and asks clients to send
+  // their own user agent (ADR-0006). One ID covers both requests of this run.
+  const headers = {
+    authorization: `Bearer ${apiKey}`,
+    "user-agent": "cammi-connect-smoke/0.1",
+    "x-opencode-session": crypto.randomUUID(),
+  };
   const messages = [
     {
       role: "system",
@@ -88,6 +94,21 @@ async function smokeZen() {
     console.log(`PASS  Zen ${model}: chat completion with response_format json_object`);
     console.log(`INFO  json mode supported: yes; reply parses as JSON: ${parses ? "yes" : "no"}`);
     return true;
+  }
+
+  // Only a 400/422 says something about json mode; auth, rate-limit, and server
+  // errors would fail the plain request too.
+  if (jsonMode.status !== 400 && jsonMode.status !== 422) {
+    const hint =
+      jsonMode.status === 429
+        ? " (rate limited or quota exhausted; free-tier models only work through the OpenCode client)"
+        : jsonMode.status === 402
+          ? " (no credit: add a balance or enable auto-recharge in the Zen console)"
+          : jsonMode.status === 401 || jsonMode.status === 403
+          ? " (check OPENCODE_ZEN_API_KEY and the model's access)"
+          : "";
+    console.error(`FAIL  Zen ${model}: HTTP ${jsonMode.status}${hint}`);
+    return false;
   }
 
   console.log(`INFO  json mode request returned HTTP ${jsonMode.status}; retrying without it`);

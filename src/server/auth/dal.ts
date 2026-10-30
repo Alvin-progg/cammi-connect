@@ -114,3 +114,29 @@ export async function getPatientSession(
     },
   };
 }
+
+export type PatientApiAccess =
+  | { status: "unauthenticated" }
+  | { status: "forbidden" }
+  | { status: "ok"; patient: PatientSession["patient"] };
+
+/**
+ * Patient check for route handlers. Unlike getPatientSession it never
+ * redirects, so a JSON API can answer 401 or 403 itself.
+ */
+export async function resolvePatientForApi(): Promise<PatientApiAccess> {
+  const user = await getUser();
+  if (!user) {
+    return { status: "unauthenticated" };
+  }
+
+  const profile = await getProfileForAuthUser(user.id);
+  if (!profile || profile.role !== "patient") {
+    return { status: "forbidden" };
+  }
+
+  return {
+    status: "ok",
+    patient: { id: profile.id, fullName: profile.fullName.trim() || "Patient" },
+  };
+}

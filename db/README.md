@@ -27,8 +27,11 @@ GEMINI_API_KEY=...
 GEMINI_EMBEDDING_MODEL=gemini-embedding-001
 EMBEDDING_DIMENSIONS=768
 OPENCODE_ZEN_API_KEY=...
-OPENCODE_ZEN_BASE_URL=https://opencode.ai/inference/openai/v1
-# A paid Zen model ID; free-tier models only work through the OpenCode client.
+# Pay-as-you-go (needs Console credit): https://opencode.ai/inference/openai/v1
+# OpenCode Go subscription (chosen, ADR-0006): https://opencode.ai/inference/go/openai/v1
+OPENCODE_ZEN_BASE_URL=https://opencode.ai/inference/go/openai/v1
+# A model served on chat-completions (e.g. glm-5.3-flash); free-tier models only
+# work through the OpenCode client.
 OPENCODE_ZEN_MODEL=...
 # Optional: per-attempt timeout and extra attempts for transient failures.
 LLM_TIMEOUT_SECONDS=20
@@ -60,7 +63,8 @@ results in ADR-0006 "Smoke results". Each run uses a small amount of provider qu
 Open the Supabase dashboard for the project, go to **SQL Editor**, paste the contents of
 `db/migrations/0001_profiles_appointments.sql`, and run it once. Then run
 `db/migrations/0002_doctor_dashboard_suite.sql` once, then
-`db/migrations/0003_doctor_specialty_schedules.sql` once.
+`db/migrations/0003_doctor_specialty_schedules.sql` once, then
+`db/migrations/0004_chat.sql` once.
 
 `0001_profiles_appointments.sql`:
 
@@ -100,6 +104,29 @@ Open the Supabase dashboard for the project, go to **SQL Editor**, paste the con
 
 It drops no data. Deploy the matching application code at the same time, because the
 renamed table and dropped `doctor_schedules_day_unique` constraint break older code.
+
+`0004_chat.sql` (AI-APT-001 S1):
+
+- creates `chat_conversations` (per patient, with a `booking_state` used by later
+  slices) and `chat_messages` (`user`/`assistant` text, cascade-deleted with their
+  conversation);
+- adds the indexes for the conversation list, thread order, and retention purge;
+- applies the same RLS/revoke/grant model.
+
+### Chat retention (ADR-0008)
+
+`chat_messages` are kept for 90 days. There is no automated job; run this purge
+manually in the SQL editor:
+
+```sql
+delete from public.chat_messages
+where created_at < now() - interval '90 days';
+
+delete from public.chat_conversations c
+where not exists (
+  select 1 from public.chat_messages m where m.conversation_id = c.id
+);
+```
 
 If the tables already exist, do not rerun a modified migration blindly. Create a new
 numbered migration instead.
@@ -162,6 +189,13 @@ No real patient data is used.
 11. Sign in with a patient account and confirm `/doctor` shows the neutral access-denied
     page.
 12. Sign out and confirm `/doctor` redirects to `/login?next=%2Fdoctor`.
+12a. Chat (AI-APT-001 S1): register or sign in as a patient and confirm you land on
+    `/chat` with the greeting and three suggestion cards. Send "How do I book?" and
+    confirm the "can't help with that here yet" reply; send "I have chest pain" and
+    confirm the safe decline with the emergency notice. Reload and confirm the thread
+    and its entry in the history drawer persist. Confirm a doctor account sees the
+    access-denied page at `/chat`, and that a signed-out
+    `curl -i -X POST http://localhost:3000/api/v1/chat` returns 401.
 13. Sign in as the seed admin and open `/admin`: add and deactivate a department and a
     specialty; add a directory-only doctor with two specialties; filter doctors by
     department and by specialty; open a doctor's schedule and add a period and an

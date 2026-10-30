@@ -42,6 +42,7 @@ function lastRequest(fetchImpl: ReturnType<typeof vi.fn>) {
 
 const INPUT = {
   systemPrompt: "You are the CamiConnect assistant.",
+  sessionId: "conversation-1",
   messages: [
     { role: "user" as const, content: "Hello" },
     { role: "assistant" as const, content: "Hi! How can I help?" },
@@ -62,6 +63,16 @@ describe("generate", () => {
       model: "test-model",
       messages: [{ role: "system", content: INPUT.systemPrompt }, ...INPUT.messages],
     });
+  });
+
+  it("identifies the app and the conversation, as OpenCode Go requires", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(completion("Sure.")));
+
+    await generate(INPUT, deps(fetchImpl));
+
+    const { headers } = lastRequest(fetchImpl);
+    expect(headers.get("x-opencode-session")).toBe("conversation-1");
+    expect(headers.get("user-agent")).toBe("cammi-connect/0.1");
   });
 
   it("requests JSON mode only when asked", async () => {

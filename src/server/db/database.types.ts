@@ -1,13 +1,23 @@
 import type { AppointmentStatus } from "@/lib/appointments/status";
 import type { UserRole } from "@/lib/auth/roles";
+import type { ChatRole } from "@/lib/chat/schemas";
 import type { NotificationType } from "@/lib/notifications/types";
 import type { ScheduleExceptionType } from "@/lib/schedules/types";
+
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
 
 /**
  * Manual database contract for the application tables. Keep this in sync
  * with db/migrations/0001_profiles_appointments.sql,
- * db/migrations/0002_doctor_dashboard_suite.sql, and
- * db/migrations/0003_doctor_specialty_schedules.sql.
+ * db/migrations/0002_doctor_dashboard_suite.sql,
+ * db/migrations/0003_doctor_specialty_schedules.sql, and
+ * db/migrations/0004_chat.sql.
  */
 export type Database = {
   public: {
@@ -297,6 +307,52 @@ export type Database = {
         };
         Update: {
           read_at?: string | null;
+        };
+        Relationships: [];
+      };
+      chat_conversations: {
+        Row: {
+          id: string;
+          patient_id: string;
+          title: string;
+          booking_state: Json | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          patient_id: string;
+          title: string;
+          booking_state?: Json | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          title?: string;
+          booking_state?: Json | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      chat_messages: {
+        Row: {
+          id: string;
+          conversation_id: string;
+          role: ChatRole;
+          content: string;
+          payload: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          conversation_id: string;
+          role: ChatRole;
+          content: string;
+          payload?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          payload?: Json | null;
         };
         Relationships: [];
       };
