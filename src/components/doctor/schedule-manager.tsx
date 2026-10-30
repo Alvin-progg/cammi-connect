@@ -5,20 +5,17 @@ import {
   shiftCalendarMonth,
 } from "@/lib/appointments/dashboard";
 import {
-  formatManilaDateTime,
-  formatManilaTime,
-} from "@/lib/appointments/format";
+  ScheduleExceptionsSection,
+  SchedulePeriodsSection,
+} from "@/components/schedules/schedule-editor";
 import type { CalendarMonthGrid } from "@/lib/schedules/calendar";
 import {
-  WEEKDAY_LABELS,
   WEEKDAY_SHORT_LABELS,
-  type BlockedSlot,
+  type ScheduleException,
   type WeeklySchedule,
 } from "@/lib/schedules/types";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
 import type { AppointmentStatus } from "@/lib/appointments/status";
-
-import { BlockSlotForm, RemoveBlockButton, ScheduleDayRow } from "./schedule-forms";
 
 const STATUS_DOT_CLASSES: Record<AppointmentStatus, string> = {
   requested: "bg-warning",
@@ -29,90 +26,28 @@ const STATUS_DOT_CLASSES: Record<AppointmentStatus, string> = {
 };
 
 /**
- * Schedule & availability workspace: weekly consultation hours editor,
- * blocked-slot manager, and a Manila month calendar showing schedule days,
- * blocks, and booked appointments.
+ * Schedule & availability workspace: the doctor's own consultation periods,
+ * schedule exceptions, and a Manila month calendar showing schedule days,
+ * exceptions, and booked appointments.
  */
 export function ScheduleManager({
   schedules,
-  blocks,
+  exceptions,
   month,
+  today,
   grid,
 }: {
   schedules: WeeklySchedule[];
-  blocks: BlockedSlot[];
+  exceptions: ScheduleException[];
   month: string;
+  today: string;
   grid: CalendarMonthGrid;
 }) {
-  const scheduleByDay = new Map(
-    schedules.map((schedule) => [schedule.dayOfWeek, schedule]),
-  );
-
   return (
     <div className="flex flex-col gap-8">
-      <section aria-labelledby="weekly-hours-heading">
-        <h2
-          id="weekly-hours-heading"
-          className="text-xl font-semibold text-ink"
-        >
-          Regular consultation hours
-        </h2>
-        <p className="mt-1 text-sm leading-6 text-ink-secondary">
-          Set the days and hours you regularly see patients. Times are in
-          Asia/Manila (PHT).
-        </p>
-        <div className="mt-4 grid gap-3 xl:grid-cols-2">
-          {WEEKDAY_LABELS.map((label, dayOfWeek) => (
-            <ScheduleDayRow
-              key={dayOfWeek}
-              dayOfWeek={dayOfWeek}
-              label={label}
-              schedule={scheduleByDay.get(dayOfWeek) ?? null}
-            />
-          ))}
-        </div>
-      </section>
+      <SchedulePeriodsSection editor="doctor" schedules={schedules} today={today} />
 
-      <section aria-labelledby="blocked-slots-heading">
-        <h2
-          id="blocked-slots-heading"
-          className="text-xl font-semibold text-ink"
-        >
-          Blocked dates and times
-        </h2>
-        <p className="mt-1 text-sm leading-6 text-ink-secondary">
-          Block time you are unavailable — rounds, leave, or meetings. Blocked
-          times are excluded from rescheduling.
-        </p>
-        <div className="mt-4">
-          <BlockSlotForm />
-        </div>
-        {blocks.length === 0 ? (
-          <p className="mt-3 rounded-xl border border-dashed border-line px-4 py-6 text-sm text-ink-muted">
-            No blocked times in this period.
-          </p>
-        ) : (
-          <ul className="mt-3 flex flex-col gap-2">
-            {blocks.map((block) => (
-              <li
-                key={block.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink">
-                    {block.reason}
-                  </p>
-                  <p className="text-xs text-ink-muted">
-                    {formatManilaDateTime(block.startsAt)} –{" "}
-                    {formatManilaTime(block.endsAt)} PHT
-                  </p>
-                </div>
-                <RemoveBlockButton blockId={block.id} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <ScheduleExceptionsSection editor="doctor" exceptions={exceptions} />
 
       <section aria-labelledby="calendar-heading">
         <div className="flex flex-wrap items-center justify-between gap-3">

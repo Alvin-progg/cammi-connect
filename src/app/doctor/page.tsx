@@ -29,7 +29,7 @@ import {
 import { manilaDateOfTimestamp } from "@/lib/appointments/stats";
 import type { AppointmentStatus } from "@/lib/appointments/status";
 import { buildWeekLayout } from "@/lib/appointments/week";
-import type { BlockedSlot } from "@/lib/schedules/types";
+import type { ScheduleException } from "@/lib/schedules/types";
 import { formatScheduleSummary } from "@/lib/schedules/types";
 import { buildMonthGrid } from "@/lib/schedules/calendar";
 import { supabaseDoctorAppointmentsRepository } from "@/server/appointments/repository";
@@ -51,7 +51,7 @@ import {
 } from "@/server/profiles/service";
 import { supabaseDoctorSchedulesRepository } from "@/server/schedules/repository";
 import {
-  listDoctorBlockedSlots,
+  listDoctorExceptions,
   listDoctorSchedules,
 } from "@/server/schedules/service";
 
@@ -69,8 +69,8 @@ type DoctorSearchParams = {
 
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
 
-/** Every Manila calendar date touched by a block, for calendar markers. */
-function expandBlocksToDates(blocks: BlockedSlot[]): string[] {
+/** Every Manila calendar date touched by an exception, for calendar markers. */
+function expandBlocksToDates(blocks: ScheduleException[]): string[] {
   const dates = new Set<string>();
   for (const block of blocks) {
     const startDay = manilaDayRange(
@@ -125,7 +125,7 @@ async function AppointmentsWorkspace({
     { appointmentIds: appointments.map((appointment) => appointment.id) },
     supabaseDoctorAppointmentsRepository,
   );
-  const scheduleHint = formatScheduleSummary(schedules);
+  const scheduleHint = formatScheduleSummary(schedules, todayInManila());
 
   return (
     <AppointmentsCard
@@ -156,9 +156,9 @@ async function CalendarWorkspace({ doctorId, params }: { doctorId: string; param
   const monthStart = manilaDayRange(`${month}-01`).start;
   const monthEnd = manilaDayRange(`${shiftCalendarMonth(month, 1)}-01`).start;
 
-  const [schedules, blocks, appointments] = await Promise.all([
+  const [schedules, exceptions, appointments] = await Promise.all([
     listDoctorSchedules(doctorId, supabaseDoctorSchedulesRepository),
-    listDoctorBlockedSlots(
+    listDoctorExceptions(
       { doctorId, start: monthStart, end: monthEnd },
       supabaseDoctorSchedulesRepository,
     ),
@@ -179,19 +179,21 @@ async function CalendarWorkspace({ doctorId, params }: { doctorId: string; param
     countByDate.set(date, counts);
   }
 
+  const today = todayInManila();
   const grid = buildMonthGrid({
     month,
-    today: todayInManila(),
+    today,
     schedules,
-    blockedDates: expandBlocksToDates(blocks),
+    blockedDates: expandBlocksToDates(exceptions),
     countByDate,
   });
 
   return (
     <ScheduleManager
       schedules={schedules}
-      blocks={blocks}
+      exceptions={exceptions}
       month={month}
+      today={today}
       grid={grid}
     />
   );
@@ -213,7 +215,7 @@ async function StatsWorkspace({
   return <DoctorStatsPanel stats={stats} period={period} />;
 }
 
-async function NotificationsWorkspace({ doctorId }: { doctorId: string }) {
+async function NotificationsModalPanel({ doctorId }: { doctorId: string }) {
   const [notifications, reminders] = await Promise.all([
     listDoctorNotifications(doctorId, supabaseDoctorNotificationsRepository),
     listUpcomingReminders({ doctorId }, supabaseDoctorAppointmentsRepository),
@@ -242,7 +244,13 @@ async function ProfileWorkspace({
       </p>
     );
   }
-  return <DoctorProfileView details={details} schedules={schedules} />;
+  return (
+    <DoctorProfileView
+      details={details}
+      schedules={schedules}
+      today={todayInManila()}
+    />
+  );
 }
 
 export default async function DoctorPage({
@@ -274,6 +282,7 @@ export default async function DoctorPage({
       doctorName={session.doctor.fullName}
       specialty={details?.specialty ?? null}
       unreadCount={unreadCount}
+      notificationsPanel={<NotificationsModalPanel doctorId={doctorId} />}
     >
       <DoctorHeader
         title={view === "week" ? "Appointments" : DOCTOR_VIEW_LABELS[view]}
@@ -289,9 +298,6 @@ export default async function DoctorPage({
         ) : null}
         {view === "stats" ? (
           <StatsWorkspace doctorId={doctorId} params={params} />
-        ) : null}
-        {view === "notifications" ? (
-          <NotificationsWorkspace doctorId={doctorId} />
         ) : null}
         {view === "profile" ? (
           <ProfileWorkspace details={details} doctorId={doctorId} />

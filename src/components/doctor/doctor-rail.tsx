@@ -15,6 +15,7 @@ import {
   SignOutIcon,
   StethoscopeIcon,
 } from "./icons";
+import { useOpenNotifications } from "./notifications-dialog";
 
 type RailItem = {
   label: string;
@@ -35,12 +36,6 @@ const RAIL_ITEMS: RailItem[] = [
     href: "/doctor?view=calendar",
     views: ["calendar"],
     icon: CalendarIcon,
-  },
-  {
-    label: "Notifications",
-    href: "/doctor?view=notifications",
-    views: ["notifications"],
-    icon: BellIcon,
   },
   {
     label: "Statistics",
@@ -101,6 +96,7 @@ export function DoctorRail({
   unreadCount: number;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const openNotifications = useOpenNotifications();
   const profileActive = activeView === "profile";
 
   return (
@@ -151,7 +147,6 @@ export function DoctorRail({
         >
           {RAIL_ITEMS.map((item) => {
             const active = item.views.includes(activeView);
-            const showUnread = item.views.includes("notifications") && unreadCount > 0;
             return (
               <Link
                 key={item.label}
@@ -163,30 +158,41 @@ export function DoctorRail({
                     : "text-ink-muted hover:bg-surface-muted hover:text-ink"
                 }`}
               >
-                <span className="relative shrink-0">
-                  <item.icon className="size-5" />
-                  {showUnread ? (
-                    <span
-                      aria-hidden="true"
-                      className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-danger ring-2 ring-surface"
-                    />
-                  ) : null}
-                </span>
-                <RailLabel expanded={expanded}>
-                  {item.label}
-                  {showUnread ? <span className="sr-only">, {unreadCount} unread</span> : null}
-                </RailLabel>
-                {showUnread && expanded ? (
-                  <span
-                    aria-hidden="true"
-                    className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold tabular-nums text-primary-ink"
-                  >
-                    {unreadCount}
-                  </span>
-                ) : null}
+                <item.icon className="size-5 shrink-0" />
+                <RailLabel expanded={expanded}>{item.label}</RailLabel>
               </Link>
             );
           })}
+          <button
+            type="button"
+            onClick={openNotifications}
+            aria-haspopup="dialog"
+            className={`${ITEM_BASE} text-ink-muted hover:bg-surface-muted hover:text-ink`}
+          >
+            <span className="relative shrink-0">
+              <BellIcon className="size-5" />
+              {unreadCount > 0 ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-danger ring-2 ring-surface"
+                />
+              ) : null}
+            </span>
+            <RailLabel expanded={expanded}>
+              Notifications
+              {unreadCount > 0 ? (
+                <span className="sr-only">, {unreadCount} unread</span>
+              ) : null}
+            </RailLabel>
+            {unreadCount > 0 && expanded ? (
+              <span
+                aria-hidden="true"
+                className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold tabular-nums text-primary-ink"
+              >
+                {unreadCount}
+              </span>
+            ) : null}
+          </button>
         </nav>
 
         <div className="flex flex-col gap-1 border-t border-line px-2.5 py-3">

@@ -1,21 +1,31 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DoctorRail } from "@/components/doctor/doctor-rail";
+import { NotificationsDialogProvider } from "@/components/doctor/notifications-dialog";
 
 vi.mock("@/server/auth/actions", () => ({
   signOutAction: vi.fn(),
 }));
 
+// jsdom does not implement modal dialogs; mimic the open contract.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function showModal() {
+    this.setAttribute("open", "");
+  };
+});
+
 function renderRail(activeView: "week" | "calendar" = "week") {
   return render(
-    <DoctorRail
-      activeView={activeView}
-      doctorName="Dr. Synthetic Doctor"
-      specialty="Cardiology"
-      unreadCount={3}
-    />,
+    <NotificationsDialogProvider panel={<p>Synthetic notification feed</p>}>
+      <DoctorRail
+        activeView={activeView}
+        doctorName="Dr. Synthetic Doctor"
+        specialty="Cardiology"
+        unreadCount={3}
+      />
+    </NotificationsDialogProvider>,
   );
 }
 
@@ -48,8 +58,22 @@ describe("DoctorRail", () => {
       "page",
     );
     expect(
-      screen.getByRole("link", { name: /Notifications, 3 unread/ }),
+      screen.getByRole("button", { name: /Notifications, 3 unread/ }),
     ).toBeInTheDocument();
+  });
+
+  it("opens the notifications modal from the rail", async () => {
+    const user = userEvent.setup();
+    renderRail();
+
+    await user.click(
+      screen.getByRole("button", { name: /Notifications, 3 unread/ }),
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "Notifications" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Synthetic notification feed")).toBeInTheDocument();
   });
 
   it("puts the doctor profile and sign-out in the menu", () => {

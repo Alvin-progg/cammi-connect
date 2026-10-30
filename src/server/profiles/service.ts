@@ -2,6 +2,7 @@ import "server-only";
 
 import type { UserRole } from "@/lib/auth/roles";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
+import { supabaseDirectoryRepository } from "@/server/directory/repository";
 
 export type Profile = {
   id: string;
@@ -55,7 +56,7 @@ export async function getDoctorProfileDetails(
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, specialty, phone, clinic_note, department_id")
+    .select("id, full_name, phone, clinic_note")
     .eq("id", doctorId)
     .eq("role", "doctor")
     .maybeSingle();
@@ -67,25 +68,16 @@ export async function getDoctorProfileDetails(
     return null;
   }
 
-  let department: DoctorProfileDetails["department"] = null;
-  if (data.department_id) {
-    const { data: departmentRow, error: departmentError } = await supabase
-      .from("departments")
-      .select("id, name")
-      .eq("id", data.department_id)
-      .maybeSingle();
-    if (departmentError) {
-      throw new Error("Unable to load the assigned department.");
-    }
-    department = departmentRow
-      ? { id: departmentRow.id, name: departmentRow.name }
+  const doctor = await supabaseDirectoryRepository.getDoctor(doctorId);
+  const department =
+    doctor?.departmentId && doctor.departmentName
+      ? { id: doctor.departmentId, name: doctor.departmentName }
       : null;
-  }
 
   return {
     id: data.id,
     fullName: data.full_name,
-    specialty: data.specialty,
+    specialty: formatSpecialties(doctor?.specialties ?? []),
     phone: data.phone,
     clinicNote: data.clinic_note,
     department,
@@ -93,31 +85,31 @@ export async function getDoctorProfileDetails(
 }
 
 /**
- * Other doctors in the same department, for the sidebar "core team" list.
- * Read-only directory data (name + specialty), never patient data.
+ * Other active doctors in the same department, for the sidebar "core team"
+ * list. Read-only directory data (name + specialty), never patient data.
  */
 export async function listDepartmentColleagues(input: {
   departmentId: string;
   excludeProfileId: string;
 }): Promise<DepartmentColleague[]> {
-  const supabase = getSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, full_name, specialty")
-    .eq("department_id", input.departmentId)
-    .eq("role", "doctor")
-    .neq("id", input.excludeProfileId)
-    .order("full_name", { ascending: true })
-    .limit(12);
+  const colleagues = await supabaseDirectoryRepository.listDoctors({
+    departmentId: input.departmentId,
+    activeOnly: true,
+  });
+  return colleagues
+    .filter((colleague) => colleague.id !== input.excludeProfileId)
+    .slice(0, 12)
+    .map((colleague) => ({
+      id: colleague.id,
+      fullName: colleague.fullName,
+      specialty: formatSpecialties(colleague.specialties),
+    }));
+}
 
-  if (error) {
-    throw new Error("Unable to load department colleagues.");
-  }
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    fullName: row.full_name,
-    specialty: row.specialty,
-  }));
+function formatSpecialties(specialties: { name: string }[]): string | null {
+  return specialties.length > 0
+    ? specialties.map((specialty) => specialty.name).join(", ")
+    : null;
 }
 
 export async function updateDoctorContact(input: {

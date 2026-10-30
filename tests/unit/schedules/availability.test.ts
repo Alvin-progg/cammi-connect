@@ -15,6 +15,8 @@ const WEEKDAY_NINE_TO_FIVE = [1, 2, 3, 4, 5].map((dayOfWeek) => ({
   dayOfWeek,
   startTime: "09:00",
   endTime: "17:00",
+  effectiveFrom: "2026-01-01",
+  effectiveUntil: null,
   isActive: true,
 }));
 
@@ -111,11 +113,51 @@ describe("validateAppointmentSlot", () => {
             dayOfWeek: 1,
             startTime: "09:00",
             endTime: "17:00",
+            effectiveFrom: "2026-01-01",
+            effectiveUntil: null,
             isActive: false,
           },
         ],
       }),
     ).toEqual({ ok: false, reason: "outside_hours" });
+  });
+
+  it("accepts any of several periods on the same day", () => {
+    const splitMonday = [
+      { ...WEEKDAY_NINE_TO_FIVE[0], startTime: "08:00", endTime: "09:30" },
+      { ...WEEKDAY_NINE_TO_FIVE[0], startTime: "13:00", endTime: "17:00" },
+    ];
+    expect(
+      validate({
+        schedules: splitMonday,
+        start: new Date("2026-10-26T13:00:00+08:00"),
+      }),
+    ).toEqual({ ok: true });
+    expect(validate({ schedules: splitMonday })).toEqual({
+      ok: false,
+      reason: "outside_hours",
+    });
+  });
+
+  it("rejects dates before a period's effective-from date", () => {
+    expect(
+      validate({
+        schedules: [{ ...WEEKDAY_NINE_TO_FIVE[0], effectiveFrom: "2026-10-27" }],
+      }),
+    ).toEqual({ ok: false, reason: "outside_hours" });
+  });
+
+  it("rejects dates after a period's effective-until date", () => {
+    expect(
+      validate({
+        schedules: [{ ...WEEKDAY_NINE_TO_FIVE[0], effectiveUntil: "2026-10-25" }],
+      }),
+    ).toEqual({ ok: false, reason: "outside_hours" });
+    expect(
+      validate({
+        schedules: [{ ...WEEKDAY_NINE_TO_FIVE[0], effectiveUntil: "2026-10-26" }],
+      }),
+    ).toEqual({ ok: true });
   });
 
   it("rejects slots overlapping a blocked interval", () => {

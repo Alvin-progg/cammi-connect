@@ -7,9 +7,11 @@ describe("buildMonthGrid", () => {
     month: "2026-10",
     today: "2026-10-25",
     schedules: [
-      { dayOfWeek: 1, isActive: true },
-      { dayOfWeek: 3, isActive: true },
-      { dayOfWeek: 5, isActive: false },
+      { dayOfWeek: 1, isActive: true, effectiveFrom: "2026-01-01", effectiveUntil: null },
+      { dayOfWeek: 3, isActive: true, effectiveFrom: "2026-01-01", effectiveUntil: null },
+      { dayOfWeek: 5, isActive: false, effectiveFrom: "2026-01-01", effectiveUntil: null },
+      // Tuesdays only from 2026-10-20 through 2026-10-27.
+      { dayOfWeek: 2, isActive: true, effectiveFrom: "2026-10-20", effectiveUntil: "2026-10-27" },
     ],
     blockedDates: ["2026-10-26"],
     countByDate: new Map([["2026-10-25", { confirmed: 2 }]]),
@@ -50,5 +52,17 @@ describe("buildMonthGrid", () => {
     const september = grid.days.find((day) => day.date === "2026-09-30");
     expect(september?.inMonth).toBe(false);
     expect(september?.dayOfMonth).toBe(30);
+  });
+
+  it("marks schedule days only within a period's effective dates", () => {
+    const tuesdays = grid.days
+      .filter((day) => day.inMonth && new Date(`${day.date}T00:00:00Z`).getUTCDay() === 2)
+      .map((day) => [day.date, day.hasSchedule]);
+    expect(tuesdays).toEqual([
+      ["2026-10-06", false],
+      ["2026-10-13", false],
+      ["2026-10-20", true],
+      ["2026-10-27", true],
+    ]);
   });
 });

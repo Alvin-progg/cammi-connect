@@ -18,4 +18,14 @@ describe("AccessDenied", () => {
     ).toHaveAttribute("href", "/account");
     expect(screen.queryByText(/appointment/i)).not.toBeInTheDocument();
   });
+
+  it("accepts a dashboard-specific message", () => {
+    render(
+      <AccessDenied message="This dashboard is only available to administrator accounts." />,
+    );
+
+    expect(
+      screen.getByText("This dashboard is only available to administrator accounts."),
+    ).toBeInTheDocument();
+  });
 });

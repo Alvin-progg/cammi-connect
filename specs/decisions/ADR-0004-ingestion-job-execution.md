@@ -48,9 +48,23 @@ atomically. The trigger mechanism is unresolved.
 
 No option is selected.
 
+## Interim decision (2026-10-30, AI-APT-001)
+
+Approved by the human owner through `PLN-002`:
+
+- The synthetic corpus (ADR-0009) is ingested by a manual local CLI,
+  `npm run kb:ingest`, run by a developer with `.env.local`. It is not a serverless
+  function, so the time limits above do not apply.
+- It skips documents whose content hash is unchanged and replaces a changed document's
+  chunks atomically through a `service_role`-only database function, so readers never
+  see a partial document.
+- Admin knowledge-base upload (FR-002), `ingestion_jobs`, leases, and any queue, cron,
+  or background worker remain undecided and out of scope.
+
 ## Decision
 
-TBD. Record trigger, lease model, checkpoint fields, step budget, and retry policy.
+TBD for job-based ingestion. Record trigger, lease model, checkpoint fields, step
+budget, and retry policy before FR-002 work starts.
 
 ## Consequences
 

@@ -7,7 +7,7 @@ import type {
 } from "@/lib/appointments/types";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
-import type { DoctorAppointmentsReader } from "./service";
+import type { AppointmentBooker, DoctorAppointmentsReader } from "./service";
 
 type AppointmentRow = {
   id: string;
@@ -248,5 +248,27 @@ export const supabaseDoctorAppointmentsRepository: DoctorAppointmentsReader = {
         createdAt: row.created_at,
       }),
     );
+  },
+};
+
+/**
+ * Calls the cammi_connect_book_appointment database function, which locks the
+ * doctor, re-checks availability, and inserts the appointment and its history
+ * row in one transaction.
+ */
+export const supabaseAppointmentBooker: AppointmentBooker = {
+  async book({ doctorId, patientId, scheduledAt, reason }) {
+    const supabase = getSupabaseAdminClient();
+    const { data, error } = await supabase.rpc("cammi_connect_book_appointment", {
+      p_doctor_id: doctorId,
+      p_patient_id: patientId,
+      p_scheduled_at: scheduledAt,
+      p_reason: reason,
+    });
+
+    if (error) {
+      return { ok: false, error: { code: error.code, message: error.message } };
+    }
+    return { ok: true, appointmentId: data };
   },
 };

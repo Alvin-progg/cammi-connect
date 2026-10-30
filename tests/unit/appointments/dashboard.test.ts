@@ -24,12 +24,13 @@ describe("parseDashboardView", () => {
   it("falls back to the week schedule for the removed board and list views", () => {
     expect(parseDashboardView("board")).toBe("week");
     expect(parseDashboardView("list")).toBe("week");
+    // Notifications moved from a page view to a modal.
+    expect(parseDashboardView("notifications")).toBe("week");
   });
 
   it("accepts known views", () => {
     expect(parseDashboardView("calendar")).toBe("calendar");
     expect(parseDashboardView("stats")).toBe("stats");
-    expect(parseDashboardView("notifications")).toBe("notifications");
     expect(parseDashboardView("profile")).toBe("profile");
   });
 });

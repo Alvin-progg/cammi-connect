@@ -1,11 +1,15 @@
 import Link from "next/link";
 
 /**
- * Neutral denial state for signed-in users who are not doctors. It reveals no
- * appointment or resource details, and the response stays HTTP 200 so the
- * route does not advertise whether protected data exists.
+ * Neutral denial state for signed-in users without the dashboard's role. It
+ * reveals no appointment or resource details, and the response stays HTTP 200
+ * so the route does not advertise whether protected data exists.
  */
-export function AccessDenied() {
+export function AccessDenied({
+  message = "This dashboard is only available to doctor accounts.",
+}: {
+  message?: string;
+}) {
   return (
     <main id="main" className="relative isolate flex flex-1 bg-wash">
       <div
@@ -24,7 +28,7 @@ export function AccessDenied() {
             Access denied
           </h1>
           <p className="mt-2 text-sm leading-6 text-ink-secondary text-pretty">
-            This dashboard is only available to doctor accounts.
+            {message}
           </p>
           <Link
             href="/account"

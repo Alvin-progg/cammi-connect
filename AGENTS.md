@@ -3,7 +3,8 @@
 ## Current state
 
 - Implemented slices: Supabase Auth (`/login`, `/register`, `/account`, `/auth/callback`), and the doctor dashboard suite at `/doctor` (kanban board, list, schedule & availability calendar, notifications, statistics, profile) with Supabase-backed appointments, schedules, blocked slots, notifications, and status history.
-- Database schema is hand-written SQL in `db/migrations/` (`0001`, `0002`); apply manually in the hosted Supabase SQL editor (see `db/README.md`). Synthetic seed: `npm run db:seed`.
+- Doctor, specialty, and schedule management (DOC-SCH-001): admin directory and schedule management at `/admin`, multiple effective-dated consultation periods, typed schedule exceptions, server-side slot generation, and the atomic `cammi_connect_book_appointment` function. Patient booking UI is not built yet.
+- Database schema is hand-written SQL in `db/migrations/` (`0001`–`0003`); apply manually in the hosted Supabase SQL editor (see `db/README.md`). Synthetic seed: `npm run db:seed`.
 - `SPEC.md` is the target design and requirements; `TEST.md` is the test plan. Not everything in them is implemented. Verify paths and scripts before relying on them.
 - `README.md` is the untouched create-next-app readme. Trust `package.json` and config files over prose.
 - `design.md` is the visual source of truth (Calm Care tokens; white page/auth backgrounds approved 2026-10-25).

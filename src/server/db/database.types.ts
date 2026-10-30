@@ -1,11 +1,13 @@
 import type { AppointmentStatus } from "@/lib/appointments/status";
 import type { UserRole } from "@/lib/auth/roles";
 import type { NotificationType } from "@/lib/notifications/types";
+import type { ScheduleExceptionType } from "@/lib/schedules/types";
 
 /**
- * Manual database contract for the tables used by the doctor dashboard.
- * Keep this in sync with db/migrations/0001_profiles_appointments.sql and
- * db/migrations/0002_doctor_dashboard_suite.sql.
+ * Manual database contract for the application tables. Keep this in sync
+ * with db/migrations/0001_profiles_appointments.sql,
+ * db/migrations/0002_doctor_dashboard_suite.sql, and
+ * db/migrations/0003_doctor_specialty_schedules.sql.
  */
 export type Database = {
   public: {
@@ -15,17 +17,85 @@ export type Database = {
           id: string;
           name: string;
           code: string;
+          description: string | null;
+          is_active: boolean;
           created_at: string;
         };
         Insert: {
           id?: string;
           name: string;
           code: string;
+          description?: string | null;
+          is_active?: boolean;
           created_at?: string;
         };
         Update: {
           name?: string;
           code?: string;
+          description?: string | null;
+          is_active?: boolean;
+        };
+        Relationships: [];
+      };
+      specialties: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          name?: string;
+          description?: string | null;
+          is_active?: boolean;
+        };
+        Relationships: [];
+      };
+      doctors: {
+        Row: {
+          id: string;
+          department_id: string | null;
+          full_name: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          department_id?: string | null;
+          full_name: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          department_id?: string | null;
+          full_name?: string;
+          is_active?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      doctor_specialties: {
+        Row: {
+          doctor_id: string;
+          specialty_id: string;
+        };
+        Insert: {
+          doctor_id: string;
+          specialty_id: string;
+        };
+        Update: {
+          doctor_id?: string;
+          specialty_id?: string;
         };
         Relationships: [];
       };
@@ -144,6 +214,10 @@ export type Database = {
           start_time: string;
           end_time: string;
           slot_duration_minutes: number;
+          /** Manila date, inclusive. */
+          effective_from: string;
+          /** Manila date, inclusive; null means open-ended. */
+          effective_until: string | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -155,39 +229,47 @@ export type Database = {
           start_time: string;
           end_time: string;
           slot_duration_minutes?: number;
+          effective_from?: string;
+          effective_until?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
+          day_of_week?: number;
           start_time?: string;
           end_time?: string;
           slot_duration_minutes?: number;
+          effective_from?: string;
+          effective_until?: string | null;
           is_active?: boolean;
           updated_at?: string;
         };
         Relationships: [];
       };
-      doctor_blocked_slots: {
+      schedule_exceptions: {
         Row: {
           id: string;
           doctor_id: string;
-          starts_at: string;
-          ends_at: string;
+          start_datetime: string;
+          end_datetime: string;
+          exception_type: ScheduleExceptionType;
           reason: string;
           created_at: string;
         };
         Insert: {
           id?: string;
           doctor_id: string;
-          starts_at: string;
-          ends_at: string;
+          start_datetime: string;
+          end_datetime: string;
+          exception_type?: ScheduleExceptionType;
           reason: string;
           created_at?: string;
         };
         Update: {
-          starts_at?: string;
-          ends_at?: string;
+          start_datetime?: string;
+          end_datetime?: string;
+          exception_type?: ScheduleExceptionType;
           reason?: string;
         };
         Relationships: [];
@@ -220,11 +302,32 @@ export type Database = {
       };
     };
     Views: { [_ in never]: never };
-    Functions: { [_ in never]: never };
+    Functions: {
+      cammi_connect_save_doctor: {
+        Args: {
+          p_doctor_id: string | null;
+          p_full_name: string;
+          p_department_id: string | null;
+          p_is_active: boolean;
+          p_specialty_ids: string[];
+        };
+        Returns: string;
+      };
+      cammi_connect_book_appointment: {
+        Args: {
+          p_doctor_id: string;
+          p_patient_id: string;
+          p_scheduled_at: string;
+          p_reason: string | null;
+        };
+        Returns: string;
+      };
+    };
     Enums: {
       user_role: UserRole;
       appointment_status: AppointmentStatus;
       doctor_notification_type: NotificationType;
+      schedule_exception_type: ScheduleExceptionType;
     };
     CompositeTypes: { [_ in never]: never };
   };

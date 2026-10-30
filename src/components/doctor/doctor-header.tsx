@@ -1,6 +1,4 @@
-import Link from "next/link";
-
-import { BellIcon } from "./icons";
+import { NotificationsBellButton } from "./notifications-dialog";
 
 /**
  * Slim workspace header: view title and a notifications shortcut. Search,
@@ -27,23 +25,7 @@ export function DoctorHeader({
             {todayLabel} · PHT
           </p>
         </div>
-        <Link
-          href="/doctor?view=notifications"
-          aria-label={
-            unreadCount > 0
-              ? `Notifications, ${unreadCount} unread`
-              : "Notifications"
-          }
-          className="focus-ring relative inline-flex size-10 shrink-0 items-center justify-center rounded-full text-ink-secondary transition-[color,background-color,transform] duration-150 ease-snappy hover:bg-surface-muted hover:text-ink active:scale-[0.95] motion-reduce:transition-none"
-        >
-          <BellIcon className="size-5" />
-          {unreadCount > 0 ? (
-            <span
-              aria-hidden="true"
-              className="absolute right-2.5 top-2 size-2 rounded-full bg-danger ring-2 ring-surface"
-            />
-          ) : null}
-        </Link>
+        <NotificationsBellButton unreadCount={unreadCount} />
       </div>
     </header>
   );

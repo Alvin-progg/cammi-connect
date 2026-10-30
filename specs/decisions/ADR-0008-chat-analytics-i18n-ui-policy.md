@@ -66,9 +66,34 @@ The human owner approved `design.md` for the auth slice. For `/login` and
   removes the parameter. The redirect remains authoritative.
 - The stock landing page remains unchanged.
 
+## Chat access decision (2026-10-30, AI-APT-001)
+
+Approved by the human owner through `PLN-002`:
+
+- **Who:** signed-in patients only. Anonymous visitors, doctors, and admins have no chat
+  access. `POST /api/v1/chat` returns 401 (no session) or 403 (not a patient).
+- **Order:** request validation and authentication run before any provider call, so an
+  unauthenticated request never reaches Gemini or OpenCode Zen.
+- **Rate limit:** 10 user messages per minute per patient, counted from
+  `chat_messages` in the database (no shared store yet; ADR-0005 stays open). Over the
+  limit returns 429.
+- **Provider or database unavailable:** a controlled 503 with a friendly message. The
+  assistant never fabricates an answer, and the patient's draft is kept for retry.
+- **Privacy notice:** the chat UI always shows that messages are stored, are sent to AI
+  providers (Google Gemini and OpenCode Zen) to produce answers, are AI-generated, and
+  are not medical advice or an appointment confirmation.
+- **Data minimization:** the patient's identity (name, email, IDs) is never sent to the
+  providers beyond what the patient types. Booking data stays server-side.
+- **Logging:** request IDs and outcomes only; message text is never logged (SPEC §7.3).
+- **Retention:** `chat_messages` are kept for **90 days**. Purging is a documented
+  manual SQL step in `db/README.md`; there is no automated job (consistent with
+  ADR-0004). Conversations with no remaining messages may be deleted in the same step.
+- **Copy:** English-only, as in the auth slice. Display timezone is `Asia/Manila`.
+
 ## Decision
 
-Chat access and analytics explanation policies remain TBD. The auth-slice UI
+The chat access policy is approved above (2026-10-30). The analytics explanation
+policy remains TBD. The auth-slice UI
 policy above is approved and recorded.
 
 ## Consequences
@@ -81,7 +106,7 @@ policy above is approved and recorded.
 
 ## Approval
 
-- [ ] Chat access policy approved.
+- [x] Chat access policy approved 2026-10-30 via `PLN-002` (AI-APT-001).
 - [ ] Analytics explanation policy approved.
 - [ ] Localization and timezone approved.
 - [x] Existing UI decision approved (auth slice: keep stock landing).

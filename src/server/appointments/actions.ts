@@ -4,15 +4,20 @@ import { revalidatePath } from "next/cache";
 
 import {
   appointmentIdSchema,
+  bookAppointmentSchema,
   cancelAppointmentSchema,
   rescheduleAppointmentSchema,
 } from "@/lib/appointments/schemas";
 import type { DoctorAppointmentAction } from "@/lib/appointments/transitions";
-import { getDoctorSession } from "@/server/auth/dal";
+import { getDoctorSession, getPatientSession } from "@/server/auth/dal";
 import { supabaseDoctorSchedulesRepository } from "@/server/schedules/repository";
 
-import { supabaseDoctorAppointmentsRepository } from "./repository";
 import {
+  supabaseAppointmentBooker,
+  supabaseDoctorAppointmentsRepository,
+} from "./repository";
+import {
+  bookAppointment,
   rescheduleDoctorAppointment,
   transitionDoctorAppointment,
   type MutationResult,
@@ -148,4 +153,47 @@ export async function rescheduleAppointmentAction(
       ),
     SUCCESS_MESSAGES.reschedule,
   );
+}
+
+/**
+ * Patient booking. The patient is always the signed-in patient profile; the
+ * form supplies only the doctor, the slot start, and an optional reason. No
+ * patient page calls this yet (see DOC-SCH-001).
+ */
+export async function bookAppointmentAction(
+  _previous: AppointmentActionState,
+  formData: FormData,
+): Promise<AppointmentActionState> {
+  const session = await getPatientSession("/account");
+  if (!session) {
+    return {
+      status: "error",
+      message: "Only patient accounts can book appointments.",
+    };
+  }
+
+  const parsed = bookAppointmentSchema.safeParse({
+    doctorId: formData.get("doctorId"),
+    scheduledAt: formData.get("scheduledAt"),
+    reason: formData.get("reason") ?? "",
+  });
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.error.issues[0]?.message ?? "Check the booking details.",
+    };
+  }
+
+  const result = await bookAppointment(
+    { patientId: session.patient.id, ...parsed.data },
+    supabaseAppointmentBooker,
+  );
+  if (!result.ok) {
+    return { status: "error", message: result.message };
+  }
+  revalidatePath("/doctor");
+  return {
+    status: "success",
+    message: "Appointment requested. It is not confirmed until the doctor confirms it.",
+  };
 }

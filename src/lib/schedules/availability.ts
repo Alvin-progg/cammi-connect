@@ -1,4 +1,4 @@
-import type { WeeklySchedule } from "./types";
+import { isScheduleEffectiveOn, type WeeklySchedule } from "./types";
 
 export type SlotInterval = { start: Date; end: Date };
 
@@ -24,9 +24,53 @@ export function manilaParts(date: Date): {
   };
 }
 
+/** Manila calendar date ("YYYY-MM-DD") of a timestamp. */
+export function manilaDateKey(date: Date): string {
+  return new Date(date.getTime() + MANILA_OFFSET_MILLISECONDS)
+    .toISOString()
+    .slice(0, 10);
+}
+
 export function timeToMinutes(time: string): number {
   const [hours, minutes] = time.split(":").map(Number);
   return hours * 60 + minutes;
+}
+
+type ConsultationPeriod = Pick<
+  WeeklySchedule,
+  | "dayOfWeek"
+  | "startTime"
+  | "endTime"
+  | "effectiveFrom"
+  | "effectiveUntil"
+  | "isActive"
+>;
+
+/**
+ * True when `[start, end)` fits entirely inside one active consultation period
+ * that is effective on that Manila date.
+ */
+export function fitsConsultationHours(
+  interval: SlotInterval,
+  schedules: ConsultationPeriod[],
+): boolean {
+  const startParts = manilaParts(interval.start);
+  const endParts = manilaParts(interval.end);
+  const date = manilaDateKey(interval.start);
+  // An interval ending exactly at Manila midnight belongs to the next day, so
+  // a consultation may never run past 24:00.
+  if (startParts.dayOfWeek !== endParts.dayOfWeek) {
+    return false;
+  }
+
+  return schedules.some(
+    (schedule) =>
+      schedule.isActive &&
+      schedule.dayOfWeek === startParts.dayOfWeek &&
+      isScheduleEffectiveOn(schedule, date) &&
+      startParts.minutesOfDay >= timeToMinutes(schedule.startTime) &&
+      endParts.minutesOfDay <= timeToMinutes(schedule.endTime),
+  );
 }
 
 export type AvailabilityRejection =
@@ -36,18 +80,16 @@ export type AvailabilityRejection =
   | "overlap";
 
 /**
- * Validates a candidate appointment interval against the doctor's regular
- * hours, blocked slots, and existing active appointments. Pure function; the
- * service layer supplies authoritative data and maps rejections to messages.
+ * Validates a candidate appointment interval against the doctor's
+ * consultation periods, schedule exceptions, and existing active
+ * appointments. Pure function; the service layer supplies authoritative data
+ * and maps rejections to messages.
  */
 export function validateAppointmentSlot(input: {
   start: Date;
   durationMinutes: number;
   now: Date;
-  schedules: Pick<
-    WeeklySchedule,
-    "dayOfWeek" | "startTime" | "endTime" | "isActive"
-  >[];
+  schedules: ConsultationPeriod[];
   blocks: SlotInterval[];
   existing: SlotInterval[];
 }): { ok: true } | { ok: false; reason: AvailabilityRejection } {
@@ -58,23 +100,11 @@ export function validateAppointmentSlot(input: {
   }
 
   const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
-  const startParts = manilaParts(start);
-  const endParts = manilaParts(end);
-
-  // The whole consultation must fit inside one active window on the same day.
-  const fitsWindow = schedules.some(
-    (schedule) =>
-      schedule.isActive &&
-      schedule.dayOfWeek === startParts.dayOfWeek &&
-      startParts.dayOfWeek === endParts.dayOfWeek &&
-      startParts.minutesOfDay >= timeToMinutes(schedule.startTime) &&
-      endParts.minutesOfDay <= timeToMinutes(schedule.endTime),
-  );
-  if (!fitsWindow) {
+  const candidate = { start, end };
+  if (!fitsConsultationHours(candidate, schedules)) {
     return { ok: false, reason: "outside_hours" };
   }
 
-  const candidate = { start, end };
   if (blocks.some((block) => intervalsOverlap(candidate, block))) {
     return { ok: false, reason: "blocked" };
   }
