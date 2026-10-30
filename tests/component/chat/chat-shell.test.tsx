@@ -36,13 +36,6 @@ const fetchMock = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal("fetch", fetchMock);
-  // jsdom does not implement modal dialogs.
-  HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
-    this.open = true;
-  });
-  HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
-    this.open = false;
-  });
 });
 
 afterEach(() => {
@@ -123,42 +116,82 @@ describe("ChatShell empty state", () => {
   });
 });
 
-describe("ChatShell top bar and history", () => {
-  it("has New Chat and labelled icon buttons, and no Share button", () => {
+describe("ChatShell sidebar", () => {
+  function sidebar() {
+    return screen.getByRole("complementary", { name: "Chat sidebar" });
+  }
+
+  it("puts the collapse toggle in the sidebar and has no Share button", () => {
     renderShell();
 
-    expect(screen.getByRole("link", { name: "New Chat" })).toHaveAttribute("href", "/chat");
-    expect(screen.getByRole("button", { name: "Search chats" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Show chat history" })).toBeInTheDocument();
+    const toggle = within(sidebar()).getByRole("button", { name: "Collapse sidebar" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(within(sidebar()).getByRole("link", { name: "New conversation" })).toHaveAttribute(
+      "href",
+      "/chat",
+    );
     expect(screen.queryByRole("button", { name: /share/i })).not.toBeInTheDocument();
   });
 
-  it.each(["Search chats", "Show chat history", "Open chat history"])(
-    "opens the history drawer from %s",
-    (label) => {
-      renderShell();
-
-      fireEvent.click(screen.getByRole("button", { name: label }));
-
-      const drawer = screen.getByRole("dialog", { name: "Chat history" });
-      expect(within(drawer).getByRole("link", { name: /Cardiology questions/ })).toHaveAttribute(
-        "href",
-        `/chat?c=${CONVERSATIONS[0].id}`,
-      );
-    },
-  );
-
-  it("filters past chats by title", () => {
+  it("collapses to an icon rail and expands again", () => {
     renderShell();
-    fireEvent.click(screen.getByRole("button", { name: "Search chats" }));
-    const drawer = screen.getByRole("dialog", { name: "Chat history" });
 
-    fireEvent.change(within(drawer).getByRole("searchbox", { name: "Search chats" }), {
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+
+    expect(sidebar()).toHaveAttribute("data-state", "closed");
+    const expand = screen.getByRole("button", { name: "Expand sidebar" });
+    expect(expand).toHaveAttribute("aria-expanded", "false");
+    // Icon-only links keep their accessible names.
+    expect(within(sidebar()).getByRole("link", { name: "Cardiology questions" })).toBeInTheDocument();
+
+    fireEvent.click(expand);
+    expect(sidebar()).toHaveAttribute("data-state", "open");
+  });
+
+  it("lists previous conversations and marks the open one", () => {
+    renderShell({ conversationId: CONVERSATIONS[1].id });
+
+    const list = within(sidebar()).getByRole("navigation", { name: "Previous conversations" });
+    expect(within(list).getByRole("link", { name: "Cardiology questions" })).toHaveAttribute(
+      "href",
+      `/chat?c=${CONVERSATIONS[0].id}`,
+    );
+    expect(within(list).getByRole("link", { name: "Visiting hours" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("filters previous conversations by title", () => {
+    renderShell();
+
+    fireEvent.click(within(sidebar()).getByRole("button", { name: "Search chats" }));
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search conversations" }), {
       target: { value: "visit" },
     });
 
-    expect(within(drawer).queryByText("Cardiology questions")).not.toBeInTheDocument();
-    expect(within(drawer).getByText("Visiting hours")).toBeInTheDocument();
+    expect(within(sidebar()).queryByText("Cardiology questions")).not.toBeInTheDocument();
+    expect(within(sidebar()).getByText("Visiting hours")).toBeInTheDocument();
+  });
+
+  it("expands a collapsed sidebar into search from the rail", () => {
+    renderShell();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+
+    fireEvent.click(within(sidebar()).getByRole("button", { name: "Search chats" }));
+
+    expect(sidebar()).toHaveAttribute("data-state", "open");
+    expect(screen.getByRole("searchbox", { name: "Search conversations" })).toHaveFocus();
+  });
+
+  it("opens history search from the composer", () => {
+    renderShell();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Open chat history" }));
+
+    expect(sidebar()).toHaveAttribute("data-state", "open");
+    expect(screen.getByRole("searchbox", { name: "Search conversations" })).toBeInTheDocument();
   });
 });
 
