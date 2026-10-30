@@ -11,6 +11,7 @@ import { summarizeAppointments } from "@/lib/appointments/stats";
 import type {
   AppointmentHistoryEntry,
   DoctorAppointment,
+  PatientAppointment,
 } from "@/lib/appointments/types";
 import {
   manilaDayRange,
@@ -392,4 +393,16 @@ export async function getAppointmentHistoryMap(
     map.set(entry.appointmentId, list);
   }
   return map;
+}
+
+/** Read access for a patient's own appointments, scoped by the session's patient ID. */
+export type PatientAppointmentsReader = {
+  listForPatient(patientId: string): Promise<PatientAppointment[]>;
+};
+
+export async function listPatientAppointments(
+  patientId: string,
+  reader: PatientAppointmentsReader,
+): Promise<PatientAppointment[]> {
+  return reader.listForPatient(patientId);
 }

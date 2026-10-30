@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { BuildingIcon, CalendarIcon, ClipboardIcon, SparkleIcon } from "./icons";
@@ -7,8 +8,10 @@ type Suggestion = {
   title: string;
   description: string;
   action: string;
-  message: string;
-};
+} & ({ kind: "message"; message: string } | { kind: "link"; href: string });
+
+const ACTION_CLASS =
+  "focus-ring mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-full border border-line bg-surface text-sm font-medium text-ink shadow-card transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none";
 
 const SUGGESTIONS: Suggestion[] = [
   {
@@ -16,20 +19,23 @@ const SUGGESTIONS: Suggestion[] = [
     title: "Book an Appointment",
     description: "Find a doctor by specialty or name and pick an available time.",
     action: "Start Booking",
+    kind: "message",
     message: "I'd like to book an appointment.",
   },
   {
     icon: <ClipboardIcon className="size-5" />,
     title: "My Appointments",
-    description: "Check the status of your upcoming visits or cancel one.",
+    description: "See the status and details of your upcoming and past visits.",
     action: "View Appointments",
-    message: "Show me my appointments.",
+    kind: "link",
+    href: "/chat?view=appointments",
   },
   {
     icon: <BuildingIcon className="size-5" />,
     title: "Hospital Information",
     description: "Ask about services, departments, requirements, and visit guidelines.",
     action: "Ask a Question",
+    kind: "message",
     message: "I have a question about the hospital.",
   },
 ];
@@ -68,14 +74,20 @@ export function ChatEmptyState({
             <p className="mt-1.5 flex-1 text-sm leading-5 text-ink-muted">
               {suggestion.description}
             </p>
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => onSuggestion(suggestion.message)}
-              className="focus-ring mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-full border border-line bg-surface text-sm font-medium text-ink shadow-card transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
-            >
-              {suggestion.action}
-            </button>
+            {suggestion.kind === "link" ? (
+              <Link href={suggestion.href} className={ACTION_CLASS}>
+                {suggestion.action}
+              </Link>
+            ) : (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onSuggestion(suggestion.message)}
+                className={ACTION_CLASS}
+              >
+                {suggestion.action}
+              </button>
+            )}
           </li>
         ))}
       </ul>

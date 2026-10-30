@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatShell } from "@/components/chat/chat-shell";
+import type { PatientAppointment } from "@/lib/appointments/types";
 import type { ChatMessage, ConversationSummary } from "@/lib/chat/schemas";
 
 const mocks = vi.hoisted(() => ({
@@ -46,6 +47,7 @@ function renderShell(
   overrides: Partial<{
     conversationId: string | null;
     initialMessages: ChatMessage[];
+    appointments: { upcoming: PatientAppointment[]; past: PatientAppointment[] } | null;
   }> = {},
 ) {
   return render(
@@ -55,9 +57,29 @@ function renderShell(
       conversations={CONVERSATIONS}
       conversationId={overrides.conversationId ?? null}
       initialMessages={overrides.initialMessages ?? []}
+      appointments={overrides.appointments ?? null}
     />,
   );
 }
+
+const UPCOMING: PatientAppointment = {
+  id: "appointment-1",
+  doctorName: "Dr. Maya Santos",
+  departmentName: "Cardiology",
+  reason: "Follow-up on blood pressure",
+  scheduledAt: "2026-11-02T01:00:00.000Z",
+  durationMinutes: 30,
+  status: "requested",
+};
+const PAST: PatientAppointment = {
+  id: "appointment-2",
+  doctorName: "Dr. Paolo Reyes",
+  departmentName: null,
+  reason: null,
+  scheduledAt: "2026-10-01T06:00:00.000Z",
+  durationMinutes: 30,
+  status: "completed",
+};
 
 function okResponse(body: unknown) {
   return { ok: true, status: 200, json: async () => body } as Response;
@@ -77,12 +99,16 @@ describe("ChatShell empty state", () => {
 
     for (const [title, action] of [
       ["Book an Appointment", "Start Booking"],
-      ["My Appointments", "View Appointments"],
       ["Hospital Information", "Ask a Question"],
     ]) {
       expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: action })).toBeInTheDocument();
     }
+    expect(screen.getByRole("heading", { name: "My Appointments" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View Appointments" })).toHaveAttribute(
+      "href",
+      "/chat?view=appointments",
+    );
   });
 
   it("sends a canned message when a suggestion is chosen", async () => {
@@ -141,11 +167,16 @@ describe("ChatShell sidebar", () => {
     expect(sidebar()).toHaveAttribute("data-state", "closed");
     const expand = screen.getByRole("button", { name: "Expand sidebar" });
     expect(expand).toHaveAttribute("aria-expanded", "false");
-    // Icon-only links keep their accessible names.
-    expect(within(sidebar()).getByRole("link", { name: "Cardiology questions" })).toBeInTheDocument();
+    // The rail keeps only the action icons; the conversation list is hidden and inert.
+    expect(within(sidebar()).getByRole("link", { name: "New conversation" })).toBeInTheDocument();
+    const list = within(sidebar()).getByRole("navigation", { name: "Previous conversations" });
+    expect(list.closest("[inert]")).not.toBeNull();
 
     fireEvent.click(expand);
     expect(sidebar()).toHaveAttribute("data-state", "open");
+    expect(
+      within(sidebar()).getByRole("navigation", { name: "Previous conversations" }).closest("[inert]"),
+    ).toBeNull();
   });
 
   it("lists previous conversations and marks the open one", () => {
@@ -298,5 +329,61 @@ describe("ChatShell thread", () => {
     expect(thread).toHaveAttribute("aria-live", "polite");
     expect(within(thread).getByText("CamiConnect")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1, name: /Good Morning/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("ChatShell appointments view", () => {
+  it("links to it from the sidebar", () => {
+    renderShell();
+
+    const link = within(screen.getByRole("complementary", { name: "Chat sidebar" })).getByRole(
+      "link",
+      { name: "My appointments" },
+    );
+    expect(link).toHaveAttribute("href", "/chat?view=appointments");
+    expect(link).not.toHaveAttribute("aria-current");
+  });
+
+  it("shows upcoming and past appointments instead of the chat", () => {
+    renderShell({ appointments: { upcoming: [UPCOMING], past: [PAST] } });
+
+    expect(screen.getByRole("heading", { level: 1, name: "My Appointments" })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("complementary", { name: "Chat sidebar" })).getByRole("link", {
+        name: "My appointments",
+      }),
+    ).toHaveAttribute("aria-current", "page");
+
+    const upcoming = screen.getByRole("region", { name: "Upcoming" });
+    expect(within(upcoming).getByText("Dr. Maya Santos")).toBeInTheDocument();
+    expect(within(upcoming).getByText(/Cardiology/)).toBeInTheDocument();
+    expect(within(upcoming).getByText("Requested")).toBeInTheDocument();
+    expect(within(upcoming).getByText("Follow-up on blood pressure")).toBeInTheDocument();
+
+    const past = screen.getByRole("region", { name: "Past" });
+    expect(within(past).getByText("Dr. Paolo Reyes")).toBeInTheDocument();
+    expect(within(past).getByText("Completed")).toBeInTheDocument();
+
+    expect(screen.getByText(/not confirmed until the doctor confirms/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Message")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Good Morning/ })).not.toBeInTheDocument();
+  });
+
+  it("shows an empty state that leads back to the chat", () => {
+    renderShell({ appointments: { upcoming: [], past: [] } });
+
+    expect(screen.getByText("No appointments yet")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Go to chat" })).toHaveAttribute("href", "/chat");
+  });
+
+  it("renders appointment text inertly", () => {
+    const { container } = renderShell({
+      appointments: {
+        upcoming: [{ ...UPCOMING, reason: '<img src=x onerror="alert(1)">' }],
+        past: [],
+      },
+    });
+
+    expect(container.querySelector("img")).toBeNull();
   });
 });

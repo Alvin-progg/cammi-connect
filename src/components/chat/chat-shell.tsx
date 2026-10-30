@@ -4,7 +4,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
+import type { PatientAppointmentGroups } from "@/lib/appointments/patient";
 import type { ChatMessage, ConversationSummary } from "@/lib/chat/schemas";
+
+import { AppointmentsPanel } from "./appointments-panel";
 
 import { ChatComposer } from "./chat-composer";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -50,12 +53,15 @@ export function ChatShell({
   conversations,
   conversationId,
   initialMessages,
+  appointments,
 }: {
   salutation: string;
   firstName: string;
   conversations: ConversationSummary[];
   conversationId: string | null;
   initialMessages: ChatMessage[];
+  /** Set when `/chat?view=appointments` is open; the chat thread is hidden then. */
+  appointments: PatientAppointmentGroups | null;
 }) {
   const router = useRouter();
   const [activeConversationId, setActiveConversationId] = useState(conversationId);
@@ -151,48 +157,55 @@ export function ChatShell({
           searchOpen={searchOpen}
           onSearchOpenChange={setSearchOpen}
           conversations={conversations}
-          activeConversationId={activeConversationId}
+          activeConversationId={appointments ? null : activeConversationId}
+          appointmentsActive={appointments !== null}
         />
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {hasThread ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            <h1 className="sr-only">Chat with CamiConnect</h1>
-            <ol
-              role="log"
-              aria-label="Conversation"
-              aria-live="polite"
-              className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-6"
-            >
-              {messages.map((message) => (
-                <MessageBubble key={message.id} role={message.role} content={message.content} />
-              ))}
-              {pendingText !== null ? (
-                <>
-                  <MessageBubble role="user" content={pendingText} />
-                  <TypingIndicator />
-                </>
-              ) : null}
-              <li ref={threadEndRef} aria-hidden="true" />
-            </ol>
-          </div>
+        {appointments ? (
+          <AppointmentsPanel upcoming={appointments.upcoming} past={appointments.past} />
         ) : (
-          <ChatEmptyState
-            salutation={salutation}
-            firstName={firstName}
-            disabled={isSending}
-            onSuggestion={(message) => send(message, { fromDraft: false })}
-          />
-        )}
+          <>
+            {hasThread ? (
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                <h1 className="sr-only">Chat with CamiConnect</h1>
+                <ol
+                  role="log"
+                  aria-label="Conversation"
+                  aria-live="polite"
+                  className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-6"
+                >
+                  {messages.map((message) => (
+                    <MessageBubble key={message.id} role={message.role} content={message.content} />
+                  ))}
+                  {pendingText !== null ? (
+                    <>
+                      <MessageBubble role="user" content={pendingText} />
+                      <TypingIndicator />
+                    </>
+                  ) : null}
+                  <li ref={threadEndRef} aria-hidden="true" />
+                </ol>
+              </div>
+            ) : (
+              <ChatEmptyState
+                salutation={salutation}
+                firstName={firstName}
+                disabled={isSending}
+                onSuggestion={(message) => send(message, { fromDraft: false })}
+              />
+            )}
 
-        <ChatComposer
-          draft={draft}
-          onDraftChange={setDraft}
-          onSubmit={() => send(draft, { fromDraft: true })}
-          onOpenHistory={openHistory}
-          isSending={isSending}
-        />
+            <ChatComposer
+              draft={draft}
+              onDraftChange={setDraft}
+              onSubmit={() => send(draft, { fromDraft: true })}
+              onOpenHistory={openHistory}
+              isSending={isSending}
+            />
+          </>
+        )}
       </div>
     </div>
   );
