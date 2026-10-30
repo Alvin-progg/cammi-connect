@@ -28,18 +28,16 @@ export default async function ChatPage({
   const { salutation, firstName } = greetingFor(session.patient.fullName, new Date());
 
   return (
-    <main id="main" className="flex h-dvh flex-col bg-surface-muted sm:p-4 lg:p-6">
-      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col overflow-hidden bg-surface sm:rounded-2xl sm:border sm:border-line sm:shadow-card">
-        <ChatShell
-          // A new key resets the client thread when another chat is opened.
-          key={view.conversationId ?? "new"}
-          salutation={salutation}
-          firstName={firstName}
-          conversations={view.conversations}
-          conversationId={view.conversationId}
-          initialMessages={view.messages}
-        />
-      </div>
+    <main id="main" className="flex h-dvh flex-col bg-surface">
+      <ChatShell
+        // A new key resets the client thread when another chat is opened.
+        key={view.conversationId ?? "new"}
+        salutation={salutation}
+        firstName={firstName}
+        conversations={view.conversations}
+        conversationId={view.conversationId}
+        initialMessages={view.messages}
+      />
     </main>
   );
 }

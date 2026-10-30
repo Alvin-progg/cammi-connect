@@ -35,6 +35,23 @@ export function SidebarIcon({ className }: IconProps) {
   );
 }
 
+export function PencilSquareIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13" />
+      <path d="M17.6 3.9a1.9 1.9 0 0 1 2.7 2.7L12.5 14.4l-3.5.8.8-3.5Z" />
+    </BaseIcon>
+  );
+}
+
+export function ChatBubbleIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M12 4.5c4.4 0 7.5 2.9 7.5 6.5s-3.1 6.5-7.5 6.5c-.9 0-1.8-.1-2.6-.4L5 19l1.1-3.5C5 14.3 4.5 12.7 4.5 11c0-3.6 3.1-6.5 7.5-6.5Z" />
+    </BaseIcon>
+  );
+}
+
 export function ClockIcon({ className }: IconProps) {
   return (
     <BaseIcon className={className}>

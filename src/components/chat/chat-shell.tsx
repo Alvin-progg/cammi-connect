@@ -1,20 +1,38 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import type { ChatMessage, ConversationSummary } from "@/lib/chat/schemas";
 
 import { ChatComposer } from "./chat-composer";
 import { ChatEmptyState } from "./chat-empty-state";
-import { ChatTopBar } from "./chat-top-bar";
-import { HistoryDrawer } from "./history-drawer";
+import { ChatSidebar, type SidebarState } from "./chat-sidebar";
 import { MessageBubble, TypingIndicator } from "./message-bubble";
 
 type ChatResponse = { conversationId: string; messages: ChatMessage[] };
 
 const FALLBACK_ERROR = "The assistant is unavailable right now. Please try again in a moment.";
+
+// Matches Tailwind's `md` breakpoint, where the sidebar stops overlaying the chat.
+const DESKTOP_QUERY = "(min-width: 48rem)";
+
+function subscribeToDesktop(onChange: () => void): () => void {
+  if (typeof window.matchMedia !== "function") return () => {};
+  const media = window.matchMedia(DESKTOP_QUERY);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+function isDesktopViewport(): boolean {
+  return typeof window.matchMedia === "function" ? window.matchMedia(DESKTOP_QUERY).matches : true;
+}
+
+/** Unknown while server rendering; the sidebar then falls back to CSS breakpoints. */
+function useIsDesktop(): boolean | null {
+  return useSyncExternalStore(subscribeToDesktop, isDesktopViewport, () => null);
+}
 
 /** Reads the server's fixed error copy; it never contains chat text. */
 async function errorMessageFrom(response: Response): Promise<string> {
@@ -44,15 +62,36 @@ export function ChatShell({
   const [messages, setMessages] = useState(initialMessages);
   const [pendingText, setPendingText] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const isDesktop = useIsDesktop();
+  // null follows the viewport: open on desktop, a collapsed rail on mobile.
+  const [sidebarChoice, setSidebarChoice] = useState<boolean | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const threadEndRef = useRef<HTMLLIElement>(null);
 
+  const sidebarExpanded = sidebarChoice ?? isDesktop;
+  const sidebarState: SidebarState =
+    sidebarExpanded === null ? "auto" : sidebarExpanded ? "open" : "closed";
   const isSending = pendingText !== null;
+
+  function openHistory() {
+    setSidebarChoice(true);
+    setSearchOpen(true);
+  }
   const hasThread = messages.length > 0 || isSending;
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView?.({ block: "end" });
   }, [messages, pendingText]);
+
+  const sidebarOverlays = sidebarState === "open" && isDesktop === false;
+  useEffect(() => {
+    if (!sidebarOverlays) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setSidebarChoice(false);
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [sidebarOverlays]);
 
   async function send(text: string, { fromDraft }: { fromDraft: boolean }) {
     const trimmed = text.trim();
@@ -92,53 +131,69 @@ export function ChatShell({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <ChatTopBar onOpenHistory={() => setHistoryOpen(true)} />
-
-      {hasThread ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <h1 className="sr-only">Chat with CamiConnect</h1>
-          <ol
-            role="log"
-            aria-label="Conversation"
-            aria-live="polite"
-            className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-6"
-          >
-            {messages.map((message) => (
-              <MessageBubble key={message.id} role={message.role} content={message.content} />
-            ))}
-            {pendingText !== null ? (
-              <>
-                <MessageBubble role="user" content={pendingText} />
-                <TypingIndicator />
-              </>
-            ) : null}
-            <li ref={threadEndRef} aria-hidden="true" />
-          </ol>
-        </div>
-      ) : (
-        <ChatEmptyState
-          salutation={salutation}
-          firstName={firstName}
-          disabled={isSending}
-          onSuggestion={(message) => send(message, { fromDraft: false })}
+    <div className="flex min-h-0 flex-1">
+      {/* Reserves the rail's width on mobile, where the open sidebar overlays the chat. */}
+      <div className="w-16 shrink-0 md:w-auto">
+        {sidebarOverlays ? (
+          <div
+            aria-hidden="true"
+            onClick={() => setSidebarChoice(false)}
+            className="fixed inset-0 z-30 bg-overlay md:hidden"
+          />
+        ) : null}
+        <ChatSidebar
+          state={sidebarState}
+          onToggle={() => setSidebarChoice(!(sidebarExpanded ?? true))}
+          onExpand={() => setSidebarChoice(true)}
+          onNavigate={() => {
+            if (isDesktop === false) setSidebarChoice(false);
+          }}
+          searchOpen={searchOpen}
+          onSearchOpenChange={setSearchOpen}
+          conversations={conversations}
+          activeConversationId={activeConversationId}
         />
-      )}
+      </div>
 
-      <ChatComposer
-        draft={draft}
-        onDraftChange={setDraft}
-        onSubmit={() => send(draft, { fromDraft: true })}
-        onOpenHistory={() => setHistoryOpen(true)}
-        isSending={isSending}
-      />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {hasThread ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            <h1 className="sr-only">Chat with CamiConnect</h1>
+            <ol
+              role="log"
+              aria-label="Conversation"
+              aria-live="polite"
+              className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-6"
+            >
+              {messages.map((message) => (
+                <MessageBubble key={message.id} role={message.role} content={message.content} />
+              ))}
+              {pendingText !== null ? (
+                <>
+                  <MessageBubble role="user" content={pendingText} />
+                  <TypingIndicator />
+                </>
+              ) : null}
+              <li ref={threadEndRef} aria-hidden="true" />
+            </ol>
+          </div>
+        ) : (
+          <ChatEmptyState
+            salutation={salutation}
+            firstName={firstName}
+            disabled={isSending}
+            onSuggestion={(message) => send(message, { fromDraft: false })}
+          />
+        )}
 
-      <HistoryDrawer
-        open={historyOpen}
-        onClose={() => setHistoryOpen(false)}
-        conversations={conversations}
-        activeConversationId={activeConversationId}
-      />
+        <ChatComposer
+          draft={draft}
+          onDraftChange={setDraft}
+          onSubmit={() => send(draft, { fromDraft: true })}
+          onOpenHistory={openHistory}
+          isSending={isSending}
+        />
+      </div>
     </div>
   );
 }
