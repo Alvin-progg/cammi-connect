@@ -7,6 +7,7 @@ import {
   type ChatRole,
   type ConversationSummary,
 } from "@/lib/chat/schemas";
+import { IDLE_STATE, type BookingState, type BookingStep } from "@/lib/chat/state";
 import { ProviderError } from "@/server/ai/http";
 import type { PatientApiAccess } from "@/server/auth/dal";
 
@@ -30,7 +31,25 @@ export type ChatStore = {
   /** Callers must check ownership with getConversation first. */
   listMessages(conversationId: string): Promise<ChatMessage[]>;
   countRecentUserMessages(patientId: string, since: Date): Promise<number>;
-  createConversation(input: { id: string; patientId: string; title: string }): Promise<void>;
+  /** Stored state that fails validation comes back as idle. */
+  getBookingState(patientId: string, conversationId: string): Promise<BookingState>;
+  saveBookingState(patientId: string, conversationId: string, state: BookingState): Promise<void>;
+  /**
+   * Writes `next` only if the stored step is still `from`; false when another
+   * request changed it first. This is the double-Confirm guard.
+   */
+  claimBookingState(
+    patientId: string,
+    conversationId: string,
+    from: BookingStep,
+    next: BookingState,
+  ): Promise<boolean>;
+  createConversation(input: {
+    id: string;
+    patientId: string;
+    title: string;
+    bookingState: BookingState;
+  }): Promise<void>;
   appendMessages(conversationId: string, messages: NewChatMessage[]): Promise<ChatMessage[]>;
 };
 
@@ -143,33 +162,56 @@ export async function handleChatRequest(
     }
 
     const conversationId = requestedId ?? deps.newId();
-    const history = requestedId ? await deps.store.listMessages(requestedId) : [];
-    const { reply, payload } = await handleTurn(
+    const [history, bookingState] = requestedId
+      ? await Promise.all([
+          deps.store.listMessages(requestedId),
+          deps.store.getBookingState(patientId, requestedId),
+        ])
+      : [[], IDLE_STATE];
+    const turn = await handleTurn(
       {
         conversationId,
+        patientId,
         history: history.map(({ role, content }) => ({ role, content })),
         event,
+        state: bookingState,
+        now,
       },
-      { generate: deps.generate, searchKnowledge: deps.searchKnowledge, tools: deps.tools },
+      {
+        generate: deps.generate,
+        searchKnowledge: deps.searchKnowledge,
+        tools: deps.tools,
+        claimBooking: (next) =>
+          deps.store.claimBookingState(patientId, conversationId, "awaiting_confirmation", next),
+      },
     );
 
     if (!requestedId) {
       await deps.store.createConversation({
         id: conversationId,
         patientId,
-        title: conversationTitle(event.text),
+        title: conversationTitle(turn.userContent),
+        bookingState: turn.state,
       });
+    } else if (turn.state !== bookingState) {
+      // An unchanged state is not written back, so a turn that lost the
+      // Confirm claim cannot overwrite the winner's booking state.
+      await deps.store.saveBookingState(patientId, conversationId, turn.state);
     }
     // Distinct timestamps keep the pair in order when the thread is reloaded.
     const saved = await deps.store.appendMessages(conversationId, [
-      { role: "user", content: event.text, createdAt: now },
-      { role: "assistant", content: reply, payload, createdAt: new Date(now.getTime() + 1) },
+      { role: "user", content: turn.userContent, createdAt: now },
+      {
+        role: "assistant",
+        content: turn.reply,
+        payload: turn.payload,
+        createdAt: new Date(now.getTime() + 1),
+      },
     ]);
 
     deps.log({ requestId, outcome: "ok", status: 200 });
-    // Booking state arrives in S3; S1 conversations have none.
     return Response.json(
-      { conversationId, messages: saved, state: null, requestId },
+      { conversationId, messages: saved, state: turn.state, requestId },
       { headers: NO_STORE },
     );
   } catch (error) {

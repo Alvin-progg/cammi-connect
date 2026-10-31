@@ -1,5 +1,6 @@
-import type { ChatMessagePayload, ChatRole } from "@/lib/chat/schemas";
+import type { BookingEvent, ChatMessagePayload, ChatRole } from "@/lib/chat/schemas";
 
+import { BookingCard, isBookingPayload } from "./booking-cards";
 import { SparkleIcon } from "./icons";
 
 /**
@@ -10,10 +11,17 @@ export function MessageBubble({
   role,
   content,
   payload = null,
+  interactive = false,
+  busy = false,
+  onEvent = () => {},
 }: {
   role: ChatRole;
   content: string;
   payload?: ChatMessagePayload | null;
+  /** Booking card actions are enabled only on the latest assistant message. */
+  interactive?: boolean;
+  busy?: boolean;
+  onEvent?: (event: BookingEvent) => void;
 }) {
   if (role === "user") {
     return (
@@ -35,13 +43,21 @@ export function MessageBubble({
         <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-6 text-ink">
           {content}
         </p>
-        {payload ? <ReplyPayload payload={payload} /> : null}
+        {payload === null ? null : isBookingPayload(payload) ? (
+          <BookingCard payload={payload} interactive={interactive} busy={busy} onEvent={onEvent} />
+        ) : (
+          <ReplyPayload payload={payload} />
+        )}
       </div>
     </li>
   );
 }
 
-function ReplyPayload({ payload }: { payload: ChatMessagePayload }) {
+function ReplyPayload({
+  payload,
+}: {
+  payload: Extract<ChatMessagePayload, { kind: "sources" | "not_verified" }>;
+}) {
   if (payload.kind === "not_verified") {
     return (
       <p

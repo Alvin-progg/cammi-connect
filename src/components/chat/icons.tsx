@@ -4,7 +4,13 @@
  */
 import { BaseIcon, type IconProps } from "@/components/doctor/icons";
 
-export { CalendarIcon, ClipboardIcon, CloseIcon, PlusIcon } from "@/components/doctor/icons";
+export {
+  CalendarIcon,
+  ChevronRightIcon,
+  ClipboardIcon,
+  CloseIcon,
+  PlusIcon,
+} from "@/components/doctor/icons";
 
 export function SparkleIcon({ className }: IconProps) {
   return (
@@ -69,6 +75,14 @@ export function BuildingIcon({ className }: IconProps) {
       <rect x="4.5" y="3.5" width="15" height="17" rx="1.5" />
       <path d="M10 20.5v-4h4v4" />
       <path d="M12 7v4M10 9h4" />
+    </BaseIcon>
+  );
+}
+
+export function CheckIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M5 12.5 10 17.5 19 7" />
     </BaseIcon>
   );
 }

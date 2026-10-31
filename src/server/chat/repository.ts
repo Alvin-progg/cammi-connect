@@ -5,6 +5,7 @@ import {
   type ChatMessage,
   type ConversationSummary,
 } from "@/lib/chat/schemas";
+import { parseBookingState } from "@/lib/chat/state";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 import type { Database } from "@/server/db/database.types";
 
@@ -115,10 +116,50 @@ export const supabaseChatRepository: ChatStore & ChatViewStore = {
     return count ?? 0;
   },
 
-  async createConversation({ id, patientId, title }) {
+  async getBookingState(patientId, conversationId) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from("chat_conversations")
+      .select("booking_state")
+      .eq("id", conversationId)
+      .eq("patient_id", patientId)
+      .maybeSingle();
+    if (error) {
+      throw new Error("Unable to load the booking state.");
+    }
+    return parseBookingState(data?.booking_state ?? null);
+  },
+
+  async saveBookingState(patientId, conversationId, state) {
     const { error } = await getSupabaseAdminClient()
       .from("chat_conversations")
-      .insert({ id, patient_id: patientId, title });
+      .update({ booking_state: state })
+      .eq("id", conversationId)
+      .eq("patient_id", patientId);
+    if (error) {
+      throw new Error("Unable to save the booking state.");
+    }
+  },
+
+  async claimBookingState(patientId, conversationId, from, next) {
+    // The step filter makes this a compare-and-set: of two concurrent
+    // Confirms, only the first update finds the row still in `from`.
+    const { data, error } = await getSupabaseAdminClient()
+      .from("chat_conversations")
+      .update({ booking_state: next })
+      .eq("id", conversationId)
+      .eq("patient_id", patientId)
+      .eq("booking_state->>step", from)
+      .select("id");
+    if (error) {
+      throw new Error("Unable to update the booking state.");
+    }
+    return (data ?? []).length === 1;
+  },
+
+  async createConversation({ id, patientId, title, bookingState }) {
+    const { error } = await getSupabaseAdminClient()
+      .from("chat_conversations")
+      .insert({ id, patient_id: patientId, title, booking_state: bookingState });
     if (error) {
       throw new Error("Unable to create the conversation.");
     }

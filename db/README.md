@@ -220,8 +220,8 @@ No real patient data is used.
     page.
 12. Sign out and confirm `/doctor` redirects to `/login?next=%2Fdoctor`.
 12a. Chat (AI-APT-001 S1): register or sign in as a patient and confirm you land on
-    `/chat` with the greeting and three suggestion cards. Send "How do I book?" and
-    confirm the "can't help with that here yet" reply; send "I have chest pain" and
+    `/chat` with the greeting and three suggestion cards. Send "Can I reschedule my
+    appointment?" and confirm the "can't help with that here yet" reply; send "I have chest pain" and
     confirm the safe decline with the emergency notice. Reload and confirm the thread
     and its entry in the history drawer persist. Confirm a doctor account sees the
     access-denied page at `/chat`, and that a signed-out
@@ -233,6 +233,25 @@ No real patient data is used.
     hospital's information" callout; ask "Which departments do you have?" and confirm
     the list matches `/admin`. Reload and confirm the sources and callout persist.
     Rerun `npm run kb:ingest` and confirm every document is skipped as unchanged.
+12c. Booking (AI-APT-001 S3), with the seed doctor's schedule in place:
+    - Path A: send "I'd like to book an appointment", pick a specialty card, pick the
+      seed doctor, pick a slot, and check the summary. Confirm that nothing is in
+      `appointments` yet, then press Confirm booking and confirm the "Request received"
+      card. Confirm the row exists with status `requested`, and that it appears on the
+      doctor's `/doctor` board.
+    - Path B: send "Book Dr. <seed doctor's name> next Tuesday morning" and confirm the
+      reply goes straight to that doctor's slots (or asks for a specialty first when the
+      doctor has several). Book one and confirm it on the `/doctor` board.
+    - Stale slot: open a slot picker, book that slot from another patient account, then
+      pick it in the first tab and confirm "That time is no longer available" with
+      fresh slots.
+    - Two-tab race: open the same conversation in two tabs on the summary card, press
+      Confirm booking in both as close together as possible, and confirm exactly one
+      appointment row is created. The other tab gets "already being processed" or "That
+      slot was just booked".
+    - Send "Book a cardiologist for <a date more than 60 days ahead>" and confirm the
+      60-day reply.
+    - Cancel the smoke-test appointments afterwards.
 13. Sign in as the seed admin and open `/admin`: add and deactivate a department and a
     specialty; add a directory-only doctor with two specialties; filter doctors by
     department and by specialty; open a doctor's schedule and add a period and an
@@ -280,9 +299,11 @@ Do not use real patient or clinician email addresses for synthetic testing.
 - Unit/component tests mock Supabase; they do not prove RLS, grants, or real query
   behavior.
 - The service role bypasses RLS, so a service-layer bug is not contained by the database.
-- Slot generation and the booking function exist server-side, but there is no patient
-  booking UI yet (DOC-SCH-001 follow-up). Patient cancellation windows are not
-  implemented.
+- Patients book through the chat only (AI-APT-001 S3); there is no form-based booking
+  page. Patient cancellation is S4, and cancellation windows are not implemented.
+- If a booking turn fails unexpectedly after Confirm was claimed (provider or database
+  outage), the conversation's booking state stays at `booking` and its cards stop
+  accepting actions. The patient recovers by typing a new booking request.
 - The booking function, its grants, the new constraints, and concurrent booking are
   verified only by the manual smoke test above.
 - There is no local database for integration or E2E tests yet.

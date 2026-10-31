@@ -5,7 +5,12 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import type { PatientAppointmentGroups } from "@/lib/appointments/patient";
-import type { ChatMessage, ConversationSummary } from "@/lib/chat/schemas";
+import type {
+  BookingEvent,
+  ChatEvent,
+  ChatMessage,
+  ConversationSummary,
+} from "@/lib/chat/schemas";
 
 import { AppointmentsPanel } from "./appointments-panel";
 
@@ -66,7 +71,10 @@ export function ChatShell({
   const router = useRouter();
   const [activeConversationId, setActiveConversationId] = useState(conversationId);
   const [messages, setMessages] = useState(initialMessages);
-  const [pendingText, setPendingText] = useState<string | null>(null);
+  // null while idle; text is the patient's message, or null for a card action.
+  const [pending, setPending] = useState<{ text: string | null } | null>(null);
+  // Blocks a second request before React re-renders, e.g. a double-clicked Confirm.
+  const sendingRef = useRef(false);
   const [draft, setDraft] = useState("");
   const isDesktop = useIsDesktop();
   // null follows the viewport: open on desktop, a collapsed rail on mobile.
@@ -77,7 +85,8 @@ export function ChatShell({
   const sidebarExpanded = sidebarChoice ?? isDesktop;
   const sidebarState: SidebarState =
     sidebarExpanded === null ? "auto" : sidebarExpanded ? "open" : "closed";
-  const isSending = pendingText !== null;
+  const isSending = pending !== null;
+  const latestAssistantId = messages.findLast((message) => message.role === "assistant")?.id;
 
   function openHistory() {
     setSidebarChoice(true);
@@ -87,7 +96,7 @@ export function ChatShell({
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView?.({ block: "end" });
-  }, [messages, pendingText]);
+  }, [messages, pending]);
 
   const sidebarOverlays = sidebarState === "open" && isDesktop === false;
   useEffect(() => {
@@ -99,12 +108,11 @@ export function ChatShell({
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [sidebarOverlays]);
 
-  async function send(text: string, { fromDraft }: { fromDraft: boolean }) {
-    const trimmed = text.trim();
-    if (!trimmed || isSending) return;
-
-    setPendingText(trimmed);
-    if (fromDraft) setDraft("");
+  /** Posts one chat event; resolves false after showing a toast when it fails. */
+  async function postEvent(event: ChatEvent, pendingText: string | null): Promise<boolean> {
+    if (sendingRef.current) return false;
+    sendingRef.current = true;
+    setPending({ text: pendingText });
 
     try {
       const response = await fetch("/api/v1/chat", {
@@ -112,7 +120,7 @@ export function ChatShell({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           ...(activeConversationId ? { conversationId: activeConversationId } : {}),
-          event: { type: "message", text: trimmed },
+          event,
         }),
       });
       if (!response.ok) {
@@ -125,15 +133,31 @@ export function ChatShell({
         setActiveConversationId(body.conversationId);
         router.replace(`/chat?c=${body.conversationId}`, { scroll: false });
       }
+      return true;
     } catch (error) {
-      // Keep the patient's text for a retry; the toast never echoes it.
-      if (fromDraft) setDraft(text);
+      // The toast never echoes chat content.
       const description =
         error instanceof Error && !(error instanceof TypeError) ? error.message : FALLBACK_ERROR;
       toast.error("Message not sent", { id: "chat-send-error", description });
+      return false;
     } finally {
-      setPendingText(null);
+      sendingRef.current = false;
+      setPending(null);
     }
+  }
+
+  async function send(text: string, { fromDraft }: { fromDraft: boolean }) {
+    const trimmed = text.trim();
+    if (!trimmed || isSending) return;
+
+    if (fromDraft) setDraft("");
+    const sent = await postEvent({ type: "message", text: trimmed }, trimmed);
+    // Keep the patient's text for a retry.
+    if (!sent && fromDraft) setDraft(text);
+  }
+
+  function sendBookingEvent(event: BookingEvent) {
+    void postEvent(event, null);
   }
 
   return (
@@ -182,11 +206,16 @@ export function ChatShell({
                       role={message.role}
                       content={message.content}
                       payload={message.payload}
+                      interactive={message.id === latestAssistantId}
+                      busy={isSending}
+                      onEvent={sendBookingEvent}
                     />
                   ))}
-                  {pendingText !== null ? (
+                  {pending !== null ? (
                     <>
-                      <MessageBubble role="user" content={pendingText} />
+                      {pending.text !== null ? (
+                        <MessageBubble role="user" content={pending.text} />
+                      ) : null}
                       <TypingIndicator />
                     </>
                   ) : null}
