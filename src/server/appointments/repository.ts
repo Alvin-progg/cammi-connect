@@ -4,10 +4,15 @@ import type { AppointmentStatus } from "@/lib/appointments/status";
 import type {
   AppointmentHistoryEntry,
   DoctorAppointment,
+  PatientAppointment,
 } from "@/lib/appointments/types";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
-import type { AppointmentBooker, DoctorAppointmentsReader } from "./service";
+import type {
+  AppointmentBooker,
+  DoctorAppointmentsReader,
+  PatientAppointmentsReader,
+} from "./service";
 
 type AppointmentRow = {
   id: string;
@@ -270,5 +275,80 @@ export const supabaseAppointmentBooker: AppointmentBooker = {
       return { ok: false, error: { code: error.code, message: error.message } };
     }
     return { ok: true, appointmentId: data };
+  },
+};
+
+const PATIENT_APPOINTMENT_LIMIT = 100;
+
+/**
+ * A patient's own appointments, newest first. Every query is filtered by the
+ * patient ID from the session. Doctor and department names are joined here so
+ * no doctor IDs reach the UI.
+ */
+export const supabasePatientAppointmentsRepository: PatientAppointmentsReader = {
+  async listForPatient(patientId) {
+    const supabase = getSupabaseAdminClient();
+    const { data: rows, error } = await supabase
+      .from("appointments")
+      .select("id, doctor_id, reason, scheduled_at, duration_minutes, status")
+      .eq("patient_id", patientId)
+      .order("scheduled_at", { ascending: false })
+      .limit(PATIENT_APPOINTMENT_LIMIT);
+    if (error) {
+      throw new Error("Unable to load appointments.");
+    }
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    const doctorIds = [...new Set(rows.map((row) => row.doctor_id))];
+    const [profilesResult, doctorsResult] = await Promise.all([
+      supabase.from("profiles").select("id, full_name").in("id", doctorIds),
+      supabase.from("doctors").select("id, department_id").in("id", doctorIds),
+    ]);
+    if (profilesResult.error || doctorsResult.error) {
+      throw new Error("Unable to load appointment doctors.");
+    }
+
+    const departmentIds = [
+      ...new Set(
+        (doctorsResult.data ?? []).flatMap((doctor) =>
+          doctor.department_id ? [doctor.department_id] : [],
+        ),
+      ),
+    ];
+    const departmentNames = new Map<string, string>();
+    if (departmentIds.length > 0) {
+      const { data: departments, error: departmentError } = await supabase
+        .from("departments")
+        .select("id, name")
+        .in("id", departmentIds);
+      if (departmentError) {
+        throw new Error("Unable to load appointment departments.");
+      }
+      for (const department of departments ?? []) {
+        departmentNames.set(department.id, department.name);
+      }
+    }
+
+    const doctorNames = new Map(
+      (profilesResult.data ?? []).map((profile) => [profile.id, profile.full_name]),
+    );
+    const doctorDepartments = new Map(
+      (doctorsResult.data ?? []).map((doctor) => [doctor.id, doctor.department_id]),
+    );
+
+    return rows.map((row) => {
+      const departmentId = doctorDepartments.get(row.doctor_id);
+      return {
+        id: row.id,
+        doctorName: doctorNames.get(row.doctor_id)?.trim() || "Doctor",
+        departmentName: departmentId ? (departmentNames.get(departmentId) ?? null) : null,
+        reason: row.reason?.trim() || null,
+        scheduledAt: row.scheduled_at,
+        durationMinutes: row.duration_minutes,
+        status: row.status,
+      } satisfies PatientAppointment;
+    });
   },
 };

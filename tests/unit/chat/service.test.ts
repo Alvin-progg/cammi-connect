@@ -13,7 +13,7 @@ const OWN: ConversationSummary = {
   updatedAt: "2026-10-30T01:00:00.000Z",
 };
 const MESSAGES: ChatMessage[] = [
-  { id: "m1", role: "user", content: "Hi", createdAt: "2026-10-30T01:00:00.000Z" },
+  { id: "m1", role: "user", content: "Hi", payload: null, createdAt: "2026-10-30T01:00:00.000Z" },
 ];
 
 function fakeStore(): ChatViewStore {

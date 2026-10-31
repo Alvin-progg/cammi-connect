@@ -5,7 +5,12 @@ import { useState } from "react";
 
 import type { ConversationSummary } from "@/lib/chat/schemas";
 
-import { ChatBubbleIcon, PencilSquareIcon, SearchIcon, SidebarIcon } from "./icons";
+import {
+  CalendarIcon,
+  PencilSquareIcon,
+  SearchIcon,
+  SidebarIcon,
+} from "./icons";
 
 /**
  * Width and label visibility are driven by `data-state` on the aside:
@@ -32,6 +37,7 @@ export function ChatSidebar({
   onSearchOpenChange,
   conversations,
   activeConversationId,
+  appointmentsActive,
 }: {
   state: SidebarState;
   onToggle: () => void;
@@ -42,6 +48,7 @@ export function ChatSidebar({
   onSearchOpenChange: (open: boolean) => void;
   conversations: ConversationSummary[];
   activeConversationId: string | null;
+  appointmentsActive: boolean;
 }) {
   const [query, setQuery] = useState("");
   const isOpen = state === "open";
@@ -95,6 +102,17 @@ export function ChatSidebar({
           </span>
           <span className={LABEL}>Search chats</span>
         </button>
+        <Link
+          href="/chat?view=appointments"
+          aria-current={appointmentsActive ? "page" : undefined}
+          onClick={onNavigate}
+          className={`${ROW} ${appointmentsActive ? "bg-primary-soft text-ink" : ""}`}
+        >
+          <span className={ICON_SLOT}>
+            <CalendarIcon className="size-5" />
+          </span>
+          <span className={LABEL}>My appointments</span>
+        </Link>
         {searchOpen && isOpen ? (
           <input
             type="search"
@@ -111,54 +129,51 @@ export function ChatSidebar({
         ) : null}
       </nav>
 
-      <div className="mx-3 mt-4 border-t border-line" />
-
-      <p
-        className={`${LABEL} mt-4 px-4 text-[0.6875rem] font-medium uppercase tracking-wider text-ink-muted`}
+      {/* Text-only list: hidden (and inert) on the collapsed rail. */}
+      <div
+        inert={state === "closed"}
+        className="invisible flex min-h-0 flex-1 flex-col opacity-0 transition-[opacity,visibility] duration-150 motion-reduce:transition-none group-data-[state=open]:visible group-data-[state=open]:opacity-100 md:group-data-[state=auto]:visible md:group-data-[state=auto]:opacity-100"
       >
-        Previous conversations
-      </p>
+        <div className="mx-3 mt-4 border-t border-line" />
 
-      <nav
-        aria-label="Previous conversations"
-        className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 pb-4"
-      >
-        {matches.length === 0 ? (
-          <p className={`${LABEL} px-2 py-3 text-sm text-ink-muted`}>
-            {conversations.length === 0 ? "No conversations yet." : "No conversations match."}
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-0.5">
-            {matches.map((conversation) => {
-              const isActive = conversation.id === activeConversationId;
-              return (
-                <li key={conversation.id}>
-                  <Link
-                    href={`/chat?c=${conversation.id}`}
-                    title={conversation.title}
-                    aria-current={isActive ? "page" : undefined}
-                    onClick={onNavigate}
-                    className={`focus-ring flex min-h-12 items-center gap-3 rounded-xl px-2 text-sm transition-colors motion-reduce:transition-none ${
-                      isActive
-                        ? "bg-primary-soft font-semibold text-ink"
-                        : "font-medium text-ink-secondary hover:bg-surface-muted hover:text-ink"
-                    }`}
-                  >
-                    <span
-                      className={`${ICON_SLOT} rounded-lg ${
-                        isActive ? "bg-primary text-primary-ink" : "bg-surface-muted text-ink-muted"
+        <p className="mt-4 whitespace-nowrap px-4 text-[0.6875rem] font-medium uppercase tracking-wider text-ink-muted">
+          Previous conversations
+        </p>
+
+        <nav
+          aria-label="Previous conversations"
+          className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 pb-4"
+        >
+          {matches.length === 0 ? (
+            <p className="whitespace-nowrap px-3 py-3 text-sm text-ink-muted">
+              {conversations.length === 0 ? "No conversations yet." : "No conversations match."}
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {matches.map((conversation) => {
+                const isActive = conversation.id === activeConversationId;
+                return (
+                  <li key={conversation.id}>
+                    <Link
+                      href={`/chat?c=${conversation.id}`}
+                      title={conversation.title}
+                      aria-current={isActive ? "page" : undefined}
+                      onClick={onNavigate}
+                      className={`focus-ring flex min-h-11 items-center rounded-xl px-3 text-sm transition-colors motion-reduce:transition-none ${
+                        isActive
+                          ? "bg-primary-soft font-semibold text-ink"
+                          : "font-medium text-ink-secondary hover:bg-surface-muted hover:text-ink"
                       }`}
                     >
-                      <ChatBubbleIcon className="size-4" />
-                    </span>
-                    <span className={LABEL}>{conversation.title}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </nav>
+                      <span className="truncate whitespace-nowrap">{conversation.title}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </nav>
+      </div>
     </aside>
   );
 }

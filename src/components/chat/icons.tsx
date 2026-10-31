@@ -44,14 +44,6 @@ export function PencilSquareIcon({ className }: IconProps) {
   );
 }
 
-export function ChatBubbleIcon({ className }: IconProps) {
-  return (
-    <BaseIcon className={className}>
-      <path d="M12 4.5c4.4 0 7.5 2.9 7.5 6.5s-3.1 6.5-7.5 6.5c-.9 0-1.8-.1-2.6-.4L5 19l1.1-3.5C5 14.3 4.5 12.7 4.5 11c0-3.6 3.1-6.5 7.5-6.5Z" />
-    </BaseIcon>
-  );
-}
-
 export function ClockIcon({ className }: IconProps) {
   return (
     <BaseIcon className={className}>

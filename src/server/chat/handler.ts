@@ -3,6 +3,7 @@ import "server-only";
 import {
   chatRequestSchema,
   type ChatMessage,
+  type ChatMessagePayload,
   type ChatRole,
   type ConversationSummary,
 } from "@/lib/chat/schemas";
@@ -16,7 +17,12 @@ export const CHAT_RATE_LIMIT_PER_MINUTE = 10;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const TITLE_MAX_LENGTH = 60;
 
-export type NewChatMessage = { role: ChatRole; content: string; createdAt: Date };
+export type NewChatMessage = {
+  role: ChatRole;
+  content: string;
+  payload?: ChatMessagePayload | null;
+  createdAt: Date;
+};
 
 export type ChatStore = {
   /** Returns null when the conversation does not exist or is not the patient's. */
@@ -51,6 +57,8 @@ export type ChatHandlerDeps = {
   resolvePatient: () => Promise<PatientApiAccess>;
   store: ChatStore;
   generate: TurnDeps["generate"];
+  searchKnowledge: TurnDeps["searchKnowledge"];
+  tools: TurnDeps["tools"];
   now: () => Date;
   newId: () => string;
   log: (entry: ChatLogEntry) => void;
@@ -136,13 +144,13 @@ export async function handleChatRequest(
 
     const conversationId = requestedId ?? deps.newId();
     const history = requestedId ? await deps.store.listMessages(requestedId) : [];
-    const { reply } = await handleTurn(
+    const { reply, payload } = await handleTurn(
       {
         conversationId,
         history: history.map(({ role, content }) => ({ role, content })),
         event,
       },
-      { generate: deps.generate },
+      { generate: deps.generate, searchKnowledge: deps.searchKnowledge, tools: deps.tools },
     );
 
     if (!requestedId) {
@@ -155,7 +163,7 @@ export async function handleChatRequest(
     // Distinct timestamps keep the pair in order when the thread is reloaded.
     const saved = await deps.store.appendMessages(conversationId, [
       { role: "user", content: event.text, createdAt: now },
-      { role: "assistant", content: reply, createdAt: new Date(now.getTime() + 1) },
+      { role: "assistant", content: reply, payload, createdAt: new Date(now.getTime() + 1) },
     ]);
 
     deps.log({ requestId, outcome: "ok", status: 200 });

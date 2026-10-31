@@ -27,3 +27,17 @@ export type AppointmentHistoryEntry = {
   scheduledAtSnapshot: string | null;
   createdAt: string;
 };
+
+/**
+ * An appointment as its own patient sees it. Doctor identifiers stay out of
+ * the DTO; only display names are included.
+ */
+export type PatientAppointment = {
+  id: string;
+  doctorName: string;
+  departmentName: string | null;
+  reason: string | null;
+  scheduledAt: string;
+  durationMinutes: number;
+  status: AppointmentStatus;
+};
