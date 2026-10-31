@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ChatMessage } from "@/lib/chat/schemas";
-import { NOT_AVAILABLE_YET } from "@/lib/chat/safety";
+import { NOT_AVAILABLE_YET, NOT_VERIFIED } from "@/lib/chat/safety";
 import type { PatientApiAccess } from "@/server/auth/dal";
 import { ProviderError } from "@/server/ai/http";
 import type { GenerateInput } from "@/server/ai/opencode-zen";
@@ -14,6 +14,7 @@ import {
   type ChatStore,
   type NewChatMessage,
 } from "@/server/chat/handler";
+import type { KnowledgeSearchResult } from "@/server/knowledge/service";
 
 vi.mock("server-only", () => ({}));
 
@@ -32,8 +33,8 @@ function fakeStore(): ChatStore {
         : null,
     ),
     listMessages: vi.fn(async (): Promise<ChatMessage[]> => [
-      { id: "m1", role: "user", content: "Hi", createdAt: NOW.toISOString() },
-      { id: "m2", role: "assistant", content: "Hello", createdAt: NOW.toISOString() },
+      { id: "m1", role: "user", content: "Hi", payload: null, createdAt: NOW.toISOString() },
+      { id: "m2", role: "assistant", content: "Hello", payload: null, createdAt: NOW.toISOString() },
     ]),
     countRecentUserMessages: vi.fn(async () => 0),
     createConversation: vi.fn(async () => {}),
@@ -42,6 +43,7 @@ function fakeStore(): ChatStore {
         id: `saved-${index}`,
         role: message.role,
         content: message.content,
+        payload: message.payload ?? null,
         createdAt: message.createdAt.toISOString(),
       })),
     ),
@@ -64,6 +66,12 @@ beforeEach(() => {
     generate: vi
       .fn<(input: GenerateInput) => Promise<string>>()
       .mockResolvedValue(JSON.stringify({ intent: "book" })),
+    searchKnowledge: vi.fn(async (): Promise<KnowledgeSearchResult> => ({ found: false })),
+    tools: {
+      getDepartments: vi.fn(async () => []),
+      getSpecialties: vi.fn(async () => []),
+      getDoctorDetails: vi.fn(async () => ({ status: "unknown" as const })),
+    },
     now: () => NOW,
     newId: () => (nextId++ === 0 ? REQUEST_ID : NEW_CONVERSATION_ID),
     log: (entry) => logged.push(entry),
@@ -217,6 +225,34 @@ describe("handleChatRequest", () => {
       state: null,
       requestId: REQUEST_ID,
     });
+  });
+
+  it("saves and returns the assistant payload", async () => {
+    vi.mocked(deps.generate).mockResolvedValue(JSON.stringify({ intent: "service_inquiry" }));
+
+    const response = await handleChatRequest(chatRequest(messageBody("Parking fees?")), deps);
+    const body = await response.json();
+
+    const [, messages] = vi.mocked(store.appendMessages).mock.calls[0];
+    expect(messages[0].payload).toBeUndefined();
+    expect(messages[1]).toEqual(
+      expect.objectContaining({ content: NOT_VERIFIED, payload: { kind: "not_verified" } }),
+    );
+    expect(body.messages[1].payload).toEqual({ kind: "not_verified" });
+    expect(deps.searchKnowledge).toHaveBeenCalledWith("Parking fees?");
+  });
+
+  it("returns 503 and persists nothing when the knowledge search fails", async () => {
+    vi.mocked(deps.generate).mockResolvedValue(JSON.stringify({ intent: "service_inquiry" }));
+    vi.mocked(deps.searchKnowledge).mockRejectedValue(
+      new ProviderError("gemini", "unavailable", 503),
+    );
+
+    const response = await handleChatRequest(chatRequest(messageBody("What to bring?")), deps);
+
+    expect(response.status).toBe(503);
+    expect(logged.at(-1)?.cause).toBe("gemini:unavailable");
+    expect(store.appendMessages).not.toHaveBeenCalled();
   });
 
   it("truncates a long first message for the conversation title", async () => {

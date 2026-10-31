@@ -1,6 +1,10 @@
 import "server-only";
 
-import type { ChatMessage, ConversationSummary } from "@/lib/chat/schemas";
+import {
+  chatMessagePayloadSchema,
+  type ChatMessage,
+  type ConversationSummary,
+} from "@/lib/chat/schemas";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 import type { Database } from "@/server/db/database.types";
 
@@ -13,11 +17,11 @@ type ConversationRow = Pick<
 >;
 type MessageRow = Pick<
   Database["public"]["Tables"]["chat_messages"]["Row"],
-  "id" | "role" | "content" | "created_at"
+  "id" | "role" | "content" | "payload" | "created_at"
 >;
 
 const CONVERSATION_COLUMNS = "id, title, updated_at";
-const MESSAGE_COLUMNS = "id, role, content, created_at";
+const MESSAGE_COLUMNS = "id, role, content, payload, created_at";
 const CONVERSATION_LIST_LIMIT = 50;
 
 function toConversation(row: ConversationRow): ConversationSummary {
@@ -25,7 +29,15 @@ function toConversation(row: ConversationRow): ConversationSummary {
 }
 
 function toMessage(row: MessageRow): ChatMessage {
-  return { id: row.id, role: row.role, content: row.content, createdAt: row.created_at };
+  // Stored JSON is re-validated so a malformed payload renders as plain text.
+  const payload = chatMessagePayloadSchema.safeParse(row.payload);
+  return {
+    id: row.id,
+    role: row.role,
+    content: row.content,
+    payload: payload.success ? payload.data : null,
+    createdAt: row.created_at,
+  };
 }
 
 /**
@@ -121,6 +133,7 @@ export const supabaseChatRepository: ChatStore & ChatViewStore = {
           conversation_id: conversationId,
           role: message.role,
           content: message.content,
+          payload: message.payload ?? null,
           created_at: message.createdAt.toISOString(),
         })),
       )

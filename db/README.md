@@ -64,7 +64,7 @@ Open the Supabase dashboard for the project, go to **SQL Editor**, paste the con
 `db/migrations/0001_profiles_appointments.sql`, and run it once. Then run
 `db/migrations/0002_doctor_dashboard_suite.sql` once, then
 `db/migrations/0003_doctor_specialty_schedules.sql` once, then
-`db/migrations/0004_chat.sql` once.
+`db/migrations/0004_chat.sql` once, then `db/migrations/0005_knowledge.sql` once.
 
 `0001_profiles_appointments.sql`:
 
@@ -112,6 +112,36 @@ renamed table and dropped `doctor_schedules_day_unique` constraint break older c
   conversation);
 - adds the indexes for the conversation list, thread order, and retention purge;
 - applies the same RLS/revoke/grant model.
+
+`0005_knowledge.sql` (AI-APT-001 S2):
+
+- enables the `vector` extension in the `extensions` schema (if pgvector was
+  already enabled in another schema, move it or adjust the `extensions.` prefixes
+  before running);
+- creates `knowledge_documents` and `knowledge_chunks` (768-dimension embeddings with
+  an HNSW cosine index);
+- adds `cammi_connect_match_knowledge_chunks` (published chunks only) and
+  `cammi_connect_replace_document_chunks` (atomic re-ingestion of one document),
+  executable by `service_role` only (ADR-0003);
+- applies the same RLS/revoke/grant model.
+
+### Knowledge base ingestion (ADR-0004)
+
+The synthetic corpus lives in `db/knowledge/*.md` (one document per file; the file
+name is the slug and the first `#` heading is the title). After applying `0005`, load
+it with:
+
+```bash
+npm run kb:ingest
+```
+
+It needs `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `GEMINI_API_KEY`
+in `.env.local`. Documents whose content hash has not changed are skipped, so rerun it
+after editing the corpus. To unpublish a document without deleting it:
+
+```sql
+update public.knowledge_documents set is_published = false where slug = '<slug>';
+```
 
 ### Chat retention (ADR-0008)
 
@@ -196,6 +226,13 @@ No real patient data is used.
     and its entry in the history drawer persist. Confirm a doctor account sees the
     access-denied page at `/chat`, and that a signed-out
     `curl -i -X POST http://localhost:3000/api/v1/chat` returns 401.
+12b. Hospital information (AI-APT-001 S2), after `npm run kb:ingest`: ask "What
+    documents do I need to bring for my appointment?" and confirm an answer with a
+    Sources list naming corpus documents; ask an off-corpus question (for example
+    "How much is parking at another hospital?") and confirm the amber "not found in the
+    hospital's information" callout; ask "Which departments do you have?" and confirm
+    the list matches `/admin`. Reload and confirm the sources and callout persist.
+    Rerun `npm run kb:ingest` and confirm every document is skipped as unchanged.
 13. Sign in as the seed admin and open `/admin`: add and deactivate a department and a
     specialty; add a directory-only doctor with two specialties; filter doctors by
     department and by specialty; open a doctor's schedule and add a period and an

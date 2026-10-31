@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:seed": "node --env-file=.env.local scripts/seed.mjs",
+    "kb:ingest": "node --env-file=.env.local scripts/ingest-knowledge.mts",
     "smoke:providers": "node --env-file=.env.local scripts/smoke-providers.mjs",
     "typecheck": "tsc --noEmit"
   },

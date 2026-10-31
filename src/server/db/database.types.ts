@@ -356,6 +356,63 @@ export type Database = {
         };
         Relationships: [];
       };
+      knowledge_documents: {
+        Row: {
+          id: string;
+          slug: string;
+          title: string;
+          content_hash: string;
+          version: number;
+          is_published: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          slug: string;
+          title: string;
+          content_hash: string;
+          version?: number;
+          is_published?: boolean;
+        };
+        Update: {
+          title?: string;
+          content_hash?: string;
+          version?: number;
+          is_published?: boolean;
+        };
+        Relationships: [];
+      };
+      knowledge_chunks: {
+        Row: {
+          id: string;
+          document_id: string;
+          document_version: number;
+          chunk_index: number;
+          section_title: string | null;
+          content: string;
+          content_hash: string;
+          /** pgvector text form, e.g. "[0.1,0.2,...]". */
+          embedding: string;
+          is_published: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          document_id: string;
+          document_version: number;
+          chunk_index: number;
+          section_title?: string | null;
+          content: string;
+          content_hash: string;
+          embedding: string;
+          is_published?: boolean;
+        };
+        Update: {
+          is_published?: boolean;
+        };
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -375,6 +432,29 @@ export type Database = {
           p_patient_id: string;
           p_scheduled_at: string;
           p_reason: string | null;
+        };
+        Returns: string;
+      };
+      cammi_connect_match_knowledge_chunks: {
+        Args: {
+          /** pgvector text form, e.g. "[0.1,0.2,...]". */
+          query_embedding: string;
+          match_count: number;
+          min_similarity: number;
+        };
+        Returns: {
+          chunk_id: string;
+          slug: string;
+          title: string;
+          section_title: string | null;
+          content: string;
+          similarity: number;
+        }[];
+      };
+      cammi_connect_replace_document_chunks: {
+        Args: {
+          p_document: Json;
+          p_chunks: Json;
         };
         Returns: string;
       };

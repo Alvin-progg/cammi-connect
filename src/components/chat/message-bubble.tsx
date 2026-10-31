@@ -1,4 +1,4 @@
-import type { ChatRole } from "@/lib/chat/schemas";
+import type { ChatMessagePayload, ChatRole } from "@/lib/chat/schemas";
 
 import { SparkleIcon } from "./icons";
 
@@ -6,7 +6,15 @@ import { SparkleIcon } from "./icons";
  * One chat message (design.md §6.5). Content is always rendered as React text,
  * never as HTML, so model or patient input cannot inject markup.
  */
-export function MessageBubble({ role, content }: { role: ChatRole; content: string }) {
+export function MessageBubble({
+  role,
+  content,
+  payload = null,
+}: {
+  role: ChatRole;
+  content: string;
+  payload?: ChatMessagePayload | null;
+}) {
   if (role === "user") {
     return (
       <li className="flex justify-end">
@@ -27,8 +35,38 @@ export function MessageBubble({ role, content }: { role: ChatRole; content: stri
         <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-6 text-ink">
           {content}
         </p>
+        {payload ? <ReplyPayload payload={payload} /> : null}
       </div>
     </li>
+  );
+}
+
+function ReplyPayload({ payload }: { payload: ChatMessagePayload }) {
+  if (payload.kind === "not_verified") {
+    return (
+      <p
+        role="note"
+        className="mt-3 rounded-lg border border-warning/30 bg-warning-soft px-3 py-2 text-xs leading-5 text-warning-soft-ink"
+      >
+        Not found in the hospital&apos;s information. Please confirm with the hospital directly.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 border-t border-line pt-2">
+      {/* The list carries the accessible name; this is the visual heading. */}
+      <p aria-hidden="true" className="text-xs font-medium text-ink-secondary">
+        Sources
+      </p>
+      <ul aria-label="Sources" className="mt-1 space-y-0.5 text-xs leading-5 text-ink-secondary">
+        {payload.sources.map((source) => (
+          <li key={`${source.slug}:${source.sectionTitle ?? ""}`} className="break-words">
+            {source.sectionTitle ? `${source.title} — ${source.sectionTitle}` : source.title}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

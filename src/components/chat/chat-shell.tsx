@@ -177,7 +177,12 @@ export function ChatShell({
                   className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-6"
                 >
                   {messages.map((message) => (
-                    <MessageBubble key={message.id} role={message.role} content={message.content} />
+                    <MessageBubble
+                      key={message.id}
+                      role={message.role}
+                      content={message.content}
+                      payload={message.payload}
+                    />
                   ))}
                   {pendingText !== null ? (
                     <>

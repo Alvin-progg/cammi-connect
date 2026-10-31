@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 export const MESSAGE_MAX_LENGTH = 1000;
+/** Matches the chat_messages.content check in 0004_chat.sql. */
+export const ASSISTANT_REPLY_MAX_LENGTH = 4000;
 
 /**
  * Events a patient can send in one chat turn. S1 only has free-text messages;
@@ -41,7 +43,8 @@ export type ChatIntent = (typeof CHAT_INTENTS)[number];
 export const intentExtractionSchema = z.object({
   intent: z.enum(CHAT_INTENTS),
   specialtyName: z.string().nullish(),
-  doctorName: z.string().nullish(),
+  // Matches the chat tools' name limit; longer output is not a real name.
+  doctorName: z.string().max(200).nullish(),
   preferredDate: z.string().nullish(),
   preferredTime: z.string().nullish(),
   reason: z.string().nullish(),
@@ -52,10 +55,34 @@ export type IntentExtraction = z.infer<typeof intentExtractionSchema>;
 
 export type ChatRole = "user" | "assistant";
 
+/**
+ * Structured data shown with an assistant reply, stored in
+ * chat_messages.payload. Sources are copied from knowledge_documents rows,
+ * never from model output.
+ */
+export const chatMessagePayloadSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("sources"),
+    sources: z
+      .array(
+        z.object({
+          slug: z.string(),
+          title: z.string(),
+          sectionTitle: z.string().nullable(),
+        }),
+      )
+      .min(1),
+  }),
+  z.object({ kind: z.literal("not_verified") }),
+]);
+
+export type ChatMessagePayload = z.infer<typeof chatMessagePayloadSchema>;
+
 export type ChatMessage = {
   id: string;
   role: ChatRole;
   content: string;
+  payload: ChatMessagePayload | null;
   createdAt: string;
 };
 

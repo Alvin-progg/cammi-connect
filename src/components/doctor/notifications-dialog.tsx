@@ -30,6 +30,7 @@ function notificationsLabel(unreadCount: number): string {
     : "Notifications";
 }
 
+
 /**
  * Hosts the notifications modal for the doctor workspace. The panel is
  * server-rendered with the page, so marking items read revalidates `/doctor`

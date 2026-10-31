@@ -32,3 +32,7 @@ export const NOT_AVAILABLE_YET =
 
 export const PLEASE_REPHRASE =
   "Sorry, I didn't quite catch that. Could you rephrase your message?";
+
+/** RAG fallback when no published chunk clears the similarity threshold. */
+export const NOT_VERIFIED =
+  "I couldn't verify that from the hospital's information. Please contact the hospital directly for help with this question.";

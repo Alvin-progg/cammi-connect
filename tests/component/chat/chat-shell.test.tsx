@@ -303,25 +303,25 @@ describe("ChatShell composer", () => {
 
 describe("ChatShell thread", () => {
   it("renders message text inertly", () => {
-    const payload = '<img src=x onerror="window.__xss=1"><b>bold</b>';
+    const markup = '<img src=x onerror="window.__xss=1"><b>bold</b>';
     const { container } = renderShell({
       conversationId: CONVERSATIONS[0].id,
       initialMessages: [
-        { id: "u1", role: "user", content: payload, createdAt: "2026-10-30T01:00:00.000Z" },
-        { id: "a1", role: "assistant", content: payload, createdAt: "2026-10-30T01:00:01.000Z" },
+        { id: "u1", role: "user", content: markup, payload: null, createdAt: "2026-10-30T01:00:00.000Z" },
+        { id: "a1", role: "assistant", content: markup, payload: null, createdAt: "2026-10-30T01:00:01.000Z" },
       ],
     });
 
     expect(container.querySelector("img")).toBeNull();
     expect(container.querySelector("b")).toBeNull();
-    expect(screen.getAllByText(payload)).toHaveLength(2);
+    expect(screen.getAllByText(markup)).toHaveLength(2);
   });
 
   it("announces new messages politely and labels assistant replies", () => {
     renderShell({
       conversationId: CONVERSATIONS[0].id,
       initialMessages: [
-        { id: "a1", role: "assistant", content: "Hello", createdAt: "2026-10-30T01:00:01.000Z" },
+        { id: "a1", role: "assistant", content: "Hello", payload: null, createdAt: "2026-10-30T01:00:01.000Z" },
       ],
     });
 
@@ -329,6 +329,70 @@ describe("ChatShell thread", () => {
     expect(thread).toHaveAttribute("aria-live", "polite");
     expect(within(thread).getByText("CamiConnect")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1, name: /Good Morning/ })).not.toBeInTheDocument();
+  });
+
+  it("lists the sources under a grounded answer", () => {
+    renderShell({
+      conversationId: CONVERSATIONS[0].id,
+      initialMessages: [
+        {
+          id: "a1",
+          role: "assistant",
+          content: "Please bring a valid government ID.",
+          payload: {
+            kind: "sources",
+            sources: [
+              { slug: "required-documents", title: "Required Documents", sectionTitle: "Identification" },
+              { slug: "visit-guidelines", title: "Visit Guidelines", sectionTitle: null },
+            ],
+          },
+          createdAt: "2026-10-30T01:00:01.000Z",
+        },
+      ],
+    });
+
+    const sources = screen.getByRole("list", { name: "Sources" });
+    expect(within(sources).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Required Documents — Identification",
+      "Visit Guidelines",
+    ]);
+  });
+
+  it("renders source titles inertly", () => {
+    const markup = '<img src=x onerror="window.__xss=1">';
+    const { container } = renderShell({
+      conversationId: CONVERSATIONS[0].id,
+      initialMessages: [
+        {
+          id: "a1",
+          role: "assistant",
+          content: "Answer",
+          payload: { kind: "sources", sources: [{ slug: "x", title: markup, sectionTitle: null }] },
+          createdAt: "2026-10-30T01:00:01.000Z",
+        },
+      ],
+    });
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText(markup)).toBeInTheDocument();
+  });
+
+  it("marks an unverified answer with a callout", () => {
+    renderShell({
+      conversationId: CONVERSATIONS[0].id,
+      initialMessages: [
+        {
+          id: "a1",
+          role: "assistant",
+          content: "I couldn't verify that.",
+          payload: { kind: "not_verified" },
+          createdAt: "2026-10-30T01:00:01.000Z",
+        },
+      ],
+    });
+
+    expect(screen.getByRole("note")).toHaveTextContent(/not found in the hospital's information/i);
+    expect(screen.queryByRole("list", { name: "Sources" })).not.toBeInTheDocument();
   });
 });
 
