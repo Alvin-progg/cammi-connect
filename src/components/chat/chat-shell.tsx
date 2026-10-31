@@ -17,7 +17,7 @@ import { AppointmentsPanel } from "./appointments-panel";
 import { ChatComposer } from "./chat-composer";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatSidebar, type SidebarState } from "./chat-sidebar";
-import { MessageBubble, TypingIndicator } from "./message-bubble";
+import { AssistantStatus, MessageBubble } from "./message-bubble";
 
 type ChatResponse = { conversationId: string; messages: ChatMessage[] };
 
@@ -72,7 +72,11 @@ export function ChatShell({
   const [activeConversationId, setActiveConversationId] = useState(conversationId);
   const [messages, setMessages] = useState(initialMessages);
   // null while idle; text is the patient's message, or null for a card action.
-  const [pending, setPending] = useState<{ text: string | null } | null>(null);
+  const [pending, setPending] = useState<{ text: string | null; startedAt: number } | null>(
+    null,
+  );
+  // Reply times for assistant messages that arrived in this session; only these type out.
+  const [replyTimes, setReplyTimes] = useState<Record<string, number>>({});
   // Blocks a second request before React re-renders, e.g. a double-clicked Confirm.
   const sendingRef = useRef(false);
   const [draft, setDraft] = useState("");
@@ -112,7 +116,8 @@ export function ChatShell({
   async function postEvent(event: ChatEvent, pendingText: string | null): Promise<boolean> {
     if (sendingRef.current) return false;
     sendingRef.current = true;
-    setPending({ text: pendingText });
+    const startedAt = Date.now();
+    setPending({ text: pendingText, startedAt });
 
     try {
       const response = await fetch("/api/v1/chat", {
@@ -128,6 +133,14 @@ export function ChatShell({
       }
 
       const body: ChatResponse = await response.json();
+      const elapsedMs = Date.now() - startedAt;
+      setReplyTimes((current) => {
+        const next = { ...current };
+        for (const message of body.messages) {
+          if (message.role === "assistant") next[message.id] = elapsedMs;
+        }
+        return next;
+      });
       setMessages((current) => [...current, ...body.messages]);
       if (!activeConversationId) {
         setActiveConversationId(body.conversationId);
@@ -209,6 +222,9 @@ export function ChatShell({
                       interactive={message.id === latestAssistantId}
                       busy={isSending}
                       onEvent={sendBookingEvent}
+                      reveal={
+                        message.id in replyTimes ? { elapsedMs: replyTimes[message.id] } : null
+                      }
                     />
                   ))}
                   {pending !== null ? (
@@ -216,7 +232,7 @@ export function ChatShell({
                       {pending.text !== null ? (
                         <MessageBubble role="user" content={pending.text} />
                       ) : null}
-                      <TypingIndicator />
+                      <AssistantStatus startedAt={pending.startedAt} />
                     </>
                   ) : null}
                   <li ref={threadEndRef} aria-hidden="true" />

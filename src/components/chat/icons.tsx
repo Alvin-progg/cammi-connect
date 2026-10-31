@@ -22,6 +22,15 @@ export function SparkleIcon({ className }: IconProps) {
   );
 }
 
+export function CheckCircleIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m8.5 12.25 2.4 2.4 4.6-4.9" />
+    </BaseIcon>
+  );
+}
+
 export function SearchIcon({ className }: IconProps) {
   return (
     <BaseIcon className={className}>

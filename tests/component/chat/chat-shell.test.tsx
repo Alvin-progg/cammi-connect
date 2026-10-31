@@ -268,6 +268,44 @@ describe("ChatShell composer", () => {
     });
   });
 
+  it("shows a thinking status while waiting, then how long the reply took", async () => {
+    let respond: (response: Response) => void = () => {};
+    fetchMock.mockReturnValue(new Promise<Response>((resolve) => (respond = resolve)));
+    renderShell();
+
+    fireEvent.change(screen.getByLabelText("Message"), { target: { value: "Hello" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(await screen.findByText("Thinking…")).toBeInTheDocument();
+
+    respond(
+      okResponse({
+        conversationId: CONVERSATIONS[0].id,
+        messages: [
+          { id: "u1", role: "user", content: "Hello", createdAt: "2026-10-30T01:00:00.000Z" },
+          { id: "a1", role: "assistant", content: "Hi there", createdAt: "2026-10-30T01:00:01.000Z" },
+        ],
+        state: null,
+        requestId: "r1",
+      }),
+    );
+
+    expect(await screen.findByText(/^Replied in \d+\.\ds$/)).toBeInTheDocument();
+    expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+  });
+
+  it("shows no reply timing on messages loaded from history", () => {
+    renderShell({
+      conversationId: CONVERSATIONS[0].id,
+      initialMessages: [
+        { id: "a1", role: "assistant", content: "Hi there", payload: null, createdAt: "2026-10-30T01:00:01.000Z" },
+      ],
+    });
+
+    expect(screen.getByText("Hi there")).toBeInTheDocument();
+    expect(screen.queryByText(/Replied in/)).not.toBeInTheDocument();
+  });
+
   it("keeps the draft and shows a toast without chat content when sending fails", async () => {
     fetchMock.mockResolvedValue({
       ok: false,

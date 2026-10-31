@@ -149,6 +149,15 @@
   /* Strong ease-out for UI entrances and press feedback */
   --ease-snappy: cubic-bezier(0.23, 1, 0.32, 1);
 
+  /* Content that appears after a chat reply finishes typing out */
+  --animate-fade-in: fade-in 200ms var(--ease-snappy);
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
