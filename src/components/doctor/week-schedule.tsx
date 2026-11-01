@@ -11,12 +11,15 @@ import { patientInitials, SLOT_TONES } from "./slot-tones";
 import { WeekSlotPopover } from "./week-slot-popover";
 
 /**
- * Height of one hour row. A 30-minute slot (3.5rem) must fit the name row and
- * the time line plus the block's padding and border without clipping.
+ * Smallest hour row before the grid scrolls inside the card instead of
+ * shrinking further. At this height a 30-minute slot fits one compact line and
+ * a 60-minute slot fits the name row plus the time line.
  */
-const HOUR_ROW_REM = 7;
+const MIN_HOUR_ROW_REM = 3.25;
+/** Shorter slots collapse to a single line: name plus start time. */
+const STACKED_MIN_MINUTES = 60;
 /** Long enough to show the reason line inside the block. */
-const REASON_MIN_MINUTES = 60;
+const REASON_MIN_MINUTES = 90;
 
 function hourLabel(hour: number): string {
   const suffix = hour < 12 || hour === 24 ? "AM" : "PM";
@@ -45,6 +48,7 @@ function WeekSlot({
   const timeRange = `${formatManilaTime(appointment.scheduledAt)} – ${formatManilaTime(block.endsAt)}`;
   const popoverId = `slot-popover-${appointment.id}`;
   const laneWidth = 100 / block.laneCount;
+  const isCompact = appointment.durationMinutes < STACKED_MIN_MINUTES;
 
   return (
     <div
@@ -63,29 +67,50 @@ function WeekSlot({
         aria-controls={isOpen ? popoverId : undefined}
         aria-label={`${appointment.patientName}, ${timeRange}, ${APPOINTMENT_STATUS_LABELS[appointment.status]}`}
         onClick={onToggle}
-        className={`focus-ring flex h-full w-full min-w-0 flex-col overflow-hidden rounded-lg border px-2 py-1 text-left transition-[transform,box-shadow] duration-150 ease-snappy active:scale-[0.97] motion-reduce:transition-none ${tone.fill} ${tone.edge} ${
+        className={`focus-ring flex h-full w-full min-w-0 overflow-hidden rounded-lg border px-2 text-left ${
+          isCompact ? "items-center gap-1.5 py-0.5" : "flex-col py-1"
+        } transition-[transform,box-shadow] duration-150 ease-snappy active:scale-[0.97] motion-reduce:transition-none ${tone.fill} ${tone.edge} ${
           isOpen ? "shadow-card ring-2 ring-primary/40" : ""
         } ${appointment.status === "cancelled" || appointment.status === "no_show" ? "opacity-75" : ""}`}
       >
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span
-            aria-hidden="true"
-            className="flex size-5 shrink-0 items-center justify-center rounded-full bg-surface text-[0.625rem] font-semibold text-ink-secondary"
-          >
-            {patientInitials(appointment.patientName)}
-          </span>
-          <span className="truncate text-xs font-semibold text-ink">
-            {appointment.patientName}
-          </span>
-        </span>
-        {appointment.durationMinutes >= REASON_MIN_MINUTES ? (
-          <span className="mt-1 truncate text-xs text-ink-secondary">
-            {appointment.reason ?? "General consultation"}
-          </span>
-        ) : null}
-        <span className="mt-auto truncate text-[0.6875rem] tabular-nums text-ink-secondary">
-          {timeRange}
-        </span>
+        {isCompact ? (
+          <>
+            <span
+              aria-hidden="true"
+              className="flex size-4 shrink-0 items-center justify-center rounded-full bg-surface text-[0.5625rem] font-semibold text-ink-secondary"
+            >
+              {patientInitials(appointment.patientName)}
+            </span>
+            <span className="min-w-0 truncate text-xs font-semibold text-ink">
+              {appointment.patientName}
+            </span>
+            <span className="ml-auto shrink-0 text-[0.6875rem] tabular-nums text-ink-secondary">
+              {formatManilaTime(appointment.scheduledAt)}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span
+                aria-hidden="true"
+                className="flex size-5 shrink-0 items-center justify-center rounded-full bg-surface text-[0.625rem] font-semibold text-ink-secondary"
+              >
+                {patientInitials(appointment.patientName)}
+              </span>
+              <span className="truncate text-xs font-semibold text-ink">
+                {appointment.patientName}
+              </span>
+            </span>
+            {appointment.durationMinutes >= REASON_MIN_MINUTES ? (
+              <span className="mt-1 truncate text-xs text-ink-secondary">
+                {appointment.reason ?? "General consultation"}
+              </span>
+            ) : null}
+            <span className="mt-auto truncate text-[0.6875rem] tabular-nums text-ink-secondary">
+              {timeRange}
+            </span>
+          </>
+        )}
       </button>
 
       {isOpen ? (
@@ -129,7 +154,8 @@ export function WeekSchedule({
     [],
   );
 
-  const bodyHeight = `${layout.hours.length * HOUR_ROW_REM}rem`;
+  const minBodyHeight = `${layout.hours.length * MIN_HOUR_ROW_REM}rem`;
+  const hourRowPct = 100 / layout.hours.length;
   const columns = "grid-cols-[3.5rem_repeat(7,minmax(0,1fr))]";
 
   return (
@@ -137,10 +163,12 @@ export function WeekSchedule({
       role="region"
       aria-label="Week schedule"
       tabIndex={0}
-      className="focus-ring overflow-x-auto rounded-b-2xl"
+      className="focus-ring min-h-0 flex-1 overflow-auto rounded-b-2xl"
     >
-      <div className="min-w-[56rem]">
-        <div className={`grid ${columns} border-b border-line`}>
+      <div className="flex h-full min-w-[56rem] flex-col">
+        <div
+          className={`sticky top-0 z-40 grid ${columns} border-b border-line bg-surface`}
+        >
           <div className="flex items-end justify-center pb-3 text-[0.6875rem] font-medium text-ink-muted">
             GMT+8
           </div>
@@ -170,7 +198,10 @@ export function WeekSchedule({
           ))}
         </div>
 
-        <div className={`relative grid ${columns}`} style={{ height: bodyHeight }}>
+        <div
+          className={`relative grid flex-1 ${columns}`}
+          style={{ minHeight: minBodyHeight }}
+        >
           <div aria-hidden="true" className="relative">
             {layout.hours.map((hour, index) => (
               <span
@@ -192,7 +223,7 @@ export function WeekSchedule({
               style={{
                 backgroundImage:
                   "linear-gradient(to bottom, var(--line) 1px, transparent 1px)",
-                backgroundSize: `100% ${HOUR_ROW_REM}rem`,
+                backgroundSize: `100% ${hourRowPct}%`,
               }}
             >
               {layout.blocks

@@ -107,6 +107,47 @@ describe("WeekSchedule", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders short slots on one line with only the start time", () => {
+    renderWeek();
+    const slot = screen.getByRole("button", { name: /Synthetic Patient A/ });
+    expect(slot).toHaveTextContent("Synthetic Patient A");
+    expect(slot).not.toHaveTextContent("–");
+    expect(slot).not.toHaveTextContent("Routine consultation");
+  });
+
+  it("keeps the time range but hides the reason on 60-minute slots", () => {
+    renderWeek([{ ...APPOINTMENTS[0], durationMinutes: 60 }]);
+    const slot = screen.getByRole("button", { name: /Synthetic Patient A/ });
+    expect(slot).toHaveTextContent("–");
+    expect(slot).not.toHaveTextContent("Routine consultation");
+  });
+
+  it("shows the reason on slots of 90 minutes or longer", () => {
+    renderWeek([{ ...APPOINTMENTS[0], durationMinutes: 90 }]);
+    const slot = screen.getByRole("button", { name: /Synthetic Patient A/ });
+    expect(slot).toHaveTextContent("Routine consultation");
+  });
+
+  it("sizes hour lines as a share of the day column so the grid can fit the screen", () => {
+    renderWeek();
+    const monday = screen.getByRole("group", { name: /Monday, October 26/ });
+    // Default range 08:00–18:00 is 10 hour rows.
+    expect(monday.style.backgroundSize).toBe("100% 10%");
+  });
+
+  it("opens late-day popovers upward without a conflicting bottom offset", async () => {
+    const user = userEvent.setup();
+    renderWeek([
+      { ...APPOINTMENTS[0], scheduledAt: "2026-10-26T08:00:00.000Z" }, // Mon 16:00 PHT
+    ]);
+
+    await user.click(screen.getByRole("button", { name: /Synthetic Patient A/ }));
+
+    const popover = screen.getByRole("dialog", { name: "Synthetic Patient A" });
+    expect(popover).toHaveClass("sm:bottom-0");
+    expect(popover).not.toHaveClass("sm:bottom-auto");
+  });
+
   it("keeps the grid and notes an empty week", () => {
     renderWeek([]);
     expect(screen.getAllByRole("group")).toHaveLength(7);

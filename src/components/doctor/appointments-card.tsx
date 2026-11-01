@@ -89,7 +89,10 @@ export function AppointmentsCard({
   return (
     <section
       aria-labelledby="appointments-heading"
-      className="rounded-2xl border border-line bg-surface shadow-card"
+      // On desktop the card fills the viewport below the 4rem header (+1px
+      // border) and the page's 3rem vertical padding, so the whole working day
+      // is visible without scrolling the page.
+      className="flex flex-col rounded-2xl border border-line bg-surface shadow-card lg:h-[calc(100dvh-7rem-1px)]"
     >
       <h2 id="appointments-heading" className="sr-only">
         Appointments
@@ -143,7 +146,7 @@ export function AppointmentsCard({
         </form>
       </div>
 
-      {children}
+      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
     </section>
   );
 }
