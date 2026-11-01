@@ -104,25 +104,29 @@ All tables follow ADR-0003: RLS enabled with no permissive policies, `anon` and
 
 ## Acceptance criteria
 
-- [ ] A patient who registers or signs in lands on `/chat`.
-- [ ] Conversations and messages persist and are visible only to their owner.
-- [ ] Symptom messages get the safe decline, with the emergency notice when urgent.
-- [ ] Hospital-information questions are answered from the corpus with real sources.
-- [ ] Off-corpus questions get the "could not be verified" fallback.
-- [ ] Directory questions are answered from the database, active entries only.
-- [ ] A patient can book by specialty (Path A).
-- [ ] A patient can book by a named doctor (Path B), including doctors with several
+- [x] A patient who registers or signs in lands on `/chat`.
+- [x] Conversations and messages persist and are visible only to their owner.
+- [x] Symptom messages get the safe decline, with the emergency notice when urgent.
+- [x] Hospital-information questions are answered from the corpus with real sources.
+- [x] Off-corpus questions get the "could not be verified" fallback.
+- [x] Directory questions are answered from the database, active entries only.
+- [x] A patient can book by specialty (Path A).
+- [x] A patient can book by a named doctor (Path B), including doctors with several
       specialties.
-- [ ] Only database doctors and currently available slots are offered.
-- [ ] No appointment is created without an explicit Confirm.
-- [ ] A double Confirm or a two-tab race creates exactly one appointment.
-- [ ] A failed booking never shows a confirmation.
-- [ ] A patient can view their appointments and cancel a `requested` or `confirmed` one.
-- [ ] Reschedule requests get the "not available yet" reply.
-- [ ] Unauthenticated, non-patient, over-limit, and provider-down requests get
+- [x] Only database doctors and currently available slots are offered.
+- [x] No appointment is created without an explicit Confirm.
+- [x] A double Confirm or a two-tab race creates exactly one appointment.
+- [x] A failed booking never shows a confirmation.
+- [x] A patient can view their appointments and cancel a `requested` or `confirmed` one.
+- [x] Reschedule requests get the "not available yet" reply.
+- [x] Unauthenticated, non-patient, over-limit, and provider-down requests get
       401/403, 429, and 503 responses without chat content in logs.
-- [ ] Provider adapters enforce timeouts and bounded retries and never expose keys or
+- [x] Provider adapters enforce timeouts and bounded retries and never expose keys or
       raw provider responses.
+
+Verified 2026-11-01 (PLN-002 S5): `npm test` (586 tests), `npm run lint`,
+`npm run typecheck` and `npm run build` pass, and the hosted smoke test in
+`db/README.md` §5 (steps 12a–12d, `smoke:providers`, `kb:ingest`) was reported passing.
 
 ## Out of scope
 
