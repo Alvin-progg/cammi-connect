@@ -121,7 +121,7 @@ export function DoctorStatsPanel({
               {stats.days.map((day) => (
                 <div
                   key={day.date}
-                  className="flex min-w-2 flex-1 flex-col items-center justify-end"
+                  className="flex h-full min-w-2 flex-1 flex-col items-center justify-end"
                 >
                   <div
                     className="w-full max-w-10 rounded-t-md bg-chart-1"
