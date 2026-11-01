@@ -2,10 +2,20 @@ import "server-only";
 
 import { z } from "zod";
 
+import { splitPatientAppointments } from "@/lib/appointments/patient";
+import type { PatientAppointment } from "@/lib/appointments/types";
 import { matchDoctorsByName, filterSlotsByTime } from "@/lib/chat/resolve";
 import { BOOKING_REASON_MAX_LENGTH } from "@/lib/chat/state";
 import type { Department, DoctorSummary, Specialty } from "@/lib/directory/types";
-import { bookAppointment, type AppointmentBooker } from "@/server/appointments/service";
+import {
+  bookAppointment,
+  cancelAppointmentForPatient,
+  listPatientAppointments,
+  type AppointmentBooker,
+  type PatientAppointmentRef,
+  type PatientAppointmentsStore,
+  type PatientCancelResult,
+} from "@/server/appointments/service";
 import { getAvailableSlots, type AvailabilitySource } from "@/server/availability/service";
 import { listBookableDoctors, type DirectoryStore } from "@/server/directory/service";
 
@@ -24,6 +34,13 @@ const availabilityInputSchema = z.object({
   // Matches availabilityQuerySchema's limit.
   days: z.number().int().min(1).max(14),
   preferredTime: z.string().max(50).optional(),
+});
+
+const patientIdInputSchema = z.object({ patientId: z.uuid() });
+
+const patientAppointmentInputSchema = z.object({
+  patientId: z.uuid(),
+  appointmentId: z.uuid(),
 });
 
 const createAppointmentInputSchema = z.object({
@@ -46,7 +63,8 @@ export type BookingOutcome = { ok: true; appointmentId: string } | { ok: false; 
  * Database-backed tools the chat orchestrator may call. Doctors, departments,
  * specialties, and slots shown to patients come only from here, never from
  * the LLM or RAG, and only active entries are returned. The patient ID for a
- * booking is passed in by the orchestrator from the session.
+ * booking or an appointment lookup is passed in by the orchestrator from the
+ * session, and every patient appointment query is scoped by it.
  */
 export type ChatTools = {
   getDepartments(): Promise<Department[]>;
@@ -67,16 +85,33 @@ export type ChatTools = {
     start: string;
     reason: string | null;
   }): Promise<BookingOutcome>;
+  /** Upcoming requested or confirmed appointments, soonest first. */
+  getPatientAppointments(input: { patientId: string }): Promise<PatientAppointment[]>;
+  getPatientAppointment(input: {
+    patientId: string;
+    appointmentId: string;
+  }): Promise<PatientAppointmentRef | null>;
+  requestAppointmentCancellation(input: {
+    patientId: string;
+    appointmentId: string;
+  }): Promise<PatientCancelResult>;
 };
 
 export type ChatToolDeps = {
   directory: DirectoryStore;
   availability: AvailabilitySource;
   booker: AppointmentBooker;
+  patientAppointments: PatientAppointmentsStore;
   now: () => Date;
 };
 
-export function createChatTools({ directory, availability, booker, now }: ChatToolDeps): ChatTools {
+export function createChatTools({
+  directory,
+  availability,
+  booker,
+  patientAppointments,
+  now,
+}: ChatToolDeps): ChatTools {
   return {
     async getDepartments() {
       return (await directory.listDepartments()).filter((department) => department.isActive);
@@ -120,6 +155,23 @@ export function createChatTools({ directory, availability, booker, now }: ChatTo
       return bookAppointment(
         { patientId, doctorId, scheduledAt: new Date(start), reason },
         booker,
+      );
+    },
+
+    async getPatientAppointments(input) {
+      const { patientId } = patientIdInputSchema.parse(input);
+      const appointments = await listPatientAppointments(patientId, patientAppointments);
+      return splitPatientAppointments(appointments, now()).upcoming;
+    },
+
+    async getPatientAppointment(input) {
+      return patientAppointments.getForPatient(patientAppointmentInputSchema.parse(input));
+    },
+
+    async requestAppointmentCancellation(input) {
+      return cancelAppointmentForPatient(
+        patientAppointmentInputSchema.parse(input),
+        patientAppointments,
       );
     },
   };

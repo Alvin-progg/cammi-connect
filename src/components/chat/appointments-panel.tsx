@@ -6,6 +6,7 @@ import type { PatientAppointment } from "@/lib/appointments/types";
 import { MANILA_TIME_ZONE } from "@/lib/appointments/filters";
 import { formatManilaTime } from "@/lib/appointments/format";
 
+import { CancelAppointmentButton } from "./cancel-appointment-button";
 import { CalendarIcon } from "./icons";
 
 const MONTH_FORMATTER = new Intl.DateTimeFormat("en-PH", {
@@ -22,8 +23,15 @@ const WEEKDAY_FORMATTER = new Intl.DateTimeFormat("en-PH", {
   year: "numeric",
 });
 
-function AppointmentCard({ appointment }: { appointment: PatientAppointment }) {
+function AppointmentCard({
+  appointment,
+  cancellable,
+}: {
+  appointment: PatientAppointment;
+  cancellable: boolean;
+}) {
   const start = new Date(appointment.scheduledAt);
+  const whenLabel = `${WEEKDAY_FORMATTER.format(start)}, ${MONTH_FORMATTER.format(start)} ${DAY_FORMATTER.format(start)} · ${formatManilaTime(appointment.scheduledAt)}`;
   return (
     <li className="flex gap-4 rounded-xl border border-line bg-surface p-4 shadow-card">
       <div
@@ -48,14 +56,20 @@ function AppointmentCard({ appointment }: { appointment: PatientAppointment }) {
           <AppointmentStatusBadge status={appointment.status} />
         </div>
         <p className="mt-2 text-sm text-ink-secondary">
-          <time dateTime={appointment.scheduledAt}>
-            {WEEKDAY_FORMATTER.format(start)}, {MONTH_FORMATTER.format(start)}{" "}
-            {DAY_FORMATTER.format(start)} · {formatManilaTime(appointment.scheduledAt)}
-          </time>{" "}
+          <time dateTime={appointment.scheduledAt}>{whenLabel}</time>{" "}
           · {appointment.durationMinutes} min
         </p>
         {appointment.reason ? (
           <p className="mt-1 break-words text-sm text-ink-muted">{appointment.reason}</p>
+        ) : null}
+        {cancellable ? (
+          <div className="mt-3">
+            <CancelAppointmentButton
+              appointmentId={appointment.id}
+              doctorName={appointment.doctorName}
+              whenLabel={whenLabel}
+            />
+          </div>
         ) : null}
       </div>
     </li>
@@ -67,11 +81,14 @@ function AppointmentSection({
   title,
   appointments,
   emptyText,
+  cancellable,
 }: {
   id: string;
   title: string;
   appointments: PatientAppointment[];
   emptyText: string;
+  /** Upcoming appointments are requested or confirmed, so each can be cancelled. */
+  cancellable: boolean;
 }) {
   return (
     <section aria-labelledby={id} className="mt-8">
@@ -83,7 +100,11 @@ function AppointmentSection({
       ) : (
         <ul className="mt-3 flex flex-col gap-3">
           {appointments.map((appointment) => (
-            <AppointmentCard key={appointment.id} appointment={appointment} />
+            <AppointmentCard
+              key={appointment.id}
+              appointment={appointment}
+              cancellable={cancellable}
+            />
           ))}
         </ul>
       )}
@@ -91,7 +112,7 @@ function AppointmentSection({
   );
 }
 
-/** Read-only list of the patient's appointments. Cancelling arrives with AI-APT-001 S4. */
+/** The patient's appointments; upcoming ones can be cancelled (AI-APT-001 S4). */
 export function AppointmentsPanel({ upcoming, past }: PatientAppointmentGroups) {
   const isEmpty = upcoming.length === 0 && past.length === 0;
 
@@ -111,7 +132,7 @@ export function AppointmentsPanel({ upcoming, past }: PatientAppointmentGroups) 
             </span>
             <p className="mt-4 text-base font-semibold text-ink">No appointments yet</p>
             <p className="mt-1 text-sm text-ink-muted">
-              Booking through the assistant is coming soon.
+              Ask the assistant to book one.
             </p>
             <Link
               href="/chat"
@@ -127,12 +148,14 @@ export function AppointmentsPanel({ upcoming, past }: PatientAppointmentGroups) 
               title="Upcoming"
               appointments={upcoming}
               emptyText="No upcoming appointments."
+              cancellable
             />
             <AppointmentSection
               id="appointments-past"
               title="Past"
               appointments={past}
               emptyText="No past appointments."
+              cancellable={false}
             />
           </>
         )}

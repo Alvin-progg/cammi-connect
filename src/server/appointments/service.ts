@@ -1,7 +1,9 @@
 import "server-only";
 
 import {
+  PATIENT_CANCEL_SOURCES,
   canDoctorPerform,
+  canPatientCancel,
   sourceStatusesForAction,
   targetStatusForAction,
   type DoctorAppointmentAction,
@@ -400,9 +402,82 @@ export type PatientAppointmentsReader = {
   listForPatient(patientId: string): Promise<PatientAppointment[]>;
 };
 
+/** The fields a patient cancellation needs, read with the patient ID as a filter. */
+export type PatientAppointmentRef = {
+  id: string;
+  doctorName: string;
+  scheduledAt: string;
+  status: AppointmentStatus;
+};
+
+/** Patient-scoped reads and the guarded cancel. Every method filters by the session's patient ID. */
+export type PatientAppointmentsStore = PatientAppointmentsReader & {
+  /** Returns null when the appointment does not exist or belongs to another patient. */
+  getForPatient(input: {
+    patientId: string;
+    appointmentId: string;
+  }): Promise<PatientAppointmentRef | null>;
+  /**
+   * Guarded cancel: only applies when the appointment is the patient's and its
+   * current status is one of `from`. Returns whether a row changed.
+   */
+  cancelForPatient(input: {
+    patientId: string;
+    appointmentId: string;
+    from: readonly AppointmentStatus[];
+  }): Promise<boolean>;
+  insertHistory: DoctorAppointmentsReader["insertHistory"];
+};
+
+export type PatientCancelResult =
+  | { ok: true; appointment: PatientAppointmentRef }
+  | { ok: false; code: "not_found" | "not_cancellable" | "changed"; message: string };
+
 export async function listPatientAppointments(
   patientId: string,
   reader: PatientAppointmentsReader,
 ): Promise<PatientAppointment[]> {
   return reader.listForPatient(patientId);
+}
+
+/**
+ * Cancels one of the patient's own appointments. Another patient's
+ * appointment is reported as not found, and the write is guarded on the
+ * current status so a concurrent change (or a double confirm) cannot cancel
+ * twice or overwrite a doctor's transition.
+ */
+export async function cancelAppointmentForPatient(
+  input: { patientId: string; appointmentId: string },
+  store: PatientAppointmentsStore,
+): Promise<PatientCancelResult> {
+  const appointment = await store.getForPatient(input);
+  if (!appointment) {
+    return { ok: false, code: "not_found", message: "Appointment not found." };
+  }
+  if (!canPatientCancel(appointment.status)) {
+    return {
+      ok: false,
+      code: "not_cancellable",
+      message: "This appointment can no longer be cancelled.",
+    };
+  }
+
+  const changed = await store.cancelForPatient({ ...input, from: PATIENT_CANCEL_SOURCES });
+  if (!changed) {
+    return {
+      ok: false,
+      code: "changed",
+      message: "The appointment status just changed. Refresh and try again.",
+    };
+  }
+
+  await store.insertHistory({
+    appointmentId: appointment.id,
+    fromStatus: appointment.status,
+    toStatus: "cancelled",
+    changedByProfileId: input.patientId,
+    reason: null,
+    scheduledAtSnapshot: appointment.scheduledAt,
+  });
+  return { ok: true, appointment };
 }

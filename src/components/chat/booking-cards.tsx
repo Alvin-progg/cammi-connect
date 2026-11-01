@@ -6,7 +6,7 @@ import { useState } from "react";
 import { AppointmentStatusBadge } from "@/components/appointments/appointment-status-badge";
 import { formatManilaDate, formatManilaTime } from "@/lib/appointments/format";
 import { manilaDateOf } from "@/lib/chat/booking";
-import type { BookingEvent, ChatMessagePayload, DoctorOption } from "@/lib/chat/schemas";
+import type { CardEvent, ChatMessagePayload, DoctorOption } from "@/lib/chat/schemas";
 
 import { CheckIcon, ChevronRightIcon } from "./icons";
 
@@ -27,19 +27,19 @@ export function isBookingPayload(payload: ChatMessagePayload): payload is Bookin
   return BOOKING_KINDS.has(payload.kind);
 }
 
-type CardProps = {
+export type CardProps = {
   /** Only the latest assistant message's card accepts actions. */
   interactive: boolean;
   /** A chat request is in flight. */
   busy: boolean;
-  onEvent: (event: BookingEvent) => void;
+  onEvent: (event: CardEvent) => void;
 };
 
-const BUTTON_BASE =
+export const BUTTON_BASE =
   "focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none";
-const PRIMARY_BUTTON = `${BUTTON_BASE} border-primary bg-primary text-primary-ink hover:bg-primary-hover`;
-const SECONDARY_BUTTON = `${BUTTON_BASE} border-line-strong bg-surface text-primary hover:bg-primary-soft`;
-const GHOST_BUTTON = `${BUTTON_BASE} border-transparent bg-transparent text-ink hover:bg-surface-muted`;
+export const PRIMARY_BUTTON = `${BUTTON_BASE} border-primary bg-primary text-primary-ink hover:bg-primary-hover`;
+export const SECONDARY_BUTTON = `${BUTTON_BASE} border-line-strong bg-surface text-primary hover:bg-primary-soft`;
+export const GHOST_BUTTON = `${BUTTON_BASE} border-transparent bg-transparent text-ink hover:bg-surface-muted`;
 
 /**
  * Booking cards shown under an assistant reply (AI-APT-001 S3). Every value
@@ -200,7 +200,7 @@ function SlotPicker({
   );
 }
 
-function SummaryRow({ term, children }: { term: string; children: React.ReactNode }) {
+export function SummaryRow({ term, children }: { term: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-3">
       <dt className="w-20 shrink-0 text-ink-muted">{term}</dt>

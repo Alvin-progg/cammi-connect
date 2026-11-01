@@ -87,6 +87,13 @@ beforeEach(() => {
       getDoctorsBySpecialty: vi.fn(async () => []),
       getDoctorAvailability: vi.fn(async () => []),
       createAppointment: vi.fn(async () => ({ ok: false as const, message: "unused" })),
+      getPatientAppointments: vi.fn(async () => []),
+      getPatientAppointment: vi.fn(async () => null),
+      requestAppointmentCancellation: vi.fn(async () => ({
+        ok: false as const,
+        code: "not_found" as const,
+        message: "unused",
+      })),
     },
     now: () => NOW,
     newId: () => (nextId++ === 0 ? REQUEST_ID : NEW_CONVERSATION_ID),
@@ -138,6 +145,22 @@ describe("handleChatRequest", () => {
     ["a message over 1000 characters", messageBody("a".repeat(1001))],
     ["an unknown event type", { event: { type: "teleport" } }],
     ["a booking action without a conversation", { event: { type: "confirm_booking" } }],
+    [
+      "an appointment action without a conversation",
+      {
+        event: {
+          type: "confirm_cancellation",
+          appointmentId: "00000000-0000-4000-8000-000000000301",
+        },
+      },
+    ],
+    [
+      "an appointment action with a malformed appointment ID",
+      {
+        conversationId: "00000000-0000-4000-8000-00000000c001",
+        event: { type: "request_cancellation", appointmentId: "nope" },
+      },
+    ],
     ["a malformed conversation ID", messageBody("Hi", "not-a-uuid")],
   ])("returns 422 for %s", async (_label, body) => {
     const response = await handleChatRequest(chatRequest(body), deps);

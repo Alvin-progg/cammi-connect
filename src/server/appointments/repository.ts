@@ -11,7 +11,7 @@ import { getSupabaseAdminClient } from "@/server/db/admin-client";
 import type {
   AppointmentBooker,
   DoctorAppointmentsReader,
-  PatientAppointmentsReader,
+  PatientAppointmentsStore,
 } from "./service";
 
 type AppointmentRow = {
@@ -77,6 +77,30 @@ async function mapRowsToAppointments(
  * repository in the UI DTO. Patient contact details and clinical records are
  * not selected.
  */
+/** The one writer for appointment_status_history, shared by doctor and patient transitions. */
+const insertStatusHistory: DoctorAppointmentsReader["insertHistory"] = async ({
+  appointmentId,
+  fromStatus,
+  toStatus,
+  changedByProfileId,
+  reason,
+  scheduledAtSnapshot,
+}) => {
+  const supabase = getSupabaseAdminClient();
+  const { error } = await supabase.from("appointment_status_history").insert({
+    appointment_id: appointmentId,
+    from_status: fromStatus,
+    to_status: toStatus,
+    changed_by_profile_id: changedByProfileId,
+    reason,
+    scheduled_at_snapshot: scheduledAtSnapshot,
+  });
+
+  if (error) {
+    throw new Error("Unable to record the appointment history entry.");
+  }
+};
+
 export const supabaseDoctorAppointmentsRepository: DoctorAppointmentsReader = {
   async listForDoctor({ doctorId, start, end, status }) {
     const supabase = getSupabaseAdminClient();
@@ -205,28 +229,7 @@ export const supabaseDoctorAppointmentsRepository: DoctorAppointmentsReader = {
     return (data ?? []).length > 0;
   },
 
-  async insertHistory({
-    appointmentId,
-    fromStatus,
-    toStatus,
-    changedByProfileId,
-    reason,
-    scheduledAtSnapshot,
-  }) {
-    const supabase = getSupabaseAdminClient();
-    const { error } = await supabase.from("appointment_status_history").insert({
-      appointment_id: appointmentId,
-      from_status: fromStatus,
-      to_status: toStatus,
-      changed_by_profile_id: changedByProfileId,
-      reason,
-      scheduled_at_snapshot: scheduledAtSnapshot,
-    });
-
-    if (error) {
-      throw new Error("Unable to record the appointment history entry.");
-    }
-  },
+  insertHistory: insertStatusHistory,
 
   async listHistory({ appointmentIds }) {
     const supabase = getSupabaseAdminClient();
@@ -285,7 +288,7 @@ const PATIENT_APPOINTMENT_LIMIT = 100;
  * patient ID from the session. Doctor and department names are joined here so
  * no doctor IDs reach the UI.
  */
-export const supabasePatientAppointmentsRepository: PatientAppointmentsReader = {
+export const supabasePatientAppointmentsRepository: PatientAppointmentsStore = {
   async listForPatient(patientId) {
     const supabase = getSupabaseAdminClient();
     const { data: rows, error } = await supabase
@@ -351,4 +354,56 @@ export const supabasePatientAppointmentsRepository: PatientAppointmentsReader = 
       } satisfies PatientAppointment;
     });
   },
+
+  async getForPatient({ patientId, appointmentId }) {
+    const supabase = getSupabaseAdminClient();
+    const { data: row, error } = await supabase
+      .from("appointments")
+      .select("id, doctor_id, scheduled_at, status")
+      .eq("id", appointmentId)
+      .eq("patient_id", patientId)
+      .maybeSingle();
+    if (error) {
+      throw new Error("Unable to load the appointment.");
+    }
+    if (!row) {
+      return null;
+    }
+
+    const { data: doctor, error: doctorError } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", row.doctor_id)
+      .maybeSingle();
+    if (doctorError) {
+      throw new Error("Unable to load the appointment doctor.");
+    }
+    return {
+      id: row.id,
+      doctorName: doctor?.full_name?.trim() || "Doctor",
+      scheduledAt: row.scheduled_at,
+      status: row.status,
+    };
+  },
+
+  async cancelForPatient({ patientId, appointmentId, from }) {
+    const supabase = getSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("appointments")
+      .update({
+        status: "cancelled",
+        cancellation_reason: null,
+        cancelled_by_role: "patient",
+      })
+      .eq("id", appointmentId)
+      .eq("patient_id", patientId)
+      .in("status", [...from])
+      .select("id");
+    if (error) {
+      throw new Error("Unable to cancel the appointment.");
+    }
+    return (data ?? []).length > 0;
+  },
+
+  insertHistory: insertStatusHistory,
 };
