@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 
 import { AccessDenied } from "@/components/auth/access-denied";
 import { AppointmentsCard } from "@/components/doctor/appointments-card";
@@ -29,9 +30,8 @@ import {
 import { manilaDateOfTimestamp } from "@/lib/appointments/stats";
 import type { AppointmentStatus } from "@/lib/appointments/status";
 import { buildWeekLayout } from "@/lib/appointments/week";
-import type { ScheduleException } from "@/lib/schedules/types";
 import { formatScheduleSummary } from "@/lib/schedules/types";
-import { buildMonthGrid } from "@/lib/schedules/calendar";
+import { buildMonthGrid, summarizeBlocksByDate } from "@/lib/schedules/calendar";
 import { supabaseDoctorAppointmentsRepository } from "@/server/appointments/repository";
 import {
   getAppointmentHistoryMap,
@@ -66,31 +66,6 @@ type DoctorSearchParams = {
   period?: string | string[];
   week?: string | string[];
 };
-
-const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
-
-/** Every Manila calendar date touched by an exception, for calendar markers. */
-function expandBlocksToDates(blocks: ScheduleException[]): string[] {
-  const dates = new Set<string>();
-  for (const block of blocks) {
-    const startDay = manilaDayRange(
-      manilaDateOfTimestamp(block.startsAt),
-    ).start;
-    const lastCoveredDay = manilaDayRange(
-      manilaDateOfTimestamp(
-        new Date(new Date(block.endsAt).getTime() - 1).toISOString(),
-      ),
-    ).start;
-    for (
-      let day = startDay.getTime(), guard = 0;
-      day <= lastCoveredDay.getTime() && guard < 40;
-      day += DAY_IN_MILLISECONDS, guard += 1
-    ) {
-      dates.add(manilaDateOfTimestamp(new Date(day).toISOString()));
-    }
-  }
-  return [...dates];
-}
 
 function appointmentCountLabel(count: number, description: string): string {
   return count === 0
@@ -184,7 +159,7 @@ async function CalendarWorkspace({ doctorId, params }: { doctorId: string; param
     month,
     today,
     schedules,
-    blockedDates: expandBlocksToDates(exceptions),
+    blocksByDate: summarizeBlocksByDate(exceptions),
     countByDate,
   });
 
@@ -258,6 +233,7 @@ export default async function DoctorPage({
 }: {
   searchParams: Promise<DoctorSearchParams>;
 }) {
+  await connection();
   const params = await searchParams;
   const session = await getDoctorSession("/doctor");
 
