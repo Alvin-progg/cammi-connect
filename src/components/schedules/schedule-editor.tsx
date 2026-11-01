@@ -53,7 +53,7 @@ const FIELD_CLASS =
   "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
 const LABEL_CLASS = "text-xs font-medium text-ink-muted";
 const PRIMARY_BUTTON_CLASS =
-  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none";
+  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-ink pressable hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-60";
 
 function useScheduleToast(state: ScheduleActionState, onSuccess?: () => void) {
   useEffect(() => {
@@ -446,7 +446,7 @@ function RemoveExceptionButton({
         type="submit"
         disabled={pending}
         aria-busy={pending}
-        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-danger/30 bg-danger-soft px-3 text-sm font-medium text-danger-soft-ink transition-colors hover:bg-danger hover:text-danger-ink disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none"
+        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-danger/30 bg-danger-soft px-3 text-sm font-medium text-danger-soft-ink pressable hover:bg-danger hover:text-danger-ink disabled:pointer-events-none disabled:opacity-60"
       >
         {pending ? "Removing…" : "Remove"}
       </button>

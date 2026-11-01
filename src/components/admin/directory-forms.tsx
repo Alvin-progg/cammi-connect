@@ -22,7 +22,7 @@ const FIELD_CLASS =
   "min-h-11 rounded-lg border border-control-line bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus-ring";
 const LABEL_CLASS = "text-xs font-medium text-ink-muted";
 const PRIMARY_BUTTON_CLASS =
-  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none";
+  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-ink pressable hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-60";
 
 /** Wires a directory form to its action: toast on success, reset when creating. */
 function useDirectoryForm(

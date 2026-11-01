@@ -48,7 +48,7 @@ export function AdminShell({
                   <Link
                     href={`/admin?view=${view}`}
                     aria-current={active ? "page" : undefined}
-                    className={`focus-ring inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-medium transition-colors motion-reduce:transition-none ${
+                    className={`focus-ring inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-medium transition-colors duration-150 ease-snappy motion-reduce:transition-none ${
                       active
                         ? "border-primary text-primary"
                         : "border-transparent text-ink-secondary hover:text-ink"

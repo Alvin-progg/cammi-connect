@@ -229,3 +229,81 @@ body {
   color: var(--ink);
   font-family: var(--font-geist-sans);
 }
+
+/*
+ * Press feedback for buttons and link-buttons: colors ease on hover and the
+ * control dips to 97% while held. Reduced motion keeps the color change and
+ * drops the scale. Disabled controls use pointer-events-none, so they never dip.
+ */
+@utility pressable {
+  transition-property: color, background-color, border-color, box-shadow, transform;
+  transition-duration: 150ms;
+  transition-timing-function: --theme(--ease-snappy);
+
+  &:active {
+    transform: scale(0.97);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition-property: color, background-color, border-color, box-shadow;
+
+    &:active {
+      transform: none;
+    }
+  }
+}
+
+/*
+ * Enter/exit motion for native modal <dialog>s. Opens in 200ms and closes
+ * faster (150ms). Modals scale from the center because they are not anchored
+ * to a trigger. `allow-discrete` keeps the dialog in the top layer until the
+ * exit finishes. Browsers without @starting-style show it instantly.
+ */
+@utility dialog-motion {
+  opacity: 0;
+  transform: scale(0.96);
+  transition:
+    opacity 150ms --theme(--ease-snappy),
+    transform 150ms --theme(--ease-snappy),
+    overlay 150ms allow-discrete,
+    display 150ms allow-discrete;
+
+  &[open] {
+    opacity: 1;
+    transform: scale(1);
+    transition-duration: 200ms;
+  }
+
+  @starting-style {
+    &[open] {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+
+  &::backdrop {
+    opacity: 0;
+    transition:
+      opacity 150ms --theme(--ease-snappy),
+      overlay 150ms allow-discrete,
+      display 150ms allow-discrete;
+  }
+
+  &[open]::backdrop {
+    opacity: 1;
+    transition-duration: 200ms;
+  }
+
+  @starting-style {
+    &[open]::backdrop {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    &[open] {
+      transform: none;
+    }
+  }
+}

@@ -11,7 +11,7 @@ import {
 import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "./icons";
 
 const PRESSABLE =
-  "focus-ring transition-[color,background-color,box-shadow,transform] duration-150 ease-snappy active:scale-[0.97] motion-reduce:transition-none";
+  "focus-ring pressable";
 const CONTROL =
   "min-h-9 rounded-lg border border-line-strong bg-surface px-2.5 text-sm text-ink focus-ring";
 

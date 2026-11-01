@@ -58,7 +58,7 @@ export function NotificationsDialogProvider({
       <dialog
         ref={dialogRef}
         aria-labelledby="notifications-dialog-title"
-        className="m-auto max-h-[min(48rem,calc(100dvh-2rem))] w-[calc(100%-2rem)] max-w-2xl rounded-2xl border border-line bg-surface p-0 text-ink shadow-overlay backdrop:bg-overlay"
+        className="dialog-motion m-auto max-h-[min(48rem,calc(100dvh-2rem))] w-[calc(100%-2rem)] max-w-2xl rounded-2xl border border-line bg-surface p-0 text-ink shadow-overlay backdrop:bg-overlay"
         onClose={() => setIsOpen(false)}
         onClick={(event) => {
           if (event.target === dialogRef.current) {
@@ -80,7 +80,7 @@ export function NotificationsDialogProvider({
                 autoFocus
                 onClick={closeNotifications}
                 aria-label="Close notifications"
-                className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted motion-reduce:transition-none"
+                className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink pressable hover:bg-surface-muted"
               >
                 Close
               </button>

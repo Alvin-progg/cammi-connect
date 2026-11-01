@@ -76,7 +76,7 @@ function PrimaryActionForm({
         type="submit"
         disabled={pending}
         aria-busy={pending}
-        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-primary bg-primary px-3 text-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none"
+        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-primary bg-primary px-3 text-sm font-medium text-primary-ink pressable hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-60"
       >
         {pending ? pendingLabel : label}
       </button>
@@ -107,7 +107,7 @@ function SecondaryActionForm({
         type="submit"
         disabled={pending}
         aria-busy={pending}
-        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none"
+        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink pressable hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-60"
       >
         {pending ? pendingLabel : label}
       </button>
@@ -152,7 +152,7 @@ function CancelForm({
         type="submit"
         disabled={pending}
         aria-busy={pending}
-        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-danger bg-danger px-3 text-sm font-medium text-danger-ink transition-colors hover:bg-danger-hover disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none"
+        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-danger bg-danger px-3 text-sm font-medium text-danger-ink pressable hover:bg-danger-hover disabled:pointer-events-none disabled:opacity-60"
       >
         {pending ? "Cancelling…" : "Cancel appointment"}
       </button>
@@ -217,7 +217,7 @@ function RescheduleForm({
         type="submit"
         disabled={pending}
         aria-busy={pending}
-        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-primary bg-primary px-3 text-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none"
+        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-primary bg-primary px-3 text-sm font-medium text-primary-ink pressable hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-60"
       >
         {pending ? "Rescheduling…" : "Reschedule appointment"}
       </button>
@@ -312,7 +312,7 @@ export function AppointmentActions({
       <button
         type="button"
         onClick={openDialog}
-        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted motion-reduce:transition-none"
+        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink pressable hover:bg-surface-muted"
       >
         Manage
       </button>
@@ -320,7 +320,7 @@ export function AppointmentActions({
       <dialog
         ref={dialogRef}
         aria-labelledby={`manage-title-${appointmentId}`}
-        className="m-auto w-full max-w-lg rounded-2xl border border-line bg-surface p-6 text-ink shadow-overlay backdrop:bg-overlay"
+        className="dialog-motion m-auto w-full max-w-lg rounded-2xl border border-line bg-surface p-6 text-ink shadow-overlay backdrop:bg-overlay"
         onClose={() => setIsOpen(false)}
         onClick={(event) => {
           if (event.target === dialogRef.current) {
@@ -347,7 +347,7 @@ export function AppointmentActions({
                 autoFocus
                 onClick={closeDialog}
                 aria-label="Close"
-                className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted motion-reduce:transition-none"
+                className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink pressable hover:bg-surface-muted"
               >
                 Close
               </button>
