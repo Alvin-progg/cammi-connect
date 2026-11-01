@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -6,6 +7,7 @@ import {
   SchedulePeriodsSection,
 } from "@/components/schedules/schedule-editor";
 import type { ScheduleException, WeeklySchedule } from "@/lib/schedules/types";
+import { removeScheduleExceptionAction } from "@/server/schedules/actions";
 
 vi.mock("@/server/schedules/actions", () => ({
   saveSchedulePeriodAction: vi.fn(),
@@ -73,6 +75,37 @@ describe("SchedulePeriodsSection", () => {
     );
   });
 
+  it("summarizes each period read-only before it is edited", () => {
+    render(<SchedulePeriodsSection editor="doctor" schedules={SCHEDULES} today="2026-11-01" />);
+
+    const monday = screen.getByRole("group", { name: "Monday" });
+    expect(within(monday).getByText("8:00 AM – 12:00 PM · 30 min")).toBeInTheDocument();
+    expect(within(monday).getByText("1:00 PM – 5:00 PM · 60 min")).toBeInTheDocument();
+
+    const wednesday = screen.getByRole("group", { name: "Wednesday" });
+    expect(within(wednesday).getByText("Until Dec 31, 2026")).toBeInTheDocument();
+  });
+
+  it("shows weekdays without periods as not available", () => {
+    render(<SchedulePeriodsSection editor="doctor" schedules={SCHEDULES} today="2026-11-01" />);
+
+    const tuesday = screen.getByRole("group", { name: "Tuesday" });
+    expect(within(tuesday).getByText("Not available")).toBeInTheDocument();
+  });
+
+  it("flags inactive periods", () => {
+    render(
+      <SchedulePeriodsSection
+        editor="doctor"
+        schedules={[period({ isActive: false })]}
+        today="2026-11-01"
+      />,
+    );
+
+    const monday = screen.getByRole("group", { name: "Monday" });
+    expect(within(monday).getByText("Inactive")).toBeInTheDocument();
+  });
+
   it("offers a form to add another period, defaulting to today", () => {
     render(<SchedulePeriodsSection editor="doctor" schedules={[]} today="2026-11-01" />);
 
@@ -117,6 +150,23 @@ describe("ScheduleExceptionsSection", () => {
     expect(screen.getByText("Annual leave")).toBeInTheDocument();
     expect(screen.getByText("Leave", { selector: "span" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+  });
+
+  it("asks for confirmation before removing an exception", async () => {
+    const user = userEvent.setup();
+    render(<ScheduleExceptionsSection editor="doctor" exceptions={[LEAVE]} />);
+
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+
+    expect(screen.getByText("Remove? This reopens these slots for booking.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm" })).toHaveAttribute("type", "submit");
+    expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
+    expect(removeScheduleExceptionAction).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Confirm" })).toBeNull();
   });
 
   it("shows an empty state", () => {

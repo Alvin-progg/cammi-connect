@@ -15,6 +15,13 @@ const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("en-PH", {
   month: "short",
 });
 
+const MEDIUM_DATE_FORMATTER = new Intl.DateTimeFormat("en-PH", {
+  timeZone: MANILA_TIME_ZONE,
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
 const TIME_FORMATTER = new Intl.DateTimeFormat("en-PH", {
   timeZone: MANILA_TIME_ZONE,
   hour: "numeric",
@@ -31,6 +38,16 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat("en-PH", {
 
 export function formatManilaDate(date: string): string {
   return DATE_FORMATTER.format(new Date(`${date}T00:00:00+08:00`));
+}
+
+/** "Dec 31, 2026" for a Manila calendar date ("YYYY-MM-DD"). */
+export function formatManilaMediumDate(date: string): string {
+  return MEDIUM_DATE_FORMATTER.format(new Date(`${date}T00:00:00+08:00`));
+}
+
+/** "8:00 AM" for a Manila wall-clock time ("HH:MM", 24-hour). */
+export function formatClockTime(time: string): string {
+  return TIME_FORMATTER.format(new Date(`2000-01-01T${time}:00+08:00`));
 }
 
 /** "Mon, 26 Oct" */

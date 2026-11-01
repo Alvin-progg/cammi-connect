@@ -1,7 +1,20 @@
 import type { AppointmentStatus } from "@/lib/appointments/status";
 import { manilaDateOfTimestamp } from "@/lib/appointments/stats";
 
-import { isScheduleEffectiveOn, type WeeklySchedule } from "./types";
+import {
+  isScheduleEffectiveOn,
+  type ScheduleException,
+  type ScheduleExceptionType,
+  type WeeklySchedule,
+} from "./types";
+
+/** The exception shown on one calendar day. */
+export type CalendarDayBlock = {
+  type: ScheduleExceptionType;
+  reason: string;
+  /** True when the exception covers the whole Manila day (00:00–24:00). */
+  allDay: boolean;
+};
 
 export type CalendarDaySummary = {
   /** Manila calendar date, YYYY-MM-DD. */
@@ -10,7 +23,7 @@ export type CalendarDaySummary = {
   inMonth: boolean;
   isToday: boolean;
   hasSchedule: boolean;
-  blocked: boolean;
+  block: CalendarDayBlock | null;
   counts: Partial<Record<AppointmentStatus, number>>;
 };
 
@@ -39,7 +52,7 @@ export function buildMonthGrid(input: {
     WeeklySchedule,
     "dayOfWeek" | "isActive" | "effectiveFrom" | "effectiveUntil"
   >[];
-  blockedDates: string[];
+  blocksByDate: Map<string, CalendarDayBlock>;
   countByDate: Map<string, Partial<Record<AppointmentStatus, number>>>;
 }): CalendarMonthGrid {
   const [year, monthIndex] = input.month.split("-").map(Number);
@@ -47,7 +60,6 @@ export function buildMonthGrid(input: {
   const firstWeekday = manilaShifted(firstOfMonth).getUTCDay();
   const daysInMonth = new Date(Date.UTC(year, monthIndex, 0)).getUTCDate();
 
-  const blockedSet = new Set(input.blockedDates);
   const activeSchedules = input.schedules.filter((schedule) => schedule.isActive);
 
   const days: CalendarDaySummary[] = [];
@@ -69,10 +81,48 @@ export function buildMonthGrid(input: {
         (schedule) =>
           schedule.dayOfWeek === dayOfWeek && isScheduleEffectiveOn(schedule, date),
       ),
-      blocked: blockedSet.has(date),
+      block: input.blocksByDate.get(date) ?? null,
       counts: input.countByDate.get(date) ?? {},
     });
   }
 
   return { days };
+}
+
+/** Guards against malformed data producing an unbounded loop. */
+const MAX_BLOCK_DAYS = 40;
+
+/**
+ * Every Manila calendar date touched by an exception, keyed by date. When a
+ * date has several exceptions, an all-day one wins so the calendar shows the
+ * day as fully unavailable.
+ */
+export function summarizeBlocksByDate(
+  exceptions: Pick<ScheduleException, "startsAt" | "endsAt" | "exceptionType" | "reason">[],
+): Map<string, CalendarDayBlock> {
+  const blocks = new Map<string, CalendarDayBlock>();
+  for (const exception of exceptions) {
+    const startsAt = new Date(exception.startsAt).getTime();
+    const endsAt = new Date(exception.endsAt).getTime();
+    let date = manilaDateOfTimestamp(exception.startsAt);
+
+    for (let guard = 0; guard < MAX_BLOCK_DAYS; guard += 1) {
+      const dayStart = new Date(`${date}T00:00:00+08:00`).getTime();
+      if (dayStart >= endsAt) {
+        break;
+      }
+      const dayEnd = dayStart + DAY_IN_MILLISECONDS;
+      const allDay = startsAt <= dayStart && endsAt >= dayEnd;
+      const existing = blocks.get(date);
+      if (!existing || (allDay && !existing.allDay)) {
+        blocks.set(date, {
+          type: exception.exceptionType,
+          reason: exception.reason,
+          allDay,
+        });
+      }
+      date = manilaDateOfTimestamp(new Date(dayEnd).toISOString());
+    }
+  }
+  return blocks;
 }

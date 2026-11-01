@@ -307,3 +307,36 @@ body {
     }
   }
 }
+
+/*
+ * Body of a native <details> disclosure: when it opens, it fades in and drops
+ * 4px from its summary so the content reads as coming out of the row that was
+ * clicked. A keyframe animation keyed on `[open]` is used rather than
+ * @starting-style, because browsers may keep closed <details> content styled
+ * (content-visibility), which would skip a starting style. Closing is instant,
+ * like the browser's own <details>. Reduced motion keeps only the fade.
+ */
+@keyframes disclosure-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes disclosure-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@utility disclosure-motion {
+  details[open] > & {
+    animation: disclosure-in 150ms --theme(--ease-snappy);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    details[open] > & {
+      animation-name: disclosure-fade-in;
+    }
+  }
+}

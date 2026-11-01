@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { buildMonthGrid } from "@/lib/schedules/calendar";
+import { buildMonthGrid, summarizeBlocksByDate } from "@/lib/schedules/calendar";
+import type { ScheduleException } from "@/lib/schedules/types";
 
 describe("buildMonthGrid", () => {
   const grid = buildMonthGrid({
@@ -13,7 +14,9 @@ describe("buildMonthGrid", () => {
       // Tuesdays only from 2026-10-20 through 2026-10-27.
       { dayOfWeek: 2, isActive: true, effectiveFrom: "2026-10-20", effectiveUntil: "2026-10-27" },
     ],
-    blockedDates: ["2026-10-26"],
+    blocksByDate: new Map([
+      ["2026-10-26", { type: "leave", reason: "Annual leave", allDay: true }],
+    ]),
     countByDate: new Map([["2026-10-25", { confirmed: 2 }]]),
   });
 
@@ -41,11 +44,15 @@ describe("buildMonthGrid", () => {
   it("flags scheduled and blocked days", () => {
     const monday = grid.days.find((day) => day.date === "2026-10-26");
     expect(monday?.hasSchedule).toBe(true);
-    expect(monday?.blocked).toBe(true);
+    expect(monday?.block).toEqual({
+      type: "leave",
+      reason: "Annual leave",
+      allDay: true,
+    });
 
     const friday = grid.days.find((day) => day.date === "2026-10-30");
     expect(friday?.hasSchedule).toBe(false); // inactive schedule row
-    expect(friday?.blocked).toBe(false);
+    expect(friday?.block).toBeNull();
   });
 
   it("marks out-of-month days", () => {
@@ -63,6 +70,97 @@ describe("buildMonthGrid", () => {
       ["2026-10-13", false],
       ["2026-10-20", true],
       ["2026-10-27", true],
+    ]);
+  });
+});
+
+function exception(
+  overrides: Partial<ScheduleException> & Pick<ScheduleException, "startsAt" | "endsAt">,
+): ScheduleException {
+  return {
+    id: "00000000-0000-4000-8000-000000000951",
+    exceptionType: "leave",
+    reason: "Annual leave",
+    ...overrides,
+  };
+}
+
+describe("summarizeBlocksByDate", () => {
+  it("marks a whole-day exception as all-day on its date", () => {
+    const blocks = summarizeBlocksByDate([
+      exception({
+        startsAt: "2026-11-02T00:00:00+08:00",
+        endsAt: "2026-11-03T00:00:00+08:00",
+      }),
+    ]);
+
+    expect([...blocks]).toEqual([
+      ["2026-11-02", { type: "leave", reason: "Annual leave", allDay: true }],
+    ]);
+  });
+
+  it("covers every Manila date of a multi-day exception", () => {
+    const blocks = summarizeBlocksByDate([
+      exception({
+        startsAt: "2026-11-02T00:00:00+08:00",
+        endsAt: "2026-11-05T00:00:00+08:00",
+      }),
+    ]);
+
+    expect([...blocks.keys()]).toEqual(["2026-11-02", "2026-11-03", "2026-11-04"]);
+    expect([...blocks.values()].every((block) => block.allDay)).toBe(true);
+  });
+
+  it("marks a time-of-day exception as a partial block", () => {
+    const blocks = summarizeBlocksByDate([
+      exception({
+        exceptionType: "blocked_period",
+        reason: "Staff meeting",
+        startsAt: "2026-11-02T14:00:00+08:00",
+        endsAt: "2026-11-02T16:00:00+08:00",
+      }),
+    ]);
+
+    expect(blocks.get("2026-11-02")).toEqual({
+      type: "blocked_period",
+      reason: "Staff meeting",
+      allDay: false,
+    });
+  });
+
+  it("prefers an all-day exception when a date also has a partial one", () => {
+    const blocks = summarizeBlocksByDate([
+      exception({
+        exceptionType: "blocked_period",
+        reason: "Staff meeting",
+        startsAt: "2026-11-02T14:00:00+08:00",
+        endsAt: "2026-11-02T16:00:00+08:00",
+      }),
+      exception({
+        startsAt: "2026-11-02T00:00:00+08:00",
+        endsAt: "2026-11-03T00:00:00+08:00",
+      }),
+    ]);
+
+    expect(blocks.get("2026-11-02")).toEqual({
+      type: "leave",
+      reason: "Annual leave",
+      allDay: true,
+    });
+  });
+
+  it("only partially blocks the first and last day of a multi-day timed exception", () => {
+    const blocks = summarizeBlocksByDate([
+      exception({
+        startsAt: "2026-11-02T13:00:00+08:00",
+        endsAt: "2026-11-04T12:00:00+08:00",
+      }),
+    ]);
+
+    expect([...blocks].map(([date, block]) => [date, block.allDay])).toEqual([
+      ["2026-11-02", false],
+      ["2026-11-03", true],
+      ["2026-11-04", false],
     ]);
   });
 });
