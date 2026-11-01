@@ -70,3 +70,16 @@ export function isDoctorAppointmentAction(
 ): value is DoctorAppointmentAction {
   return DOCTOR_APPOINTMENT_ACTIONS.some((action) => action === value);
 }
+
+/**
+ * Statuses a patient may cancel from (ADR-0007, AI-APT-001). Patient
+ * cancellation windows are still deferred, so only the status is checked.
+ */
+export const PATIENT_CANCEL_SOURCES = [
+  "requested",
+  "confirmed",
+] as const satisfies readonly AppointmentStatus[];
+
+export function canPatientCancel(status: AppointmentStatus): boolean {
+  return PATIENT_CANCEL_SOURCES.some((source) => source === status);
+}

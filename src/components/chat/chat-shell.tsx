@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import type { PatientAppointmentGroups } from "@/lib/appointments/patient";
 import type {
-  BookingEvent,
+  CardEvent,
   ChatEvent,
   ChatMessage,
   ConversationSummary,
@@ -169,7 +169,7 @@ export function ChatShell({
     if (!sent && fromDraft) setDraft(text);
   }
 
-  function sendBookingEvent(event: BookingEvent) {
+  function sendCardEvent(event: CardEvent) {
     void postEvent(event, null);
   }
 
@@ -221,7 +221,7 @@ export function ChatShell({
                       payload={message.payload}
                       interactive={message.id === latestAssistantId}
                       busy={isSending}
-                      onEvent={sendBookingEvent}
+                      onEvent={sendCardEvent}
                       reveal={
                         message.id in replyTimes ? { elapsedMs: replyTimes[message.id] } : null
                       }

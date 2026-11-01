@@ -1,7 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 
-import { ASSISTANT_REPLY_MAX_LENGTH } from "@/lib/chat/schemas";
+import type { PatientAppointment } from "@/lib/appointments/types";
+import { APPOINTMENTS_COPY } from "@/lib/chat/appointments";
+import { ASSISTANT_REPLY_MAX_LENGTH, type ChatEvent } from "@/lib/chat/schemas";
 import {
   EMERGENCY_NOTICE,
   MEDICAL_ADVICE_DECLINE,
@@ -58,6 +60,13 @@ function fakeTools(): ChatTools {
     getDoctorsBySpecialty: vi.fn(async () => []),
     getDoctorAvailability: vi.fn(async () => []),
     createAppointment: vi.fn(async () => ({ ok: false as const, message: "unused" })),
+    getPatientAppointments: vi.fn(async () => []),
+    getPatientAppointment: vi.fn(async () => null),
+    requestAppointmentCancellation: vi.fn(async () => ({
+      ok: false as const,
+      code: "not_found" as const,
+      message: "Appointment not found.",
+    })),
   };
 }
 
@@ -127,13 +136,8 @@ describe("handleTurn", () => {
     expect(result.reply).toContain(EMERGENCY_NOTICE);
   });
 
-  it.each([
-    "appointment_status",
-    "cancel",
-    "reschedule",
-    "other",
-  ])("replies that %s is not available yet", async (intent) => {
-    const generate = generateReturning(JSON.stringify({ intent }));
+  it("replies that other requests are not available yet", async () => {
+    const generate = generateReturning(JSON.stringify({ intent: "other" }));
 
     const result = await handleTurn(turn("Hello"), turnDeps(generate));
 
@@ -444,5 +448,182 @@ describe("handleTurn doctor_inquiry", () => {
 
     expect(result.reply).toMatch(/couldn't find/i);
     expect(result.payload).toBeNull();
+  });
+});
+
+const APPOINTMENT_ID = "00000000-0000-4000-8000-000000000301";
+const UPCOMING: PatientAppointment = {
+  id: APPOINTMENT_ID,
+  doctorName: "Dr. Maya Santos",
+  departmentName: "Cardiology",
+  reason: "Follow-up",
+  scheduledAt: "2026-11-03T01:00:00.000Z",
+  durationMinutes: 30,
+  status: "confirmed",
+};
+const APPOINTMENT_REF = {
+  id: APPOINTMENT_ID,
+  doctorName: "Dr. Maya Santos",
+  scheduledAt: "2026-11-03T01:00:00.000Z",
+  status: "confirmed" as const,
+};
+
+function cardTurn(event: Exclude<ChatEvent, { type: "message" }>) {
+  return { ...turn("unused"), event };
+}
+
+describe("handleTurn appointments", () => {
+  it.each(["appointment_status", "cancel"])(
+    "shows the patient's upcoming appointments for %s",
+    async (intent) => {
+      const tools = fakeTools();
+      vi.mocked(tools.getPatientAppointments).mockResolvedValue([UPCOMING]);
+      const generate = generateReturning(JSON.stringify({ intent }));
+
+      const result = await handleTurn(turn("my appointments"), turnDeps(generate, { tools }));
+
+      expect(tools.getPatientAppointments).toHaveBeenCalledWith({ patientId: PATIENT_ID });
+      expect(result.payload).toEqual({
+        kind: "appointments",
+        items: [
+          {
+            id: APPOINTMENT_ID,
+            doctorName: "Dr. Maya Santos",
+            departmentName: "Cardiology",
+            start: "2026-11-03T01:00:00.000Z",
+            durationMinutes: 30,
+            status: "confirmed",
+          },
+        ],
+      });
+      expect(result.reply).toBe(
+        intent === "cancel" ? APPOINTMENTS_COPY.chooseToCancel : APPOINTMENTS_COPY.list,
+      );
+      expect(result.state).toBe(IDLE_STATE);
+    },
+  );
+
+  it("says so when the patient has no upcoming appointments", async () => {
+    const generate = generateReturning(JSON.stringify({ intent: "appointment_status" }));
+
+    const result = await handleTurn(turn("my appointments"), turnDeps(generate));
+
+    expect(result.reply).toBe(APPOINTMENTS_COPY.none);
+    expect(result.payload).toBeNull();
+  });
+
+  it("replies to reschedule requests that rescheduling is not available yet", async () => {
+    const tools = fakeTools();
+    const generate = generateReturning(JSON.stringify({ intent: "reschedule" }));
+
+    const result = await handleTurn(turn("move my appointment"), turnDeps(generate, { tools }));
+
+    expect(result.reply).toBe(APPOINTMENTS_COPY.rescheduleUnavailable);
+    expect(tools.requestAppointmentCancellation).not.toHaveBeenCalled();
+  });
+
+  it("asks for confirmation with details read from the database, without the LLM", async () => {
+    const tools = fakeTools();
+    vi.mocked(tools.getPatientAppointment).mockResolvedValue(APPOINTMENT_REF);
+    const generate = generateReturning("unused");
+
+    const result = await handleTurn(
+      cardTurn({ type: "request_cancellation", appointmentId: APPOINTMENT_ID }),
+      turnDeps(generate, { tools }),
+    );
+
+    expect(generate).not.toHaveBeenCalled();
+    expect(tools.getPatientAppointment).toHaveBeenCalledWith({
+      patientId: PATIENT_ID,
+      appointmentId: APPOINTMENT_ID,
+    });
+    expect(tools.requestAppointmentCancellation).not.toHaveBeenCalled();
+    expect(result.reply).toBe(APPOINTMENTS_COPY.confirmCancel);
+    expect(result.payload).toEqual({
+      kind: "cancel_confirmation",
+      appointmentId: APPOINTMENT_ID,
+      doctorName: "Dr. Maya Santos",
+      start: "2026-11-03T01:00:00.000Z",
+    });
+    expect(result.userContent).toBe("Cancel appointment");
+    expect(result.state).toBe(IDLE_STATE);
+  });
+
+  it("does not offer to cancel an appointment that is not the patient's or is not cancellable", async () => {
+    const tools = fakeTools();
+    vi.mocked(tools.getPatientAppointment)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...APPOINTMENT_REF, status: "completed" });
+    const deps = turnDeps(generateReturning("unused"), { tools });
+    const event = { type: "request_cancellation" as const, appointmentId: APPOINTMENT_ID };
+
+    const missing = await handleTurn(cardTurn(event), deps);
+    const completed = await handleTurn(cardTurn(event), deps);
+
+    expect(missing.reply).toBe("Appointment not found.");
+    expect(missing.payload).toBeNull();
+    expect(completed.reply).toBe("This appointment can no longer be cancelled.");
+    expect(completed.payload).toBeNull();
+  });
+
+  it("cancels on confirm and shows the result", async () => {
+    const tools = fakeTools();
+    vi.mocked(tools.requestAppointmentCancellation).mockResolvedValue({
+      ok: true,
+      appointment: APPOINTMENT_REF,
+    });
+    const generate = generateReturning("unused");
+
+    const result = await handleTurn(
+      cardTurn({ type: "confirm_cancellation", appointmentId: APPOINTMENT_ID }),
+      turnDeps(generate, { tools }),
+    );
+
+    expect(generate).not.toHaveBeenCalled();
+    expect(tools.requestAppointmentCancellation).toHaveBeenCalledWith({
+      patientId: PATIENT_ID,
+      appointmentId: APPOINTMENT_ID,
+    });
+    expect(result.reply).toBe(APPOINTMENTS_COPY.cancelled);
+    expect(result.payload).toEqual({
+      kind: "cancel_result",
+      doctorName: "Dr. Maya Santos",
+      start: "2026-11-03T01:00:00.000Z",
+    });
+    expect(result.userContent).toBe("Confirm cancellation");
+    expect(result.state).toBe(IDLE_STATE);
+  });
+
+  it("reports a failed cancel, such as a second confirm, without a result card", async () => {
+    const tools = fakeTools();
+    vi.mocked(tools.requestAppointmentCancellation).mockResolvedValue({
+      ok: false,
+      code: "changed",
+      message: "The appointment status just changed. Refresh and try again.",
+    });
+
+    const result = await handleTurn(
+      cardTurn({ type: "confirm_cancellation", appointmentId: APPOINTMENT_ID }),
+      turnDeps(generateReturning("unused"), { tools }),
+    );
+
+    expect(result.reply).toBe("The appointment status just changed. Refresh and try again.");
+    expect(result.payload).toBeNull();
+  });
+
+  it("leaves a booking in progress untouched", async () => {
+    const tools = fakeTools();
+    vi.mocked(tools.getPatientAppointment).mockResolvedValue(APPOINTMENT_REF);
+    const inProgress = { step: "choosing_slot" as const, draft: { doctorId: MAYA.id } };
+
+    const result = await handleTurn(
+      {
+        ...cardTurn({ type: "request_cancellation", appointmentId: APPOINTMENT_ID }),
+        state: inProgress,
+      },
+      turnDeps(generateReturning("unused"), { tools }),
+    );
+
+    expect(result.state).toBe(inProgress);
   });
 });

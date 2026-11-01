@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  PATIENT_CANCEL_SOURCES,
   allowedDoctorActions,
+  canPatientCancel,
   canDoctorPerform,
   isDoctorAppointmentAction,
   sourceStatusesForAction,
@@ -47,5 +49,16 @@ describe("doctor appointment transition matrix (ADR-0007, amended)", () => {
   it("validates action names", () => {
     expect(isDoctorAppointmentAction("confirm")).toBe(true);
     expect(isDoctorAppointmentAction("delete")).toBe(false);
+  });
+});
+
+describe("patient cancellation (ADR-0007, AI-APT-001)", () => {
+  it("allows patients to cancel requested and confirmed appointments only", () => {
+    expect(PATIENT_CANCEL_SOURCES).toEqual(["requested", "confirmed"]);
+    expect(canPatientCancel("requested")).toBe(true);
+    expect(canPatientCancel("confirmed")).toBe(true);
+    expect(canPatientCancel("completed")).toBe(false);
+    expect(canPatientCancel("cancelled")).toBe(false);
+    expect(canPatientCancel("no_show")).toBe(false);
   });
 });

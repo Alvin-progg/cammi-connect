@@ -1,12 +1,14 @@
 import { z } from "zod";
 
+import { APPOINTMENT_STATUSES } from "@/lib/appointments/status";
+
 export const MESSAGE_MAX_LENGTH = 1000;
 /** Matches the chat_messages.content check in 0004_chat.sql. */
 export const ASSISTANT_REPLY_MAX_LENGTH = 4000;
 
 /**
- * Events a patient can send in one chat turn: free text, or a booking card
- * action. Card IDs are only references; the server re-reads every one from
+ * Events a patient can send in one chat turn: free text, or a booking or
+ * appointment card action. Card IDs are only references; the server re-reads every one from
  * the database before using it.
  */
 export const chatEventSchema = z.discriminatedUnion("type", [
@@ -24,18 +26,27 @@ export const chatEventSchema = z.discriminatedUnion("type", [
     field: z.enum(["specialty", "doctor", "slot"]),
   }),
   z.object({ type: z.literal("cancel_booking") }),
+  z.object({ type: z.literal("request_cancellation"), appointmentId: z.uuid() }),
+  z.object({ type: z.literal("confirm_cancellation"), appointmentId: z.uuid() }),
 ]);
 
 export type ChatEvent = z.infer<typeof chatEventSchema>;
 
-export type BookingEvent = Exclude<ChatEvent, { type: "message" }>;
+export type CardEvent = Exclude<ChatEvent, { type: "message" }>;
+
+export type AppointmentEvent = Extract<
+  ChatEvent,
+  { type: "request_cancellation" | "confirm_cancellation" }
+>;
+
+export type BookingEvent = Exclude<CardEvent, AppointmentEvent>;
 
 export const chatRequestSchema = z
   .object({
     conversationId: z.uuid().optional(),
     event: chatEventSchema,
   })
-  // Card actions belong to a booking already in progress in a conversation.
+  // Card actions are only shown inside an existing conversation.
   .refine((request) => request.event.type === "message" || request.conversationId !== undefined, {
     path: ["conversationId"],
   });
@@ -86,8 +97,9 @@ export type DoctorOption = z.infer<typeof doctorOptionSchema>;
 
 /**
  * Structured data shown with an assistant reply, stored in
- * chat_messages.payload. Sources are copied from knowledge_documents rows and
- * booking cards from directory and availability rows, never from model output.
+ * chat_messages.payload. Sources are copied from knowledge_documents rows,
+ * booking cards from directory and availability rows, and appointment cards
+ * from the patient's appointment rows, never from model output.
  */
 export const chatMessagePayloadSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -134,6 +146,33 @@ export const chatMessagePayloadSchema = z.discriminatedUnion("kind", [
     doctorName: z.string(),
     start: z.string(),
     end: z.string(),
+  }),
+  z.object({
+    kind: z.literal("appointments"),
+    /** The patient's upcoming requested or confirmed appointments, soonest first. */
+    items: z
+      .array(
+        z.object({
+          id: z.string(),
+          doctorName: z.string(),
+          departmentName: z.string().nullable(),
+          start: z.string(),
+          durationMinutes: z.number(),
+          status: z.enum(APPOINTMENT_STATUSES),
+        }),
+      )
+      .min(1),
+  }),
+  z.object({
+    kind: z.literal("cancel_confirmation"),
+    appointmentId: z.string(),
+    doctorName: z.string(),
+    start: z.string(),
+  }),
+  z.object({
+    kind: z.literal("cancel_result"),
+    doctorName: z.string(),
+    start: z.string(),
   }),
 ]);
 

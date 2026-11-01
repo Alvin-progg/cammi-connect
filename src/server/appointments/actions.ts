@@ -15,9 +15,11 @@ import { supabaseDoctorSchedulesRepository } from "@/server/schedules/repository
 import {
   supabaseAppointmentBooker,
   supabaseDoctorAppointmentsRepository,
+  supabasePatientAppointmentsRepository,
 } from "./repository";
 import {
   bookAppointment,
+  cancelAppointmentForPatient,
   rescheduleDoctorAppointment,
   transitionDoctorAppointment,
   type MutationResult,
@@ -196,4 +198,38 @@ export async function bookAppointmentAction(
     status: "success",
     message: "Appointment requested. It is not confirmed until the doctor confirms it.",
   };
+}
+
+/**
+ * Patient cancellation from the My appointments page (AI-APT-001 S4). The
+ * patient is always the signed-in patient profile; the form supplies only the
+ * appointment ID, and another patient's appointment is reported as not found.
+ */
+export async function cancelPatientAppointmentAction(
+  _previous: AppointmentActionState,
+  formData: FormData,
+): Promise<AppointmentActionState> {
+  const session = await getPatientSession("/chat?view=appointments");
+  if (!session) {
+    return {
+      status: "error",
+      message: "Only patient accounts can cancel their appointments.",
+    };
+  }
+
+  const id = readAppointmentId(formData);
+  if ("status" in id) {
+    return id;
+  }
+
+  const result = await cancelAppointmentForPatient(
+    { patientId: session.patient.id, appointmentId: id.appointmentId },
+    supabasePatientAppointmentsRepository,
+  );
+  if (!result.ok) {
+    return { status: "error", message: result.message };
+  }
+  revalidatePath("/chat");
+  revalidatePath("/doctor");
+  return { status: "success", message: "Appointment cancelled." };
 }

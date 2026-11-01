@@ -2,7 +2,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { Department, DoctorSummary, Specialty } from "@/lib/directory/types";
-import type { AppointmentBooker } from "@/server/appointments/service";
+import type { PatientAppointment } from "@/lib/appointments/types";
+import type {
+  AppointmentBooker,
+  PatientAppointmentsStore,
+} from "@/server/appointments/service";
 import type { AvailabilitySource } from "@/server/availability/service";
 import { createChatTools, type ChatToolDeps } from "@/server/chat/tools";
 import type { DirectoryStore } from "@/server/directory/service";
@@ -66,8 +70,51 @@ function fakeBooker(): AppointmentBooker {
   return { book: vi.fn(async () => ({ ok: true as const, appointmentId: "a1" })) };
 }
 
-function toolDeps(store: DirectoryStore = fakeStore()): ChatToolDeps {
-  return { directory: store, availability: fakeAvailability(), booker: fakeBooker(), now: () => NOW };
+const APPOINTMENT_ID = "00000000-0000-4000-8000-000000000301";
+
+function patientAppointment(overrides: Partial<PatientAppointment>): PatientAppointment {
+  return {
+    id: APPOINTMENT_ID,
+    doctorName: "Dr. Maya Santos",
+    departmentName: "Cardiology",
+    reason: null,
+    scheduledAt: "2026-11-03T01:00:00.000Z",
+    durationMinutes: 30,
+    status: "requested",
+    ...overrides,
+  };
+}
+
+function fakePatientAppointments(): PatientAppointmentsStore {
+  return {
+    listForPatient: vi.fn(async () => [
+      patientAppointment({ id: "later", scheduledAt: "2026-11-05T01:00:00.000Z" }),
+      patientAppointment({ id: "past", scheduledAt: "2026-10-20T01:00:00.000Z" }),
+      patientAppointment({ id: "done", status: "cancelled" }),
+      patientAppointment({ id: "sooner", status: "confirmed" }),
+    ]),
+    getForPatient: vi.fn(async () => ({
+      id: APPOINTMENT_ID,
+      doctorName: "Dr. Maya Santos",
+      scheduledAt: "2026-11-03T01:00:00.000Z",
+      status: "requested" as const,
+    })),
+    cancelForPatient: vi.fn(async () => true),
+    insertHistory: vi.fn(async () => undefined),
+  };
+}
+
+function toolDeps(
+  store: DirectoryStore = fakeStore(),
+  patientAppointments: PatientAppointmentsStore = fakePatientAppointments(),
+): ChatToolDeps {
+  return {
+    directory: store,
+    availability: fakeAvailability(),
+    booker: fakeBooker(),
+    patientAppointments,
+    now: () => NOW,
+  };
 }
 
 describe("chat directory tools", () => {
@@ -251,5 +298,62 @@ describe("chat booking tools", () => {
     });
 
     expect(result).toEqual({ ok: false, message: "That slot was just booked. Choose another time." });
+  });
+});
+
+describe("chat patient appointment tools", () => {
+  it("returns only the patient's upcoming requested or confirmed appointments, soonest first", async () => {
+    const store = fakePatientAppointments();
+    const tools = createChatTools(toolDeps(fakeStore(), store));
+
+    const appointments = await tools.getPatientAppointments({ patientId: PATIENT_ID });
+
+    expect(store.listForPatient).toHaveBeenCalledWith(PATIENT_ID);
+    expect(appointments.map((appointment) => appointment.id)).toEqual(["sooner", "later"]);
+  });
+
+  it("reads one appointment scoped by the patient ID", async () => {
+    const store = fakePatientAppointments();
+    const tools = createChatTools(toolDeps(fakeStore(), store));
+
+    const appointment = await tools.getPatientAppointment({
+      patientId: PATIENT_ID,
+      appointmentId: APPOINTMENT_ID,
+    });
+
+    expect(appointment?.doctorName).toBe("Dr. Maya Santos");
+    expect(store.getForPatient).toHaveBeenCalledWith({
+      patientId: PATIENT_ID,
+      appointmentId: APPOINTMENT_ID,
+    });
+  });
+
+  it("cancels through the guarded patient cancel", async () => {
+    const store = fakePatientAppointments();
+    const tools = createChatTools(toolDeps(fakeStore(), store));
+
+    const result = await tools.requestAppointmentCancellation({
+      patientId: PATIENT_ID,
+      appointmentId: APPOINTMENT_ID,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(store.cancelForPatient).toHaveBeenCalledWith({
+      patientId: PATIENT_ID,
+      appointmentId: APPOINTMENT_ID,
+      from: ["requested", "confirmed"],
+    });
+  });
+
+  it("rejects malformed IDs before touching the database", async () => {
+    const store = fakePatientAppointments();
+    const tools = createChatTools(toolDeps(fakeStore(), store));
+
+    await expect(
+      tools.requestAppointmentCancellation({ patientId: PATIENT_ID, appointmentId: "nope" }),
+    ).rejects.toThrow();
+    await expect(tools.getPatientAppointments({ patientId: "nope" })).rejects.toThrow();
+    expect(store.cancelForPatient).not.toHaveBeenCalled();
+    expect(store.listForPatient).not.toHaveBeenCalled();
   });
 });

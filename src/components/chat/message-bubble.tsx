@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-import type { BookingEvent, ChatMessagePayload, ChatRole } from "@/lib/chat/schemas";
+import type { CardEvent, ChatMessagePayload, ChatRole } from "@/lib/chat/schemas";
 
+import { AppointmentCard, isAppointmentPayload } from "./appointment-cards";
 import { BookingCard, isBookingPayload } from "./booking-cards";
 import { CheckCircleIcon, SparkleIcon } from "./icons";
 
@@ -82,7 +83,7 @@ export function MessageBubble({
   /** Booking card actions are enabled only on the latest assistant message. */
   interactive?: boolean;
   busy?: boolean;
-  onEvent?: (event: BookingEvent) => void;
+  onEvent?: (event: CardEvent) => void;
   /**
    * Set for an assistant reply that arrived in this session: shows how long it
    * took and types the text out. Replies loaded from history render at once.
@@ -124,7 +125,7 @@ function AssistantMessage({
   payload: ChatMessagePayload | null;
   interactive: boolean;
   busy: boolean;
-  onEvent: (event: BookingEvent) => void;
+  onEvent: (event: CardEvent) => void;
   reveal: { elapsedMs: number } | null;
 }) {
   const { shown, done } = useWordReveal(content, reveal !== null);
@@ -157,6 +158,13 @@ function AssistantMessage({
             <div className={reveal ? "motion-safe:animate-fade-in" : undefined}>
               {isBookingPayload(payload) ? (
                 <BookingCard
+                  payload={payload}
+                  interactive={interactive}
+                  busy={busy}
+                  onEvent={onEvent}
+                />
+              ) : isAppointmentPayload(payload) ? (
+                <AppointmentCard
                   payload={payload}
                   interactive={interactive}
                   busy={busy}

@@ -9,6 +9,12 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   push: vi.fn(),
   toastError: vi.fn(),
+  toastSuccess: vi.fn(),
+  cancelAction: vi.fn(),
+}));
+
+vi.mock("@/server/appointments/actions", () => ({
+  cancelPatientAppointmentAction: mocks.cancelAction,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -16,7 +22,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: { error: mocks.toastError, success: vi.fn(), dismiss: vi.fn() },
+  toast: { error: mocks.toastError, success: mocks.toastSuccess, dismiss: vi.fn() },
 }));
 
 const CONVERSATIONS: ConversationSummary[] = [
@@ -37,6 +43,14 @@ const fetchMock = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal("fetch", fetchMock);
+  // jsdom does not implement modal dialogs.
+  HTMLDialogElement.prototype.showModal = function showModal() {
+    this.setAttribute("open", "");
+  };
+  HTMLDialogElement.prototype.close = function close() {
+    this.removeAttribute("open");
+    this.dispatchEvent(new Event("close"));
+  };
 });
 
 afterEach(() => {
@@ -575,5 +589,54 @@ describe("ChatShell appointments view", () => {
     });
 
     expect(container.querySelector("img")).toBeNull();
+  });
+
+  it("offers Cancel on upcoming appointments only", () => {
+    renderShell({ appointments: { upcoming: [UPCOMING], past: [PAST] } });
+
+    const upcoming = screen.getByRole("region", { name: "Upcoming" });
+    expect(
+      within(upcoming).getByRole("button", { name: /Cancel appointment with Dr\. Maya Santos/ }),
+    ).toBeInTheDocument();
+    const past = screen.getByRole("region", { name: "Past" });
+    expect(within(past).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("cancels after the patient confirms in the dialog", async () => {
+    mocks.cancelAction.mockResolvedValue({ status: "success", message: "Appointment cancelled." });
+    renderShell({ appointments: { upcoming: [UPCOMING], past: [] } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Cancel appointment with Dr\. Maya Santos/ }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel this appointment?" });
+    expect(mocks.cancelAction).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Yes, cancel it" }));
+
+    await waitFor(() => expect(mocks.cancelAction).toHaveBeenCalledOnce());
+    const formData = mocks.cancelAction.mock.calls[0][1] as FormData;
+    expect(formData.get("appointmentId")).toBe(UPCOMING.id);
+    await waitFor(() => expect(mocks.toastSuccess).toHaveBeenCalledWith("Appointment cancelled."));
+  });
+
+  it("shows the error and keeps the dialog open when the cancel fails", async () => {
+    mocks.cancelAction.mockResolvedValue({
+      status: "error",
+      message: "This appointment can no longer be cancelled.",
+    });
+    renderShell({ appointments: { upcoming: [UPCOMING], past: [] } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Cancel appointment with Dr\. Maya Santos/ }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel this appointment?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Yes, cancel it" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "This appointment can no longer be cancelled.",
+    );
+    expect(mocks.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("tells patients with no appointments that the assistant can book one", () => {
+    renderShell({ appointments: { upcoming: [], past: [] } });
+
+    expect(screen.getByText(/Ask the assistant to book one/)).toBeInTheDocument();
   });
 });

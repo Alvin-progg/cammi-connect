@@ -252,6 +252,23 @@ No real patient data is used.
     - Send "Book a cardiologist for <a date more than 60 days ahead>" and confirm the
       60-day reply.
     - Cancel the smoke-test appointments afterwards.
+12d. View and cancel (AI-APT-001 S4), with two `requested` appointments from 12c:
+    - Start a new chat and press "View Appointments" on the My Appointments suggestion
+      card; confirm `/chat?view=appointments` lists both under Upcoming. Cancel one from
+      that page through its confirmation dialog and confirm the success toast and that it
+      moves to Past.
+    - Back in the chat, send "Show my appointments" and confirm the "Here are your
+      upcoming appointments" card lists the other one in Philippine time.
+    - Send "I want to cancel my appointment", press Cancel appointment on it, and confirm
+      the confirmation step appears with nothing changed yet in `appointments`. Press
+      Confirm cancellation and confirm "Your appointment has been cancelled."
+    - Confirm the row's status is `cancelled`, a `status_history` row has
+      `changed_by_profile_id` set to the patient's profile ID, and the appointment has
+      left the active columns of the doctor's `/doctor` board.
+    - Send "Can I reschedule my appointment?" and confirm the "Rescheduling isn't
+      available yet" reply.
+    - Sign in as a second patient and confirm the first patient's appointment is not
+      listed.
 13. Sign in as the seed admin and open `/admin`: add and deactivate a department and a
     specialty; add a directory-only doctor with two specialties; filter doctors by
     department and by specialty; open a doctor's schedule and add a period and an
@@ -300,7 +317,8 @@ Do not use real patient or clinician email addresses for synthetic testing.
   behavior.
 - The service role bypasses RLS, so a service-layer bug is not contained by the database.
 - Patients book through the chat only (AI-APT-001 S3); there is no form-based booking
-  page. Patient cancellation is S4, and cancellation windows are not implemented.
+  page. Patients cancel their own `requested` or `confirmed` appointments in the chat
+  (AI-APT-001 S4); there is no cancellation window, and the doctor is not notified.
 - If a booking turn fails unexpectedly after Confirm was claimed (provider or database
   outage), the conversation's booking state stays at `booking` and its cards stop
   accepting actions. The patient recovers by typing a new booking request.

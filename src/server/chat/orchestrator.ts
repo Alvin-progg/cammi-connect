@@ -1,6 +1,7 @@
 import "server-only";
 
 import { todayInManila } from "@/lib/appointments/filters";
+import { APPOINTMENTS_COPY } from "@/lib/chat/appointments";
 import { doctorDisplayName } from "@/lib/chat/booking";
 import { RAG_SYSTEM_PROMPT, formatRagContext } from "@/lib/chat/rag/prompt";
 import {
@@ -24,6 +25,7 @@ import type { DoctorSummary } from "@/lib/directory/types";
 import type { ChatTurn, GenerateInput } from "@/server/ai/opencode-zen";
 import type { KnowledgeSearchResult } from "@/server/knowledge/service";
 
+import { handleAppointmentEvent, showPatientAppointments } from "./appointments";
 import { handleBookingEvent, startOrCorrectBooking, type BookingContext } from "./booking";
 import type { ChatTools } from "./tools";
 
@@ -55,6 +57,9 @@ Rules:
 - "book": the patient wants to book or schedule an appointment, or changes the specialty, doctor, date, or time of a booking in progress.
 - "service_inquiry": questions about hospital services, requirements, documents to bring, visiting, or other hospital information.
 - "doctor_inquiry": questions about which departments, specialties, or doctors the hospital has, or about a named doctor.
+- "appointment_status": the patient asks to see their appointments or their status.
+- "cancel": the patient wants to cancel an existing appointment.
+- "reschedule": the patient wants to move an existing appointment to another time.
 - "medical_advice": the patient describes symptoms or asks for a diagnosis, treatment, or medicine.
 - Set "urgent" to true only for "medical_advice" messages that sound like an emergency (for example chest pain, difficulty breathing, severe bleeding, loss of consciousness).
 - Use "other" for greetings and anything that fits no other intent.
@@ -192,8 +197,8 @@ async function answerDirectoryQuestion(
 }
 
 /**
- * Runs one chat turn. Card actions go straight to the booking flow without
- * the LLM. For messages, the LLM classifies the text and writes grounded
+ * Runs one chat turn. Card actions go straight to the booking or appointment
+ * flow without the LLM. For messages, the LLM classifies the text and writes grounded
  * hospital-information answers; every other reply, including every booking
  * step, is a server template built from database rows. Provider failures
  * propagate so the route can answer 503.
@@ -206,11 +211,17 @@ export async function handleTurn(input: TurnInput, deps: TurnDeps): Promise<Turn
     tools: deps.tools,
     claimBooking: deps.claimBooking,
   };
-  if (input.event.type !== "message") {
-    return handleBookingEvent(input.event, booking);
+  const event = input.event;
+  if (event.type === "request_cancellation" || event.type === "confirm_cancellation") {
+    // Appointment cards never touch the booking in progress.
+    const result = await handleAppointmentEvent(event, input.patientId, deps.tools);
+    return { ...result, state: input.state };
+  }
+  if (event.type !== "message") {
+    return handleBookingEvent(event, booking);
   }
 
-  const text = input.event.text;
+  const text = event.text;
   const reply = await replyToMessage(text, input, deps, booking);
   return { state: input.state, ...reply, userContent: text };
 }
@@ -250,6 +261,12 @@ async function replyToMessage(
       return answerHospitalQuestion(text, input, deps);
     case "doctor_inquiry":
       return answerDirectoryQuestion(extraction, deps.tools);
+    case "appointment_status":
+      return showPatientAppointments(input.patientId, deps.tools, APPOINTMENTS_COPY.list);
+    case "cancel":
+      return showPatientAppointments(input.patientId, deps.tools, APPOINTMENTS_COPY.chooseToCancel);
+    case "reschedule":
+      return { reply: APPOINTMENTS_COPY.rescheduleUnavailable, payload: null };
     default:
       return { reply: NOT_AVAILABLE_YET, payload: null };
   }

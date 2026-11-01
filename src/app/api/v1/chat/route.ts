@@ -1,4 +1,7 @@
-import { supabaseAppointmentBooker } from "@/server/appointments/repository";
+import {
+  supabaseAppointmentBooker,
+  supabasePatientAppointmentsRepository,
+} from "@/server/appointments/repository";
 import { resolvePatientForApi } from "@/server/auth/dal";
 import { embedTexts } from "@/server/ai/gemini-embeddings";
 import { generate } from "@/server/ai/opencode-zen";
@@ -26,6 +29,7 @@ export async function POST(request: Request): Promise<Response> {
       directory: supabaseDirectoryRepository,
       availability: supabaseAvailabilitySource,
       booker: supabaseAppointmentBooker,
+      patientAppointments: supabasePatientAppointmentsRepository,
       now: () => new Date(),
     }),
     now: () => new Date(),
