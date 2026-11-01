@@ -65,7 +65,7 @@ export function DoctorStatsPanel({
               key={item}
               href={`/doctor?view=stats&period=${item}`}
               aria-current={active ? "true" : undefined}
-              className={`focus-ring rounded-md px-3 py-1.5 text-sm font-medium ${
+              className={`focus-ring pressable rounded-md px-3 py-1.5 text-sm font-medium ${
                 active
                   ? "bg-surface text-primary shadow-card"
                   : "text-ink-secondary hover:text-ink"

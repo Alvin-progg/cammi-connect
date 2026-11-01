@@ -9,6 +9,7 @@ import {
   NOT_VERIFIED,
   PLEASE_REPHRASE,
 } from "@/lib/chat/safety";
+import { IDLE_STATE } from "@/lib/chat/state";
 import type { Department, DoctorSummary, Specialty } from "@/lib/directory/types";
 import { ProviderError } from "@/server/ai/http";
 import type { GenerateInput } from "@/server/ai/opencode-zen";
@@ -19,6 +20,8 @@ import type { KnowledgeSearchResult } from "@/server/knowledge/service";
 vi.mock("server-only", () => ({}));
 
 const CONVERSATION_ID = "00000000-0000-4000-8000-00000000c001";
+const PATIENT_ID = "00000000-0000-4000-8000-000000000201";
+const NOW = new Date("2026-10-31T01:00:00Z");
 
 function generateReturning(reply: string) {
   return vi.fn<(input: GenerateInput) => Promise<string>>().mockResolvedValue(reply);
@@ -51,6 +54,10 @@ function fakeTools(): ChatTools {
     getDepartments: vi.fn(async () => [CARDIOLOGY]),
     getSpecialties: vi.fn(async () => [PEDIATRICS_SPECIALTY]),
     getDoctorDetails: vi.fn(async (): Promise<DoctorLookup> => ({ status: "unknown" })),
+    getDoctor: vi.fn(async () => null),
+    getDoctorsBySpecialty: vi.fn(async () => []),
+    getDoctorAvailability: vi.fn(async () => []),
+    createAppointment: vi.fn(async () => ({ ok: false as const, message: "unused" })),
   };
 }
 
@@ -62,6 +69,7 @@ function turnDeps(
     generate,
     searchKnowledge: vi.fn(async (): Promise<KnowledgeSearchResult> => ({ found: false })),
     tools: fakeTools(),
+    claimBooking: vi.fn(async () => true),
     ...overrides,
   };
 }
@@ -69,8 +77,11 @@ function turnDeps(
 function turn(text: string, history: { role: "user" | "assistant"; content: string }[] = []) {
   return {
     conversationId: CONVERSATION_ID,
+    patientId: PATIENT_ID,
     history,
     event: { type: "message" as const, text },
+    state: IDLE_STATE,
+    now: NOW,
   };
 }
 
@@ -117,7 +128,6 @@ describe("handleTurn", () => {
   });
 
   it.each([
-    "book",
     "appointment_status",
     "cancel",
     "reschedule",
@@ -148,12 +158,22 @@ describe("handleTurn", () => {
 
   it("accepts null optional details from the model", async () => {
     const generate = generateReturning(
-      JSON.stringify({ intent: "book", doctorName: null, urgent: null }),
+      JSON.stringify({ intent: "book", doctorName: null, specialtyName: null, urgent: null }),
     );
 
     const result = await handleTurn(turn("book please"), turnDeps(generate));
 
-    expect(result.reply).toBe(NOT_AVAILABLE_YET);
+    expect(result.state.step).toBe("choosing_specialty");
+  });
+
+  it("saves the patient's own text and leaves the state alone for non-booking replies", async () => {
+    const generate = generateReturning(JSON.stringify({ intent: "other" }));
+    const input = turn("Hello");
+
+    const result = await handleTurn(input, turnDeps(generate));
+
+    expect(result.userContent).toBe("Hello");
+    expect(result.state).toBe(input.state);
   });
 
   it("requests JSON mode with the conversation ID as the session and sends only the chat text", async () => {
@@ -242,6 +262,8 @@ describe("handleTurn service_inquiry", () => {
     expect(result).toEqual({
       reply: "Please bring a valid government ID.",
       payload: { kind: "sources", sources: FOUND.sources },
+      state: IDLE_STATE,
+      userContent: "What should I bring?",
     });
   });
 
@@ -268,7 +290,7 @@ describe("handleTurn service_inquiry", () => {
 
     const result = await handleTurn(turn("Parking at another hospital?"), turnDeps(generate));
 
-    expect(result).toEqual({ reply: NOT_VERIFIED, payload: { kind: "not_verified" } });
+    expect(result).toMatchObject({ reply: NOT_VERIFIED, payload: { kind: "not_verified" } });
     expect(generate).toHaveBeenCalledTimes(1);
   });
 
@@ -283,7 +305,7 @@ describe("handleTurn service_inquiry", () => {
       turnDeps(generate, { searchKnowledge: vi.fn(async () => FOUND) }),
     );
 
-    expect(result).toEqual({ reply: NOT_VERIFIED, payload: { kind: "not_verified" } });
+    expect(result).toMatchObject({ reply: NOT_VERIFIED, payload: { kind: "not_verified" } });
   });
 
   it("clips an overlong answer to the stored message limit", async () => {

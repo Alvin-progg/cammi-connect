@@ -57,13 +57,13 @@ export function ScheduleManager({
           <div className="flex items-center gap-2">
             <Link
               href={`/doctor?view=calendar&month=${shiftCalendarMonth(month, -1)}`}
-              className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted motion-reduce:transition-none"
+              className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink pressable hover:bg-surface-muted"
             >
               Previous
             </Link>
             <Link
               href={`/doctor?view=calendar&month=${shiftCalendarMonth(month, 1)}`}
-              className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted motion-reduce:transition-none"
+              className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink pressable hover:bg-surface-muted"
             >
               Next
             </Link>

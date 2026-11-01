@@ -41,7 +41,7 @@ const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
 const SELECT_CLASS =
   "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
 const SECONDARY_BUTTON_CLASS =
-  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-muted motion-reduce:transition-none";
+  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink pressable hover:bg-surface-muted";
 
 function EmptyState({ children }: { children: ReactNode }) {
   return (

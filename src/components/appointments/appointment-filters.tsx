@@ -59,7 +59,7 @@ export function AppointmentFilters({
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
-            className="focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover motion-reduce:transition-none"
+            className="focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-ink pressable hover:bg-primary-hover"
           >
             Apply filters
           </button>

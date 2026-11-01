@@ -4,7 +4,13 @@
  */
 import { BaseIcon, type IconProps } from "@/components/doctor/icons";
 
-export { CalendarIcon, ClipboardIcon, CloseIcon, PlusIcon } from "@/components/doctor/icons";
+export {
+  CalendarIcon,
+  ChevronRightIcon,
+  ClipboardIcon,
+  CloseIcon,
+  PlusIcon,
+} from "@/components/doctor/icons";
 
 export function SparkleIcon({ className }: IconProps) {
   return (
@@ -12,6 +18,15 @@ export function SparkleIcon({ className }: IconProps) {
       <path d="M10 3.5 11.6 8.4 16.5 10l-4.9 1.6L10 16.5l-1.6-4.9L3.5 10l4.9-1.6Z" />
       <path d="M18 14.5 18.8 16.7 21 17.5l-2.2.8L18 20.5l-.8-2.2-2.2-.8 2.2-.8Z" />
       <path d="M17.5 3.5v3M16 5h3" />
+    </BaseIcon>
+  );
+}
+
+export function CheckCircleIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m8.5 12.25 2.4 2.4 4.6-4.9" />
     </BaseIcon>
   );
 }
@@ -69,6 +84,14 @@ export function BuildingIcon({ className }: IconProps) {
       <rect x="4.5" y="3.5" width="15" height="17" rx="1.5" />
       <path d="M10 20.5v-4h4v4" />
       <path d="M12 7v4M10 9h4" />
+    </BaseIcon>
+  );
+}
+
+export function CheckIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path d="M5 12.5 10 17.5 19 7" />
     </BaseIcon>
   );
 }

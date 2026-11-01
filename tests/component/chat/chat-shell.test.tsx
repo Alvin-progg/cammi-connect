@@ -268,6 +268,44 @@ describe("ChatShell composer", () => {
     });
   });
 
+  it("shows a thinking status while waiting, then how long the reply took", async () => {
+    let respond: (response: Response) => void = () => {};
+    fetchMock.mockReturnValue(new Promise<Response>((resolve) => (respond = resolve)));
+    renderShell();
+
+    fireEvent.change(screen.getByLabelText("Message"), { target: { value: "Hello" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(await screen.findByText("Thinking…")).toBeInTheDocument();
+
+    respond(
+      okResponse({
+        conversationId: CONVERSATIONS[0].id,
+        messages: [
+          { id: "u1", role: "user", content: "Hello", createdAt: "2026-10-30T01:00:00.000Z" },
+          { id: "a1", role: "assistant", content: "Hi there", createdAt: "2026-10-30T01:00:01.000Z" },
+        ],
+        state: null,
+        requestId: "r1",
+      }),
+    );
+
+    expect(await screen.findByText(/^Replied in \d+\.\ds$/)).toBeInTheDocument();
+    expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+  });
+
+  it("shows no reply timing on messages loaded from history", () => {
+    renderShell({
+      conversationId: CONVERSATIONS[0].id,
+      initialMessages: [
+        { id: "a1", role: "assistant", content: "Hi there", payload: null, createdAt: "2026-10-30T01:00:01.000Z" },
+      ],
+    });
+
+    expect(screen.getByText("Hi there")).toBeInTheDocument();
+    expect(screen.queryByText(/Replied in/)).not.toBeInTheDocument();
+  });
+
   it("keeps the draft and shows a toast without chat content when sending fails", async () => {
     fetchMock.mockResolvedValue({
       ok: false,
@@ -393,6 +431,94 @@ describe("ChatShell thread", () => {
 
     expect(screen.getByRole("note")).toHaveTextContent(/not found in the hospital's information/i);
     expect(screen.queryByRole("list", { name: "Sources" })).not.toBeInTheDocument();
+  });
+});
+
+describe("ChatShell booking cards", () => {
+  const SPECIALTY_ID = "00000000-0000-4000-8000-0000000005a1";
+  const SUMMARY: ChatMessage = {
+    id: "m4",
+    role: "assistant",
+    content: "Please review your appointment request.",
+    payload: {
+      kind: "booking_summary",
+      doctorName: "Dr. Maya Santos",
+      specialtyName: "Cardiology",
+      start: "2026-11-03T01:00:00.000Z",
+      end: "2026-11-03T01:30:00.000Z",
+      reason: null,
+    },
+    createdAt: "2026-10-31T01:00:03.000Z",
+  };
+  const OLDER_OPTIONS: ChatMessage = {
+    id: "m2",
+    role: "assistant",
+    content: "Which specialty would you like to book?",
+    payload: { kind: "specialty_options", specialties: [{ id: SPECIALTY_ID, name: "Cardiology" }] },
+    createdAt: "2026-10-31T01:00:01.000Z",
+  };
+
+  it("sends a card action for the open conversation and appends the reply", async () => {
+    fetchMock.mockResolvedValue(
+      okResponse({
+        conversationId: CONVERSATIONS[0].id,
+        messages: [
+          { id: "m5", role: "user", content: "Confirm booking", payload: null, createdAt: "x" },
+          {
+            id: "m6",
+            role: "assistant",
+            content: "Your appointment request has been received.",
+            payload: null,
+            createdAt: "y",
+          },
+        ],
+        state: { step: "booked", draft: {} },
+        requestId: "r1",
+      }),
+    );
+    renderShell({ conversationId: CONVERSATIONS[0].id, initialMessages: [OLDER_OPTIONS, SUMMARY] });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm booking" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      conversationId: CONVERSATIONS[0].id,
+      event: { type: "confirm_booking" },
+    });
+    expect(await screen.findByText("Your appointment request has been received.")).toBeInTheDocument();
+  });
+
+  it("only lets the latest card act", () => {
+    renderShell({ conversationId: CONVERSATIONS[0].id, initialMessages: [OLDER_OPTIONS, SUMMARY] });
+
+    expect(screen.getByRole("button", { name: "Cardiology" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Confirm booking" })).toBeEnabled();
+  });
+
+  it("sends Confirm once even when clicked twice quickly", async () => {
+    fetchMock.mockReturnValue(new Promise(() => {}));
+    renderShell({ conversationId: CONVERSATIONS[0].id, initialMessages: [SUMMARY] });
+
+    const confirm = screen.getByRole("button", { name: "Confirm booking" });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    expect(await screen.findByRole("button", { name: "Booking…" })).toBeDisabled();
+  });
+
+  it("shows a toast without chat content when a card action fails", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: { message: "The assistant is unavailable right now." } }),
+    } as Response);
+    renderShell({ conversationId: CONVERSATIONS[0].id, initialMessages: [SUMMARY] });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm booking" }));
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledOnce());
+    expect(screen.getByRole("button", { name: "Confirm booking" })).toBeEnabled();
   });
 });
 

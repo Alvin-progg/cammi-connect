@@ -1,8 +1,10 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BOOKING_COPY } from "@/lib/chat/booking";
 import type { ChatMessage } from "@/lib/chat/schemas";
 import { NOT_AVAILABLE_YET, NOT_VERIFIED } from "@/lib/chat/safety";
+import { IDLE_STATE, type BookingState } from "@/lib/chat/state";
 import type { PatientApiAccess } from "@/server/auth/dal";
 import { ProviderError } from "@/server/ai/http";
 import type { GenerateInput } from "@/server/ai/opencode-zen";
@@ -24,6 +26,13 @@ const NEW_CONVERSATION_ID = "00000000-0000-4000-8000-00000000c999";
 const REQUEST_ID = "00000000-0000-4000-8000-0000000000e1";
 const NOW = new Date("2026-10-30T01:00:00Z");
 const SECRET_TEXT = "my private symptom details";
+const AWAITING_CONFIRMATION: BookingState = {
+  step: "awaiting_confirmation",
+  draft: {
+    doctorId: "00000000-0000-4000-8000-0000000000d1",
+    slotStart: "2026-11-03T01:00:00.000Z",
+  },
+};
 
 function fakeStore(): ChatStore {
   return {
@@ -37,6 +46,9 @@ function fakeStore(): ChatStore {
       { id: "m2", role: "assistant", content: "Hello", payload: null, createdAt: NOW.toISOString() },
     ]),
     countRecentUserMessages: vi.fn(async () => 0),
+    getBookingState: vi.fn(async () => IDLE_STATE),
+    saveBookingState: vi.fn(async () => {}),
+    claimBookingState: vi.fn(async () => true),
     createConversation: vi.fn(async () => {}),
     appendMessages: vi.fn(async (_conversationId: string, messages: NewChatMessage[]) =>
       messages.map((message, index) => ({
@@ -65,12 +77,16 @@ beforeEach(() => {
     store,
     generate: vi
       .fn<(input: GenerateInput) => Promise<string>>()
-      .mockResolvedValue(JSON.stringify({ intent: "book" })),
+      .mockResolvedValue(JSON.stringify({ intent: "other" })),
     searchKnowledge: vi.fn(async (): Promise<KnowledgeSearchResult> => ({ found: false })),
     tools: {
       getDepartments: vi.fn(async () => []),
       getSpecialties: vi.fn(async () => []),
       getDoctorDetails: vi.fn(async () => ({ status: "unknown" as const })),
+      getDoctor: vi.fn(async () => null),
+      getDoctorsBySpecialty: vi.fn(async () => []),
+      getDoctorAvailability: vi.fn(async () => []),
+      createAppointment: vi.fn(async () => ({ ok: false as const, message: "unused" })),
     },
     now: () => NOW,
     newId: () => (nextId++ === 0 ? REQUEST_ID : NEW_CONVERSATION_ID),
@@ -120,7 +136,8 @@ describe("handleChatRequest", () => {
   it.each([
     ["an empty message", messageBody("   ")],
     ["a message over 1000 characters", messageBody("a".repeat(1001))],
-    ["an unknown event type", { event: { type: "confirm_booking" } }],
+    ["an unknown event type", { event: { type: "teleport" } }],
+    ["a booking action without a conversation", { event: { type: "confirm_booking" } }],
     ["a malformed conversation ID", messageBody("Hi", "not-a-uuid")],
   ])("returns 422 for %s", async (_label, body) => {
     const response = await handleChatRequest(chatRequest(body), deps);
@@ -140,6 +157,7 @@ describe("handleChatRequest", () => {
     expect(response.status).toBe(404);
     expect(store.getConversation).toHaveBeenCalledWith(PATIENT.id, foreignId);
     expect(store.listMessages).not.toHaveBeenCalled();
+    expect(store.getBookingState).not.toHaveBeenCalled();
     expect(deps.generate).not.toHaveBeenCalled();
   });
 
@@ -204,7 +222,9 @@ describe("handleChatRequest", () => {
       id: NEW_CONVERSATION_ID,
       patientId: PATIENT.id,
       title: "I want to book a cardiologist",
+      bookingState: IDLE_STATE,
     });
+    expect(store.getBookingState).not.toHaveBeenCalled();
     expect(deps.generate).toHaveBeenCalledWith(
       expect.objectContaining({ sessionId: NEW_CONVERSATION_ID }),
     );
@@ -222,7 +242,7 @@ describe("handleChatRequest", () => {
         expect.objectContaining({ role: "user", content: "I want to book a cardiologist" }),
         expect.objectContaining({ role: "assistant", content: NOT_AVAILABLE_YET }),
       ],
-      state: null,
+      state: IDLE_STATE,
       requestId: REQUEST_ID,
     });
   });
@@ -306,5 +326,60 @@ describe("handleChatRequest", () => {
     expect(everything).not.toContain(SECRET_TEXT);
     expect(logged.map((entry) => entry.status)).toEqual([200, 503]);
     consoleSpies.forEach((spy) => spy.mockRestore());
+  });
+
+  it("does not save the booking state when the turn leaves it unchanged", async () => {
+    const response = await handleChatRequest(
+      chatRequest(messageBody("Hello again", OWN_CONVERSATION_ID)),
+      deps,
+    );
+
+    expect(response.status).toBe(200);
+    expect(store.getBookingState).toHaveBeenCalledWith(PATIENT.id, OWN_CONVERSATION_ID);
+    expect(store.saveBookingState).not.toHaveBeenCalled();
+  });
+
+  it("runs a booking action on the stored state, saves the new state, and labels the turn", async () => {
+    vi.mocked(store.getBookingState).mockResolvedValue(AWAITING_CONFIRMATION);
+
+    const response = await handleChatRequest(
+      chatRequest({ conversationId: OWN_CONVERSATION_ID, event: { type: "cancel_booking" } }),
+      deps,
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(deps.generate).not.toHaveBeenCalled();
+    expect(store.saveBookingState).toHaveBeenCalledWith(PATIENT.id, OWN_CONVERSATION_ID, {
+      step: "cancelled",
+      draft: {},
+    });
+    const [, messages] = vi.mocked(store.appendMessages).mock.calls[0];
+    expect(messages.map((message) => message.content)).toEqual([
+      "Stop booking",
+      BOOKING_COPY.stopped,
+    ]);
+    expect(body.state).toEqual({ step: "cancelled", draft: {} });
+  });
+
+  it("claims a Confirm with a guarded update scoped to the patient's conversation", async () => {
+    vi.mocked(store.getBookingState).mockResolvedValue(AWAITING_CONFIRMATION);
+    vi.mocked(store.claimBookingState).mockResolvedValue(false);
+
+    const response = await handleChatRequest(
+      chatRequest({ conversationId: OWN_CONVERSATION_ID, event: { type: "confirm_booking" } }),
+      deps,
+    );
+    const body = await response.json();
+
+    expect(store.claimBookingState).toHaveBeenCalledWith(
+      PATIENT.id,
+      OWN_CONVERSATION_ID,
+      "awaiting_confirmation",
+      { step: "booking", draft: AWAITING_CONFIRMATION.draft },
+    );
+    expect(deps.tools.createAppointment).not.toHaveBeenCalled();
+    expect(store.saveBookingState).not.toHaveBeenCalled();
+    expect(body.messages[1].content).toBe(BOOKING_COPY.alreadyProcessing);
   });
 });

@@ -34,7 +34,7 @@ export function MarkReadButton({ notificationId }: { notificationId: string }) {
         type="submit"
         disabled={pending}
         aria-busy={pending}
-        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-primary transition-colors hover:bg-primary-soft disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none"
+        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-primary pressable hover:bg-primary-soft disabled:pointer-events-none disabled:opacity-60"
       >
         {pending ? "Updating…" : "Mark read"}
       </button>
@@ -60,7 +60,7 @@ export function MarkAllReadButton() {
         type="submit"
         disabled={pending}
         aria-busy={pending}
-        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none"
+        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink pressable hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-60"
       >
         {pending ? "Updating…" : "Mark all as read"}
       </button>
