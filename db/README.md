@@ -74,7 +74,8 @@ after it has finished, run `db/migrations/0007_appointment_lifecycle_audit.sql`.
 Then run `db/migrations/0008_front_desk_role.sql` **on its own**.
 PostgreSQL cannot use a new enum value in the transaction that added it.
 Then run `db/migrations/0009_front_desk_confirm_reject.sql` once, then
-`db/migrations/0010_front_desk_attendance.sql` once.
+`db/migrations/0010_front_desk_attendance.sql` once, then
+`db/migrations/0011_front_desk_reschedule_cancel.sql` once.
 
 `0001_profiles_appointments.sql`:
 
@@ -191,6 +192,25 @@ now fail.
   `created_at` is the recorded time);
 - raises `P0001` with `not_found`, `invalid_status`, `invalid_transition`, or
   `not_yet`, and is executable by `service_role` only.
+
+`0011_front_desk_reschedule_cancel.sql` (FD-001 PR 6):
+
+- adds `cammi_connect_reschedule_appointment(appointment, staff, scheduled_at,
+  reason)`. In one transaction it requires a non-blank reason, locks the appointment
+  and the doctor, allows only `requested` or `confirmed`, refuses the current time,
+  then checks that the new time is in the future, on one of the doctor's slots (same
+  grid check as booking), and clear of schedule exceptions. It sets `scheduled_at`,
+  `duration_minutes`, and `rescheduled_from_at`, keeps the doctor and status, and
+  writes a `rescheduled` audit row with `previous_values` and `new_values`
+  (`scheduled_at`, `duration_minutes`). A slot already held by another appointment
+  fails on `appointments_no_active_overlap` (`23P01`) and nothing changes;
+- adds `cammi_connect_cancel_appointment(appointment, staff, reason)`, which requires
+  a non-blank reason, allows only `requested` or `confirmed`, sets `cancelled`,
+  `cancellation_reason`, and `cancelled_by_role = 'front_desk'`, and writes the
+  `cancelled` audit row. Cancelled rows are kept;
+- both raise `P0001` with a code (`reason_required`, `not_found`,
+  `not_reschedulable`, `unchanged`, `inactive_doctor`, `past`, `outside_hours`,
+  `blocked`, `not_cancellable`) and are executable by `service_role` only.
 
 ### Knowledge base ingestion (ADR-0004)
 
@@ -447,6 +467,35 @@ No real patient data is used.
       adds one `appointment_audit_logs` row with `actor_profile_id` set to the staff id.
     - As the doctor, a checked-in appointment in `/doctor` offers **Mark completed**,
       and completing it adds a "Completed" history entry.
+
+20. Check reschedule and cancel (FD-001 PR 6), after applying 0011 and re-running the
+    seed:
+    - As the front desk account, open a confirmed future appointment and click
+      **Reschedule**. Pick a date the doctor works. Only free slots are listed, and the
+      current time is not one of them. Choose a slot and **Patient request**, then
+      **Reschedule appointment**. A toast appears after the save, you return to the
+      details, the time is updated, the status is still Confirmed, and Status history
+      shows "Moved from … to …" with the reason and your name. In SQL, the new
+      `appointment_audit_logs` row has `previous_values` and `new_values` holding the old
+      and new `scheduled_at`, and the appointment's `rescheduled_from_at` is the old time.
+    - Open the reschedule page for an appointment in two tabs on the same date. Move one
+      appointment into a slot in the first tab, then pick the same slot for a different
+      appointment of the same doctor in the second tab. It fails with "That slot was just
+      taken" and that appointment keeps its time (no new audit row).
+    - In the SQL editor, `select public.cammi_connect_reschedule_appointment('<confirmed
+      id>', '<staff profile id>', '<a time off the slot grid, e.g. :07 past the hour>',
+      'Test');` fails with `outside_hours`, and passing the current time fails with
+      `unchanged`.
+    - Cancel a confirmed appointment with **Other hospital-approved reason** (details are
+      required). The status becomes Cancelled, the row keeps `cancellation_reason` and
+      `cancelled_by_role = 'front_desk'`, and the history shows "Cancelled" with the
+      reason. The slot becomes free again on the reschedule page of another appointment.
+    - `select public.cammi_connect_cancel_appointment('<completed id>', '<staff profile
+      id>', 'Test');` fails with `not_cancellable`, and a blank reason fails with
+      `reason_required`. A completed appointment's details page shows neither
+      **Reschedule** nor **Cancel appointment**.
+    - As the doctor, the rescheduled appointment shows its new time in `/doctor`, and
+      the cancelled one shows Cancelled.
 
 ## Troubleshooting
 

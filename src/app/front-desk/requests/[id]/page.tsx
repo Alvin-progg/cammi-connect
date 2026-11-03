@@ -1,13 +1,21 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AccessDenied } from "@/components/auth/access-denied";
 import { AttendanceActions } from "@/components/front-desk/attendance-actions";
 import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
-import { RequestDecision } from "@/components/front-desk/request-decision";
+import {
+  CancelAppointment,
+  RequestDecision,
+} from "@/components/front-desk/request-decision";
 import { RequestDetailsView } from "@/components/front-desk/request-details";
 import { todayInManila } from "@/lib/appointments/filters";
 import { formatManilaMediumDate, formatManilaTime } from "@/lib/appointments/format";
+import {
+  canFrontDeskCancel,
+  canFrontDeskReschedule,
+} from "@/lib/front-desk/decisions";
 import { formatRequestId } from "@/lib/front-desk/requests";
 import { allowedAttendanceActions } from "@/lib/front-desk/schedule";
 import { getFrontDeskSession } from "@/server/auth/dal";
@@ -18,6 +26,9 @@ import { supabaseDoctorSchedulesRepository } from "@/server/schedules/repository
 export const instant = false;
 
 export const metadata: Metadata = { title: "Appointment request" };
+
+const SECONDARY_BUTTON_CLASS =
+  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink pressable hover:bg-surface-muted";
 
 export default async function FrontDeskRequestPage({
   params,
@@ -71,6 +82,26 @@ export default async function FrontDeskRequestPage({
             doctorName={request.doctorName}
             whenLabel={whenLabel}
           />
+        ) : null}
+        {canFrontDeskReschedule(request.status) || canFrontDeskCancel(request.status) ? (
+          <div className="flex flex-wrap gap-2">
+            {canFrontDeskReschedule(request.status) ? (
+              <Link
+                href={`/front-desk/requests/${request.id}/reschedule`}
+                className={SECONDARY_BUTTON_CLASS}
+              >
+                Reschedule
+              </Link>
+            ) : null}
+            {canFrontDeskCancel(request.status) ? (
+              <CancelAppointment
+                appointmentId={request.id}
+                patientName={request.patientName}
+                doctorName={request.doctorName}
+                whenLabel={whenLabel}
+              />
+            ) : null}
+          </div>
         ) : null}
         <AttendanceActions
           appointmentId={request.id}

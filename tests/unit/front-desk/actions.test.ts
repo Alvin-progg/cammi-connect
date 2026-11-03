@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getFrontDeskSession } from "@/server/auth/dal";
 import {
+  cancelAppointmentAction,
   confirmRequestAction,
   recordAttendanceAction,
   rejectRequestAction,
+  rescheduleAppointmentAction,
 } from "@/server/front-desk/actions";
 import { supabaseFrontDeskRequestsWriter } from "@/server/front-desk/repository";
 
@@ -19,6 +21,8 @@ vi.mock("@/server/front-desk/repository", () => ({
     confirm: vi.fn(),
     reject: vi.fn(),
     recordAttendance: vi.fn(),
+    reschedule: vi.fn(),
+    cancel: vi.fn(),
   },
 }));
 
@@ -44,6 +48,8 @@ beforeEach(() => {
   writer.confirm.mockResolvedValue({ ok: true });
   writer.reject.mockResolvedValue({ ok: true });
   writer.recordAttendance.mockResolvedValue({ ok: true });
+  writer.reschedule.mockResolvedValue({ ok: true });
+  writer.cancel.mockResolvedValue({ ok: true });
   vi.mocked(getFrontDeskSession).mockResolvedValue(STAFF_SESSION);
 });
 
@@ -223,5 +229,149 @@ describe("recordAttendanceAction", () => {
       message: "Attendance can only be recorded on or after the appointment day.",
     });
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("rescheduleAppointmentAction", () => {
+  const NEW_TIME = "2026-11-05T01:30:00.000Z";
+
+  it("moves the appointment as the signed-in staff member and refreshes the views", async () => {
+    await expect(
+      rescheduleAppointmentAction(
+        IDLE,
+        formData({
+          appointmentId: APPOINTMENT_ID,
+          scheduledAt: NEW_TIME,
+          reason: "patient_request",
+          details: "Asked to move to Thursday.",
+          staffId: "00000000-0000-4000-8000-000000000999",
+        }),
+      ),
+    ).resolves.toEqual({ status: "success", message: "Appointment rescheduled." });
+
+    expect(writer.reschedule).toHaveBeenCalledWith({
+      appointmentId: APPOINTMENT_ID,
+      staffId: "00000000-0000-4000-8000-000000000301",
+      scheduledAt: NEW_TIME,
+      reason: "Patient request: Asked to move to Thursday.",
+    });
+    expect(revalidatePath).toHaveBeenCalledWith(`/front-desk/requests/${APPOINTMENT_ID}`);
+    expect(revalidatePath).toHaveBeenCalledWith("/front-desk/schedule");
+    expect(revalidatePath).toHaveBeenCalledWith("/doctor");
+  });
+
+  it("refuses accounts that are not front desk staff without writing", async () => {
+    vi.mocked(getFrontDeskSession).mockResolvedValue(null);
+
+    await expect(
+      rescheduleAppointmentAction(
+        IDLE,
+        formData({ appointmentId: APPOINTMENT_ID, scheduledAt: NEW_TIME, reason: "patient_request" }),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message: "You are not authorized to manage appointment requests.",
+    });
+    expect(writer.reschedule).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("requires a new time and a reason", async () => {
+    await expect(
+      rescheduleAppointmentAction(
+        IDLE,
+        formData({ appointmentId: APPOINTMENT_ID, reason: "patient_request" }),
+      ),
+    ).resolves.toEqual({ status: "error", message: "Choose a new time." });
+    await expect(
+      rescheduleAppointmentAction(
+        IDLE,
+        formData({ appointmentId: APPOINTMENT_ID, scheduledAt: NEW_TIME }),
+      ),
+    ).resolves.toEqual({ status: "error", message: "Choose a reason for rescheduling." });
+    expect(writer.reschedule).not.toHaveBeenCalled();
+  });
+
+  it("reports a slot that was just taken", async () => {
+    writer.reschedule.mockResolvedValue({
+      ok: false,
+      error: { code: "23P01", message: "conflicting key value violates exclusion constraint" },
+    });
+
+    await expect(
+      rescheduleAppointmentAction(
+        IDLE,
+        formData({ appointmentId: APPOINTMENT_ID, scheduledAt: NEW_TIME, reason: "patient_request" }),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message: "That slot was just taken. Choose another time.",
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("cancelAppointmentAction", () => {
+  it("cancels with the chosen reason as the signed-in staff member", async () => {
+    await expect(
+      cancelAppointmentAction(
+        IDLE,
+        formData({
+          appointmentId: APPOINTMENT_ID,
+          reason: "other",
+          details: "Clinic closed for a facility inspection.",
+        }),
+      ),
+    ).resolves.toEqual({ status: "success", message: "Appointment cancelled." });
+
+    expect(writer.cancel).toHaveBeenCalledWith({
+      appointmentId: APPOINTMENT_ID,
+      staffId: "00000000-0000-4000-8000-000000000301",
+      reason: "Other hospital-approved reason: Clinic closed for a facility inspection.",
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/front-desk/schedule");
+  });
+
+  it("refuses accounts that are not front desk staff without writing", async () => {
+    vi.mocked(getFrontDeskSession).mockResolvedValue(null);
+
+    await expect(
+      cancelAppointmentAction(
+        IDLE,
+        formData({ appointmentId: APPOINTMENT_ID, reason: "patient_request" }),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message: "You are not authorized to manage appointment requests.",
+    });
+    expect(writer.cancel).not.toHaveBeenCalled();
+  });
+
+  it("requires details for an other reason", async () => {
+    await expect(
+      cancelAppointmentAction(IDLE, formData({ appointmentId: APPOINTMENT_ID, reason: "other" })),
+    ).resolves.toEqual({
+      status: "error",
+      message: "Describe the reason for cancelling this appointment.",
+    });
+    expect(writer.cancel).not.toHaveBeenCalled();
+  });
+
+  it("reports that a completed appointment cannot be cancelled", async () => {
+    writer.cancel.mockResolvedValue({
+      ok: false,
+      error: { code: "P0001", message: "not_cancellable" },
+    });
+
+    await expect(
+      cancelAppointmentAction(
+        IDLE,
+        formData({ appointmentId: APPOINTMENT_ID, reason: "patient_request" }),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message:
+        "Only pending or confirmed appointments can be cancelled. Refresh to see its current status.",
+    });
   });
 });

@@ -18,7 +18,11 @@ import {
   type RequestQueueItem,
 } from "@/lib/front-desk/requests";
 import { validateAppointmentSlot } from "@/lib/schedules/availability";
-import type { DoctorAvailabilityReader } from "@/server/appointments/service";
+import { generateAvailableSlots } from "@/lib/schedules/slots";
+import type {
+  DoctorAppointmentsReader,
+  DoctorAvailabilityReader,
+} from "@/server/appointments/service";
 
 export const QUEUE_LIMIT = REQUEST_QUEUE_LIMIT;
 
@@ -94,6 +98,19 @@ export type FrontDeskRequestsWriter = {
     staffId: string;
     status: AttendanceStatus;
   }): Promise<WriteOutcome>;
+  /** cammi_connect_reschedule_appointment (migration 0011). */
+  reschedule(input: {
+    appointmentId: string;
+    staffId: string;
+    scheduledAt: string;
+    reason: string;
+  }): Promise<WriteOutcome>;
+  /** cammi_connect_cancel_appointment (migration 0011). */
+  cancel(input: {
+    appointmentId: string;
+    staffId: string;
+    reason: string;
+  }): Promise<WriteOutcome>;
 };
 
 type WriteOutcome =
@@ -103,6 +120,7 @@ type WriteOutcome =
 export type DecisionResult = { ok: true } | { ok: false; message: string };
 
 const RAISED_EXCEPTION = "P0001";
+const EXCLUSION_VIOLATION = "23P01";
 
 /** Staff-facing text for the coded refusals raised by the 0009 functions. */
 const DECISION_REFUSAL_MESSAGES: Record<string, string> = {
@@ -128,8 +146,31 @@ const ATTENDANCE_REFUSAL_MESSAGES: Record<string, string> = {
   not_found: "This appointment no longer exists.",
 };
 
-const GENERIC_ATTENDANCE_ERROR =
+const GENERIC_APPOINTMENT_ERROR =
   "The appointment could not be updated. Try again in a moment.";
+
+/** Staff-facing text for the coded refusals raised by the 0011 reschedule function. */
+const RESCHEDULE_REFUSAL_MESSAGES: Record<string, string> = {
+  reason_required: "A reason is required to reschedule.",
+  not_found: "This appointment no longer exists.",
+  not_reschedulable:
+    "Only pending or confirmed appointments can be rescheduled. Refresh to see its current status.",
+  unchanged: "Choose a time different from the current one.",
+  inactive_doctor: "This doctor is no longer accepting appointments.",
+  past: "Choose a future time.",
+  outside_hours: "That time is not one of the doctor's consultation slots.",
+  blocked: "The doctor is unavailable at that time.",
+  // appointments_no_active_overlap: another appointment holds the new slot.
+  [EXCLUSION_VIOLATION]: "That slot was just taken. Choose another time.",
+};
+
+/** Staff-facing text for the coded refusals raised by the 0011 cancel function. */
+const CANCEL_REFUSAL_MESSAGES: Record<string, string> = {
+  reason_required: "A reason is required to cancel.",
+  not_found: "This appointment no longer exists.",
+  not_cancellable:
+    "Only pending or confirmed appointments can be cancelled. Refresh to see its current status.",
+};
 
 /**
  * Translates a database outcome into staff-facing text. Only the coded
@@ -144,10 +185,13 @@ function toDecisionResult(
   if (outcome.ok) {
     return { ok: true };
   }
+  const { code } = outcome.error;
   const message =
-    outcome.error.code === RAISED_EXCEPTION
+    code === RAISED_EXCEPTION
       ? refusalMessages[outcome.error.message]
-      : undefined;
+      : code === EXCLUSION_VIOLATION
+        ? refusalMessages[EXCLUSION_VIOLATION]
+        : undefined;
   return { ok: false, message: message ?? genericMessage };
 }
 
@@ -271,6 +315,109 @@ export async function recordAttendance(
   return toDecisionResult(
     await writer.recordAttendance(input),
     ATTENDANCE_REFUSAL_MESSAGES,
-    GENERIC_ATTENDANCE_ERROR,
+    GENERIC_APPOINTMENT_ERROR,
   );
+}
+
+/**
+ * Moves a pending or confirmed appointment to another slot with the same
+ * doctor. The database function locks the row, re-checks the slot, and writes
+ * the audit entry with the previous and new times in one transaction; the
+ * overlap constraint rejects a slot that was taken meanwhile
+ * (SPEC-frontdesk §9). The staff ID comes from the session.
+ */
+export async function rescheduleAppointment(
+  input: {
+    appointmentId: string;
+    staffId: string;
+    scheduledAt: string;
+    rescheduleReason: string;
+  },
+  writer: FrontDeskRequestsWriter,
+): Promise<DecisionResult> {
+  const reason = input.rescheduleReason.trim();
+  if (!reason) {
+    return { ok: false, message: RESCHEDULE_REFUSAL_MESSAGES.reason_required };
+  }
+  return toDecisionResult(
+    await writer.reschedule({
+      appointmentId: input.appointmentId,
+      staffId: input.staffId,
+      scheduledAt: input.scheduledAt,
+      reason,
+    }),
+    RESCHEDULE_REFUSAL_MESSAGES,
+    GENERIC_APPOINTMENT_ERROR,
+  );
+}
+
+/** Cancels a pending or confirmed appointment with a reason; the row is kept. */
+export async function cancelAppointment(
+  input: { appointmentId: string; staffId: string; cancellationReason: string },
+  writer: FrontDeskRequestsWriter,
+): Promise<DecisionResult> {
+  const reason = input.cancellationReason.trim();
+  if (!reason) {
+    return { ok: false, message: CANCEL_REFUSAL_MESSAGES.reason_required };
+  }
+  return toDecisionResult(
+    await writer.cancel({
+      appointmentId: input.appointmentId,
+      staffId: input.staffId,
+      reason,
+    }),
+    CANCEL_REFUSAL_MESSAGES,
+    GENERIC_APPOINTMENT_ERROR,
+  );
+}
+
+export type RescheduleSlotsSource = DoctorAvailabilityReader &
+  Pick<DoctorAppointmentsReader, "listActiveIntervals">;
+
+/**
+ * The doctor's free slots on one Manila date, for moving an appointment
+ * (SPEC-frontdesk §9 step 2). The appointment's own interval is left out of
+ * the overlap check, so the slots around it stay available, and its current
+ * time is not offered. The database function re-checks the chosen slot.
+ */
+export async function listRescheduleSlots(
+  appointment: {
+    appointmentId: string;
+    doctorId: string;
+    currentScheduledAt: string;
+    date: string;
+  },
+  source: RescheduleSlotsSource,
+  now: Date = new Date(),
+): Promise<{ start: string; end: string }[]> {
+  const day = manilaDayRange(appointment.date);
+  const range = { start: day.start.toISOString(), end: day.end.toISOString() };
+  const [schedules, exceptions, existing] = await Promise.all([
+    source.listSchedulesForDoctor(appointment.doctorId),
+    source.listExceptionsForDoctor({ doctorId: appointment.doctorId, ...range }),
+    source.listActiveIntervals({
+      doctorId: appointment.doctorId,
+      ...range,
+      excludeId: appointment.appointmentId,
+    }),
+  ]);
+
+  const currentStart = new Date(appointment.currentScheduledAt).getTime();
+  return generateAvailableSlots({
+    doctorId: appointment.doctorId,
+    schedules,
+    exceptions: exceptions.map((exception) => ({
+      start: new Date(exception.startsAt),
+      end: new Date(exception.endsAt),
+    })),
+    existing: existing.map((interval) => ({
+      start: new Date(interval.start),
+      end: new Date(interval.end),
+    })),
+    fromDate: appointment.date,
+    days: 1,
+    now,
+  })
+    .filter((slot) => slot.start.getTime() !== currentStart)
+    .map((slot) => ({ start: slot.start.toISOString(), end: slot.end.toISOString() }));
 }
