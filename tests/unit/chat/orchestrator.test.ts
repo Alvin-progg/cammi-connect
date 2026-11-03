@@ -3,11 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { PatientAppointment } from "@/lib/appointments/types";
 import { APPOINTMENTS_COPY } from "@/lib/chat/appointments";
+import { CAMI_INTRO, SMALL_TALK_SYSTEM_PROMPT } from "@/lib/chat/persona";
 import { ASSISTANT_REPLY_MAX_LENGTH, type ChatEvent } from "@/lib/chat/schemas";
 import {
   EMERGENCY_NOTICE,
   MEDICAL_ADVICE_DECLINE,
-  NOT_AVAILABLE_YET,
   NOT_VERIFIED,
   PLEASE_REPHRASE,
 } from "@/lib/chat/safety";
@@ -136,12 +136,58 @@ describe("handleTurn", () => {
     expect(result.reply).toContain(EMERGENCY_NOTICE);
   });
 
-  it("replies that other requests are not available yet", async () => {
+  it("answers greetings and small talk in Cami's voice, with the recent history", async () => {
+    const generate = vi
+      .fn<(input: GenerateInput) => Promise<string>>()
+      .mockResolvedValueOnce(JSON.stringify({ intent: "other" }))
+      .mockResolvedValueOnce("  Hello! I'm Cami. How can I help you today?  ");
+
+    const result = await handleTurn(
+      turn("Hello", [{ role: "assistant", content: "Earlier reply" }]),
+      turnDeps(generate),
+    );
+
+    expect(result.reply).toBe("Hello! I'm Cami. How can I help you today?");
+    expect(result.payload).toBeNull();
+    const smallTalk = generate.mock.calls[1][0];
+    expect(smallTalk.systemPrompt).toBe(SMALL_TALK_SYSTEM_PROMPT);
+    expect(smallTalk.json).toBeUndefined();
+    expect(smallTalk.sessionId).toBe(CONVERSATION_ID);
+    expect(smallTalk.messages).toEqual([
+      { role: "assistant", content: "Earlier reply" },
+      { role: "user", content: "Hello" },
+    ]);
+  });
+
+  it("falls back to the templated introduction when the small-talk reply is empty", async () => {
+    const generate = vi
+      .fn<(input: GenerateInput) => Promise<string>>()
+      .mockResolvedValueOnce(JSON.stringify({ intent: "other" }))
+      .mockResolvedValueOnce("   ");
+
+    const result = await handleTurn(turn("Hi"), turnDeps(generate));
+
+    expect(result.reply).toBe(CAMI_INTRO);
+  });
+
+  it("clips an over-long small-talk reply", async () => {
+    const generate = vi
+      .fn<(input: GenerateInput) => Promise<string>>()
+      .mockResolvedValueOnce(JSON.stringify({ intent: "other" }))
+      .mockResolvedValueOnce("a".repeat(ASSISTANT_REPLY_MAX_LENGTH + 50));
+
+    const result = await handleTurn(turn("Tell me a story"), turnDeps(generate));
+
+    expect(result.reply).toHaveLength(ASSISTANT_REPLY_MAX_LENGTH);
+  });
+
+  it("sends urgent messages classified as small talk to the safe decline, not the model", async () => {
     const generate = generateReturning(JSON.stringify({ intent: "other" }));
 
-    const result = await handleTurn(turn("Hello"), turnDeps(generate));
+    const result = await handleTurn(turn("hi, my friend passed out"), turnDeps(generate));
 
-    expect(result.reply).toBe(NOT_AVAILABLE_YET);
+    expect(result.reply).toContain(EMERGENCY_NOTICE);
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 
   it("asks the patient to rephrase when the model returns non-JSON", async () => {

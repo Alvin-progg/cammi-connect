@@ -22,17 +22,14 @@ export function soundsUrgent(text: string): boolean {
 }
 
 export const MEDICAL_ADVICE_DECLINE =
-  "I'm not able to give medical advice or assess symptoms. Please speak with a doctor or another healthcare professional about how you're feeling.";
+  "I'm sorry you're not feeling well. As an appointment assistant, I can't give medical advice or assess symptoms, so please speak with a doctor or another healthcare professional about how you're feeling. If you'd like, I can help you book an appointment with the specialty or doctor of your choice.";
 
 export const EMERGENCY_NOTICE =
-  "If this may be an emergency, go to the nearest emergency room now or call 911.";
-
-export const NOT_AVAILABLE_YET =
-  "Sorry, I can't help with that here yet. This assistant is still being set up.";
+  "If this may be an emergency, please don't wait: go to the nearest emergency room now or call 911.";
 
 export const PLEASE_REPHRASE =
-  "Sorry, I didn't quite catch that. Could you rephrase your message?";
+  "Sorry, I didn't quite catch that. Could you say it another way? I can help you book an appointment, answer questions about the hospital, or show your appointments.";
 
 /** RAG fallback when no published chunk clears the similarity threshold. */
 export const NOT_VERIFIED =
-  "I couldn't verify that from the hospital's information. Please contact the hospital directly for help with this question.";
+  "I'm sorry, I couldn't verify that from the hospital's information, and I don't want to guess. Please contact the hospital directly for help with this question.";

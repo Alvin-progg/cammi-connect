@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 
+import { CAMI_IDENTITY } from "@/lib/chat/persona";
 import { RAG_SYSTEM_PROMPT, formatRagContext } from "@/lib/chat/rag/prompt";
 
 describe("RAG_SYSTEM_PROMPT", () => {
@@ -9,6 +10,10 @@ describe("RAG_SYSTEM_PROMPT", () => {
     expect(RAG_SYSTEM_PROMPT).toMatch(/could not be verified/i);
     expect(RAG_SYSTEM_PROMPT).toMatch(/diagnos/i);
     expect(RAG_SYSTEM_PROMPT).toMatch(/not .*instructions/i);
+  });
+
+  it("answers in Cami's voice", () => {
+    expect(RAG_SYSTEM_PROMPT).toContain(CAMI_IDENTITY);
   });
 });
 

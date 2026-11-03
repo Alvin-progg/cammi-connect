@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useState } from "react";
 
 import type { ConversationSummary } from "@/lib/chat/schemas";
+import { signOutAction } from "@/server/auth/actions";
 
 import {
   CalendarIcon,
   PencilSquareIcon,
   SearchIcon,
   SidebarIcon,
+  SignOutIcon,
 } from "./icons";
 
 /**
@@ -28,6 +30,18 @@ const ROW =
 
 const ICON_SLOT = "inline-flex size-8 shrink-0 items-center justify-center";
 
+/** Up to two initials for the account avatar; "?" when the name yields none. */
+function initialsOf(name: string): string {
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+  return initials || "?";
+}
+
 export function ChatSidebar({
   state,
   onToggle,
@@ -38,6 +52,7 @@ export function ChatSidebar({
   conversations,
   activeConversationId,
   appointmentsActive,
+  patientName,
 }: {
   state: SidebarState;
   onToggle: () => void;
@@ -49,6 +64,8 @@ export function ChatSidebar({
   conversations: ConversationSummary[];
   activeConversationId: string | null;
   appointmentsActive: boolean;
+  /** The signed-in patient, shown in the account footer. */
+  patientName: string;
 }) {
   const [query, setQuery] = useState("");
   const isOpen = state === "open";
@@ -173,6 +190,35 @@ export function ChatSidebar({
             </ul>
           )}
         </nav>
+      </div>
+
+      {/*
+       * Stays outside the inert list wrapper so it remains usable on the rail.
+       * The rail is too narrow for two icon slots side by side, so the row only
+       * becomes horizontal once the sidebar is open.
+       */}
+      <div className="flex shrink-0 flex-col gap-0.5 border-t border-line px-2 py-2 group-data-[state=open]:flex-row group-data-[state=open]:items-center md:group-data-[state=auto]:flex-row md:group-data-[state=auto]:items-center">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <span
+            aria-hidden="true"
+            className={`${ICON_SLOT} rounded-full bg-accent-soft text-xs font-semibold text-accent`}
+          >
+            {initialsOf(patientName)}
+          </span>
+          <span className={`${LABEL} text-sm font-medium text-ink`}>{patientName}</span>
+        </div>
+        <form action={signOutAction}>
+          <button
+            type="submit"
+            aria-label="Sign out"
+            title="Sign out"
+            className={`${ROW} w-auto justify-center text-ink-muted hover:bg-danger-soft hover:text-danger-soft-ink`}
+          >
+            <span className={ICON_SLOT}>
+              <SignOutIcon className="size-5" />
+            </span>
+          </button>
+        </form>
       </div>
     </aside>
   );

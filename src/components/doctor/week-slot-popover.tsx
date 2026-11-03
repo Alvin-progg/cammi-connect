@@ -76,7 +76,7 @@ export function WeekSlotPopover({
   const opensUp = block.topPct > OPEN_UPWARD_FROM_PCT;
   const placement = [
     opensRight ? "sm:left-[calc(100%+0.25rem)]" : "sm:right-[calc(100%+0.25rem)]",
-    opensUp ? "sm:bottom-0" : "sm:top-0",
+    opensUp ? "sm:bottom-0" : "sm:top-0 sm:bottom-auto",
     opensRight
       ? opensUp
         ? "sm:origin-bottom-left"
@@ -92,7 +92,7 @@ export function WeekSlotPopover({
       id={id}
       role="dialog"
       aria-labelledby={titleId}
-      className={`fixed inset-x-3 bottom-3 z-40 origin-bottom rounded-2xl border border-line bg-surface p-4 text-left shadow-overlay transition-[opacity,transform] duration-150 ease-snappy starting:scale-[0.97] starting:opacity-0 motion-reduce:starting:scale-100 sm:absolute sm:inset-x-auto sm:bottom-auto sm:w-80 ${placement}`}
+      className={`fixed inset-x-3 bottom-3 z-40 origin-bottom rounded-2xl border border-line bg-surface p-4 text-left shadow-overlay transition-[opacity,transform] duration-150 ease-snappy starting:scale-[0.97] starting:opacity-0 motion-reduce:starting:scale-100 sm:absolute sm:inset-x-auto sm:w-80 ${placement}`}
     >
       <div className="flex items-start gap-3">
         <span

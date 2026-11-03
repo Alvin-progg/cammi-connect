@@ -60,7 +60,7 @@ export function ChatEmptyState({
         {salutation}, <span className="text-ink-muted">{firstName}</span>
       </h1>
       <p className="mt-2 text-sm text-ink-secondary">
-        Hi there! How can I help with your hospital visit today?
+        Hi, I&apos;m Cami! How can I help with your hospital visit today?
       </p>
 
       <ul className="mt-8 grid w-full max-w-3xl gap-3 text-left sm:grid-cols-3">
