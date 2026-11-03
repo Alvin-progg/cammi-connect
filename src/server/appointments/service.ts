@@ -8,7 +8,10 @@ import {
   targetStatusForAction,
   type DoctorAppointmentAction,
 } from "@/lib/appointments/transitions";
-import type { AppointmentStatus } from "@/lib/appointments/status";
+import type {
+  AppointmentStatus,
+  BookingSource,
+} from "@/lib/appointments/status";
 import { summarizeAppointments } from "@/lib/appointments/stats";
 import type {
   AppointmentHistoryEntry,
@@ -45,7 +48,7 @@ export type DoctorAppointmentsReader = {
     doctorId: string;
     appointmentId: string;
   }): Promise<DoctorAppointment | null>;
-  /** Active (requested/confirmed) [start, end) intervals for overlap checks. */
+  /** Slot-holding (SLOT_HOLDING_STATUSES) [start, end) intervals for overlap checks. */
   listActiveIntervals(input: {
     doctorId: string;
     start: string;
@@ -97,6 +100,9 @@ export type AppointmentBooker = {
     patientId: string;
     scheduledAt: string;
     reason: string | null;
+    bookingSource: BookingSource;
+    /** Who submitted the booking; differs from the patient for staff bookings. */
+    createdByProfileId: string;
   }): Promise<
     | { ok: true; appointmentId: string }
     | { ok: false; error: { code: string; message: string } }
@@ -321,8 +327,8 @@ const RAISED_EXCEPTION = "P0001";
 const EXCLUSION_VIOLATION = "23P01";
 
 /**
- * Books a slot for the session patient. Availability is re-checked and the
- * appointment plus its history row are written in one database transaction,
+ * Books a slot as a `requested` appointment. Availability is re-checked and
+ * the appointment plus its audit row are written in one database transaction,
  * so a stale slot list cannot produce a double booking.
  */
 export async function bookAppointment(
@@ -331,6 +337,8 @@ export async function bookAppointment(
     doctorId: string;
     scheduledAt: Date;
     reason: string | null;
+    bookingSource: BookingSource;
+    createdByProfileId: string;
   },
   booker: AppointmentBooker,
 ): Promise<{ ok: true; appointmentId: string } | { ok: false; message: string }> {
@@ -339,6 +347,8 @@ export async function bookAppointment(
     patientId: input.patientId,
     scheduledAt: input.scheduledAt.toISOString(),
     reason: input.reason,
+    bookingSource: input.bookingSource,
+    createdByProfileId: input.createdByProfileId,
   });
   if (result.ok) {
     return result;

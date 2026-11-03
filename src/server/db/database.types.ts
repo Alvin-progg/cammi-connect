@@ -1,4 +1,8 @@
-import type { AppointmentStatus } from "@/lib/appointments/status";
+import type { AppointmentAuditAction } from "@/lib/appointments/audit";
+import type {
+  AppointmentStatus,
+  BookingSource,
+} from "@/lib/appointments/status";
 import type { UserRole } from "@/lib/auth/roles";
 import type { ChatRole } from "@/lib/chat/schemas";
 import type { NotificationType } from "@/lib/notifications/types";
@@ -16,8 +20,9 @@ export type Json =
  * Manual database contract for the application tables. Keep this in sync
  * with db/migrations/0001_profiles_appointments.sql,
  * db/migrations/0002_doctor_dashboard_suite.sql,
- * db/migrations/0003_doctor_specialty_schedules.sql, and
- * db/migrations/0004_chat.sql.
+ * db/migrations/0003_doctor_specialty_schedules.sql,
+ * db/migrations/0004_chat.sql, and
+ * db/migrations/0006–0007 (appointment lifecycle and audit log).
  */
 export type Database = {
   public: {
@@ -160,6 +165,12 @@ export type Database = {
           cancellation_reason: string | null;
           cancelled_by_role: UserRole | null;
           rescheduled_from_at: string | null;
+          booking_source: BookingSource;
+          created_by_profile_id: string | null;
+          confirmed_by_profile_id: string | null;
+          confirmed_at: string | null;
+          rejection_reason: string | null;
+          specialty_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -175,6 +186,12 @@ export type Database = {
           cancellation_reason?: string | null;
           cancelled_by_role?: UserRole | null;
           rescheduled_from_at?: string | null;
+          booking_source?: BookingSource;
+          created_by_profile_id?: string | null;
+          confirmed_by_profile_id?: string | null;
+          confirmed_at?: string | null;
+          rejection_reason?: string | null;
+          specialty_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -186,10 +203,46 @@ export type Database = {
           cancellation_reason?: string | null;
           cancelled_by_role?: UserRole | null;
           rescheduled_from_at?: string | null;
+          confirmed_by_profile_id?: string | null;
+          confirmed_at?: string | null;
+          rejection_reason?: string | null;
           updated_at?: string;
         };
         Relationships: [];
       };
+      /**
+       * Append-only (FD-001): a trigger rejects UPDATE and DELETE, and
+       * service_role is granted SELECT and INSERT only.
+       */
+      appointment_audit_logs: {
+        Row: {
+          id: string;
+          appointment_id: string;
+          actor_profile_id: string | null;
+          action: AppointmentAuditAction;
+          previous_status: AppointmentStatus | null;
+          new_status: AppointmentStatus;
+          previous_values: Json | null;
+          new_values: Json | null;
+          reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          appointment_id: string;
+          actor_profile_id?: string | null;
+          action: AppointmentAuditAction;
+          previous_status?: AppointmentStatus | null;
+          new_status: AppointmentStatus;
+          previous_values?: Json | null;
+          new_values?: Json | null;
+          reason?: string | null;
+          created_at?: string;
+        };
+        Update: { [_ in never]: never };
+        Relationships: [];
+      };
+      /** Deprecated by appointment_audit_logs (0007); kept read-only until it is dropped. */
       appointment_status_history: {
         Row: {
           id: string;
@@ -432,6 +485,8 @@ export type Database = {
           p_patient_id: string;
           p_scheduled_at: string;
           p_reason: string | null;
+          p_booking_source: BookingSource;
+          p_created_by: string;
         };
         Returns: string;
       };
@@ -462,6 +517,7 @@ export type Database = {
     Enums: {
       user_role: UserRole;
       appointment_status: AppointmentStatus;
+      booking_source: BookingSource;
       doctor_notification_type: NotificationType;
       schedule_exception_type: ScheduleExceptionType;
     };

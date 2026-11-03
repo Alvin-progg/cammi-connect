@@ -25,7 +25,9 @@ const REQUEST = {
   doctorId: DOCTOR_ID,
   scheduledAt: SLOT,
   reason: "Routine consultation",
-};
+  bookingSource: "ai_chatbot",
+  createdByProfileId: PATIENT_ID,
+} as const;
 
 describe("bookAppointment", () => {
   it("passes the session patient and requested slot to the atomic booker", async () => {
@@ -40,6 +42,8 @@ describe("bookAppointment", () => {
       patientId: PATIENT_ID,
       scheduledAt: SLOT.toISOString(),
       reason: "Routine consultation",
+      bookingSource: "ai_chatbot",
+      createdByProfileId: PATIENT_ID,
     });
   });
 

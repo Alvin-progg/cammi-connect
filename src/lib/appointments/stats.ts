@@ -38,8 +38,10 @@ function emptyCounts(): Record<AppointmentStatus, number> {
   return {
     requested: 0,
     confirmed: 0,
-    completed: 0,
+    rejected: 0,
     cancelled: 0,
+    checked_in: 0,
+    completed: 0,
     no_show: 0,
   };
 }

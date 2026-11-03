@@ -262,7 +262,7 @@ describe("chat booking tools", () => {
     ).rejects.toThrow();
   });
 
-  it("books through the atomic booker with the patient from the caller", async () => {
+  it("books as an AI request created by the patient from the caller", async () => {
     const deps = toolDeps();
     const tools = createChatTools(deps);
 
@@ -279,6 +279,8 @@ describe("chat booking tools", () => {
       doctorId: DOCTOR_ID,
       scheduledAt: "2026-11-03T01:00:00.000Z",
       reason: "Follow-up",
+      bookingSource: "ai_chatbot",
+      createdByProfileId: PATIENT_ID,
     });
   });
 

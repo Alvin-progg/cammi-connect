@@ -44,7 +44,7 @@ export type DoctorSchedulesStore = {
     doctorId: string;
     exceptionId: string;
   }): Promise<boolean>;
-  /** Active (requested/confirmed) appointment intervals starting in [start, end). */
+  /** Slot-holding (SLOT_HOLDING_STATUSES) appointment intervals starting in [start, end). */
   listActiveIntervals(input: {
     doctorId: string;
     start: string;

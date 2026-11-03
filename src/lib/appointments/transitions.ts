@@ -1,6 +1,38 @@
 import type { AppointmentStatus } from "./status";
 
 /**
+ * Every legal status change (SPEC-frontdesk §11, FD-001). The database
+ * functions and guarded updates must agree with this table. `confirmed →
+ * completed` is kept from ADR-0007 so a doctor can complete a visit that was
+ * never checked in. A reschedule keeps the status and is not a transition.
+ */
+const STATUS_TRANSITIONS: Record<
+  AppointmentStatus,
+  readonly AppointmentStatus[]
+> = {
+  requested: ["confirmed", "rejected", "cancelled"],
+  confirmed: ["checked_in", "cancelled", "no_show", "completed"],
+  checked_in: ["completed"],
+  rejected: [],
+  cancelled: [],
+  completed: [],
+  no_show: [],
+};
+
+export function canTransition(
+  from: AppointmentStatus,
+  to: AppointmentStatus,
+): boolean {
+  return STATUS_TRANSITIONS[from].includes(to);
+}
+
+export function allowedTransitionsFrom(
+  status: AppointmentStatus,
+): readonly AppointmentStatus[] {
+  return STATUS_TRANSITIONS[status];
+}
+
+/**
  * Doctor-initiated appointment actions and their legal source statuses.
  * Mirrors ADR-0007 (amended 2026-10-25). Terminal statuses allow no actions.
  */

@@ -28,6 +28,8 @@ import { ChevronLeftIcon, ChevronRightIcon } from "./icons";
 const STATUS_DOT_CLASSES: Record<AppointmentStatus, string> = {
   requested: "bg-warning",
   confirmed: "bg-primary",
+  rejected: "bg-danger",
+  checked_in: "bg-primary",
   completed: "bg-success",
   cancelled: "bg-danger",
   no_show: "bg-ink-muted",

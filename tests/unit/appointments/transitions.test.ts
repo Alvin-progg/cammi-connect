@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { APPOINTMENT_STATUSES } from "@/lib/appointments/status";
 import {
+  DOCTOR_APPOINTMENT_ACTIONS,
   PATIENT_CANCEL_SOURCES,
   allowedDoctorActions,
+  allowedTransitionsFrom,
+  canTransition,
   canPatientCancel,
   canDoctorPerform,
   isDoctorAppointmentAction,
@@ -60,5 +64,66 @@ describe("patient cancellation (ADR-0007, AI-APT-001)", () => {
     expect(canPatientCancel("completed")).toBe(false);
     expect(canPatientCancel("cancelled")).toBe(false);
     expect(canPatientCancel("no_show")).toBe(false);
+  });
+});
+
+describe("appointment status lifecycle (SPEC-frontdesk §11, FD-001)", () => {
+  // Every allowed from→to pair. Any pair not listed must be rejected.
+  // confirmed→completed is kept from ADR-0007 so doctors can still complete
+  // a visit that was never checked in.
+  const ALLOWED: ReadonlyArray<readonly [string, string]> = [
+    ["requested", "confirmed"],
+    ["requested", "rejected"],
+    ["requested", "cancelled"],
+    ["confirmed", "checked_in"],
+    ["confirmed", "cancelled"],
+    ["confirmed", "no_show"],
+    ["confirmed", "completed"],
+    ["checked_in", "completed"],
+  ];
+
+  const allPairs = APPOINTMENT_STATUSES.flatMap((from) =>
+    APPOINTMENT_STATUSES.map((to) => [from, to] as const),
+  );
+
+  it.each(allPairs)("%s → %s follows the transition matrix", (from, to) => {
+    const expected = ALLOWED.some(
+      ([allowedFrom, allowedTo]) => allowedFrom === from && allowedTo === to,
+    );
+    expect(canTransition(from, to)).toBe(expected);
+  });
+
+  it("covers all seven lifecycle statuses", () => {
+    expect([...APPOINTMENT_STATUSES].sort()).toEqual(
+      [
+        "cancelled",
+        "checked_in",
+        "completed",
+        "confirmed",
+        "no_show",
+        "rejected",
+        "requested",
+      ].sort(),
+    );
+  });
+
+  it("has no exits from terminal statuses", () => {
+    for (const status of ["rejected", "cancelled", "completed", "no_show"] as const) {
+      expect(allowedTransitionsFrom(status)).toEqual([]);
+    }
+  });
+
+  it("only offers doctor actions the lifecycle allows", () => {
+    for (const action of DOCTOR_APPOINTMENT_ACTIONS) {
+      for (const source of sourceStatusesForAction(action)) {
+        expect(canTransition(source, targetStatusForAction(action))).toBe(true);
+      }
+    }
+  });
+
+  it("only lets patients cancel where the lifecycle allows it", () => {
+    for (const source of PATIENT_CANCEL_SOURCES) {
+      expect(canTransition(source, "cancelled")).toBe(true);
+    }
   });
 });

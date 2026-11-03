@@ -187,7 +187,12 @@ export async function bookAppointmentAction(
   }
 
   const result = await bookAppointment(
-    { patientId: session.patient.id, ...parsed.data },
+    {
+      patientId: session.patient.id,
+      ...parsed.data,
+      bookingSource: "other",
+      createdByProfileId: session.patient.id,
+    },
     supabaseAppointmentBooker,
   );
   if (!result.ok) {

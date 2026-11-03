@@ -16,6 +16,15 @@ export const SLOT_TONES: Record<
     fill: "bg-slot-confirmed",
     edge: "border-slot-confirmed-edge",
   },
+  // Front-desk statuses (FD-001) reuse the closest existing tint.
+  rejected: {
+    fill: "bg-slot-cancelled",
+    edge: "border-slot-cancelled-edge",
+  },
+  checked_in: {
+    fill: "bg-slot-confirmed",
+    edge: "border-slot-confirmed-edge",
+  },
   completed: {
     fill: "bg-slot-completed",
     edge: "border-slot-completed-edge",
