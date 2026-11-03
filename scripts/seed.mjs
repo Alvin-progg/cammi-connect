@@ -6,9 +6,12 @@
  * Requires .env.local with NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
  * SEED_DOCTOR_EMAIL, and optionally SEED_DOCTOR_PASSWORD / SEED_DOCTOR_NAME.
  * Set SEED_ADMIN_EMAIL (and optionally SEED_ADMIN_PASSWORD / SEED_ADMIN_NAME)
- * to also provision a synthetic administrator.
+ * to also provision a synthetic administrator, and SEED_FRONT_DESK_EMAIL (and
+ * optionally SEED_FRONT_DESK_PASSWORD / SEED_FRONT_DESK_NAME) for a synthetic
+ * front desk staff member.
  *
- * The script is idempotent for the seed profiles, the doctor and admin account
+ * The script is idempotent for the seed profiles, the doctor, admin, and front
+ * desk account
  * links, the directory (departments, specialties, doctors), schedule periods,
  * exceptions, notifications, and the listed appointments. Re-running it resets
  * those rows to the values below. It never deletes rows; other active schedule
@@ -149,15 +152,16 @@ async function upsertDoctorProfile(supabase, authUserId, fullName) {
   return data.id;
 }
 
-async function upsertAdminProfile(supabase, authUserId, fullName) {
+/** Links an auth user to an admin or front desk profile. */
+async function upsertStaffProfile(supabase, { authUserId, role, fullName }) {
   const { error } = await supabase
     .from("profiles")
     .upsert(
-      { auth_user_id: authUserId, role: "admin", full_name: fullName },
+      { auth_user_id: authUserId, role, full_name: fullName },
       { onConflict: "auth_user_id" },
     );
   if (error) {
-    throw new Error(`Unable to upsert the seed admin profile: ${error.message}`);
+    throw new Error(`Unable to upsert the seed ${role} profile: ${error.message}`);
   }
 }
 
@@ -178,6 +182,7 @@ async function main() {
     process.env.SEED_DOCTOR_NAME?.trim() || "Dr. Maya Santos";
   const doctorPassword = process.env.SEED_DOCTOR_PASSWORD;
   const adminEmail = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
+  const frontDeskEmail = process.env.SEED_FRONT_DESK_EMAIL?.trim().toLowerCase();
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: {
@@ -323,19 +328,41 @@ async function main() {
 
   let adminLinked = false;
   if (adminEmail) {
+    const adminName =
+      process.env.SEED_ADMIN_NAME?.trim() || "Synthetic Administrator";
     const adminUser = await ensureAuthUser(supabase, {
       email: adminEmail,
       password: process.env.SEED_ADMIN_PASSWORD,
-      fullName: process.env.SEED_ADMIN_NAME?.trim() || "Synthetic Administrator",
+      fullName: adminName,
       label: "admin",
       passwordEnv: "SEED_ADMIN_PASSWORD",
     });
-    await upsertAdminProfile(
-      supabase,
-      adminUser.id,
-      process.env.SEED_ADMIN_NAME?.trim() || "Synthetic Administrator",
-    );
+    await upsertStaffProfile(supabase, {
+      authUserId: adminUser.id,
+      role: "admin",
+      fullName: adminName,
+    });
     adminLinked = true;
+  }
+
+  // Needs migration 0008 (the front_desk role).
+  let frontDeskLinked = false;
+  if (frontDeskEmail) {
+    const frontDeskName =
+      process.env.SEED_FRONT_DESK_NAME?.trim() || "Synthetic Front Desk";
+    const frontDeskUser = await ensureAuthUser(supabase, {
+      email: frontDeskEmail,
+      password: process.env.SEED_FRONT_DESK_PASSWORD,
+      fullName: frontDeskName,
+      label: "front desk",
+      passwordEnv: "SEED_FRONT_DESK_PASSWORD",
+    });
+    await upsertStaffProfile(supabase, {
+      authUserId: frontDeskUser.id,
+      role: "front_desk",
+      fullName: frontDeskName,
+    });
+    frontDeskLinked = true;
   }
 
   const today = dateInManila(new Date());
@@ -678,6 +705,11 @@ async function main() {
   console.log(`Doctor login: ${doctorEmail}`);
   console.log(
     adminLinked ? `Admin login: ${adminEmail}` : "Admin: not provisioned (set SEED_ADMIN_EMAIL)",
+  );
+  console.log(
+    frontDeskLinked
+      ? `Front desk login: ${frontDeskEmail}`
+      : "Front desk: not provisioned (set SEED_FRONT_DESK_EMAIL)",
   );
   console.log(`Doctor profile: ${doctorProfileId}`);
   console.log(`Synthetic profiles: ${syntheticProfiles.length}`);

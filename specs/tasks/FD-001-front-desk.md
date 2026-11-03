@@ -1,6 +1,6 @@
 # FD-001 — Front Desk Appointment Management
 
-- Status: In progress (PR 1 implemented 2026-11-03, awaiting review)
+- Status: In progress (PR 1 committed `8a2009f`; PR 2 implemented 2026-11-03, awaiting review)
 - Type: Feature
 - Priority: High
 - Module: Front Desk Staff
@@ -55,3 +55,19 @@ Each PR uses TDD and stops for review.
 | §13 database-level double-booking prevention | `appointments_no_active_overlap` covers `checked_in`; `SLOT_HOLDING_STATUSES` | `status.test.ts`; smoke step 15 |
 | §13 the AI cannot bypass confirmation | `appointments_guard_ai_booking` trigger | smoke step 15 |
 | §6 rejected rows keep a reason | `appointments_rejection_reason_required` | smoke step 15 |
+
+## PR 2 — traceability
+
+| Requirement (SPEC-frontdesk) | Implementation | Verification |
+|---|---|---|
+| §3 front desk role | `0008_front_desk_role.sql`; `USER_ROLES` in `src/lib/auth/roles.ts`; seed `SEED_FRONT_DESK_EMAIL` | smoke step 16 |
+| §3 server-side role authorization | `getFrontDeskSession` in `src/server/auth/dal.ts`; `/front-desk` page renders access denied for any other role | `tests/unit/auth/front-desk-session.test.ts` |
+| §3, §14 staff cannot use admin functions | `getAdminSession` denies `front_desk`, so admin pages show access denied and admin actions return an error | `tests/unit/auth/admin-session.test.ts`; existing `directory/actions` and `schedules/actions` tests for the null-session path |
+| §3 no patient-only access | `getPatientSession` and `resolvePatientForApi` deny `front_desk` (`/chat`, and 403 on `/api/v1/chat`) | `admin-session.test.ts`, `patient-api-access.test.ts` |
+| §3 staff are not doctors | `getDoctorSession` denies `front_desk` | `doctor-session.test.ts` |
+| §14 staff reach their dashboard | sign-in lands on `/front-desk`; `src/proxy.ts` protects `/front-desk` | `tests/unit/auth/actions.test.ts`, `tests/unit/auth/proxy.test.ts` |
+| Layout (sidebar, top bar, breadcrumb) | `src/components/front-desk/front-desk-shell.tsx`; design.md §6.10 | `tests/component/front-desk/front-desk-shell.test.tsx`, `front-desk-error.test.tsx` |
+
+Open item: `cammi_connect_upsert_doctor` (0003) refuses to convert an admin profile
+but not a `front_desk` profile, so an admin could turn a staff account into a doctor.
+Unchanged in PR 2; tighten in a later migration if wanted.

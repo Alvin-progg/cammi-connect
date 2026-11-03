@@ -45,6 +45,17 @@ describe("getDoctorSession", () => {
     await expect(getDoctorSession("/doctor")).resolves.toBeNull();
   });
 
+  it("denies a front desk account", async () => {
+    vi.mocked(getUser).mockResolvedValue(USER);
+    vi.mocked(getProfileForAuthUser).mockResolvedValue({
+      id: "front-desk-profile-1",
+      role: "front_desk",
+      fullName: "Synthetic Front Desk",
+    });
+
+    await expect(getDoctorSession("/doctor")).resolves.toBeNull();
+  });
+
   it("denies a signed-in account without a profile", async () => {
     vi.mocked(getUser).mockResolvedValue(USER);
     vi.mocked(getProfileForAuthUser).mockResolvedValue(null);
