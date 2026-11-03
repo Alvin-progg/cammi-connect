@@ -180,51 +180,10 @@ export const supabaseDirectoryRepository: DirectoryStore = {
       specialties: specialtiesByDoctor.get(data.id) ?? [],
     };
   },
-
-  async saveDoctor({ doctorId, fullName, departmentId, specialtyIds, isActive }) {
-    const supabase = getSupabaseAdminClient();
-    const { error } = await supabase.rpc("cammi_connect_save_doctor", {
-      p_doctor_id: doctorId,
-      p_full_name: fullName,
-      p_department_id: departmentId,
-      p_is_active: isActive,
-      p_specialty_ids: specialtyIds,
-    });
-
-    if (error?.message === "profile_not_found") {
-      return "not_found";
-    }
-    if (error) {
-      throw new Error("Unable to save the doctor.");
-    }
-    return "saved";
-  },
-
-  /**
-   * Registered patient accounts that an admin may promote to a doctor login.
-   * Only names are returned; contact details stay out of the admin picker.
-   */
-  async listLinkableAccounts() {
-    const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name")
-      .eq("role", "patient")
-      .not("auth_user_id", "is", null)
-      .order("full_name", { ascending: true })
-      .limit(200);
-
-    if (error) {
-      throw new Error("Unable to load accounts.");
-    }
-    return (data ?? []).map((row) => ({
-      profileId: row.id,
-      fullName: row.full_name,
-    }));
-  },
 };
 
-async function loadDepartmentNames(
+/** Department names by id, for directory displays. */
+export async function loadDepartmentNames(
   departmentIds: string[],
 ): Promise<Map<string, string>> {
   if (departmentIds.length === 0) {
