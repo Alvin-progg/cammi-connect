@@ -6,6 +6,7 @@ import type {
   BookingSource,
 } from "@/lib/appointments/status";
 import type { UserRole } from "@/lib/auth/roles";
+import type { ScheduleItem } from "@/lib/front-desk/schedule";
 import type {
   RequestAuditEntry,
   RequestDetails,
@@ -13,7 +14,11 @@ import type {
 } from "@/lib/front-desk/requests";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
-import type { FrontDeskRequestsReader, FrontDeskRequestsWriter } from "./service";
+import type {
+  FrontDeskRequestsReader,
+  FrontDeskRequestsWriter,
+  FrontDeskScheduleReader,
+} from "./service";
 
 const REQUEST_SELECT =
   "id, patient_id, doctor_id, specialty_id, scheduled_at, duration_minutes, created_at, status, booking_source, reason, rejection_reason, cancellation_reason";
@@ -84,7 +89,7 @@ async function loadEmails(authUserIds: string[]): Promise<Map<string, string>> {
  * captured it, otherwise every specialty the doctor offers.
  */
 async function loadSpecialtyNames(
-  rows: RequestRow[],
+  rows: Pick<RequestRow, "id" | "doctor_id" | "specialty_id">[],
 ): Promise<Map<string, string[]>> {
   const supabase = getSupabaseAdminClient();
   const doctorIds = unique(
@@ -266,12 +271,13 @@ export const supabaseFrontDeskRequestsRepository: FrontDeskRequestsReader = {
     return toQueueItems(data ?? []);
   },
 
+  // Details open for every booking source so the daily schedule can link to
+  // them (FD-001 PR 5 decision); the queue above stays Cami-only.
   async getRequest(appointmentId) {
     const { data, error } = await getSupabaseAdminClient()
       .from("appointments")
       .select(REQUEST_SELECT)
       .eq("id", appointmentId)
-      .eq("booking_source", AI_BOOKING_SOURCE)
       .maybeSingle();
     if (error) {
       throw new Error("Unable to load the appointment request.");
@@ -324,5 +330,71 @@ export const supabaseFrontDeskRequestsWriter: FrontDeskRequestsWriter = {
     return error
       ? { ok: false, error: { code: error.code, message: error.message } }
       : { ok: true };
+  },
+
+  async recordAttendance({ appointmentId, staffId, status }) {
+    const { error } = await getSupabaseAdminClient().rpc(
+      "cammi_connect_record_attendance",
+      { p_appointment_id: appointmentId, p_staff_id: staffId, p_status: status },
+    );
+    return error
+      ? { ok: false, error: { code: error.code, message: error.message } }
+      : { ok: true };
+  },
+};
+
+const SCHEDULE_SELECT =
+  "id, patient_id, doctor_id, specialty_id, scheduled_at, duration_minutes, status, booking_source";
+
+/**
+ * Daily schedule read model (SPEC-frontdesk §8): every booking source, names
+ * only. Patient contact details are not selected for the day view.
+ */
+export const supabaseFrontDeskScheduleRepository: FrontDeskScheduleReader = {
+  async listDay({ start, end, doctorId, status, limit }) {
+    let query = getSupabaseAdminClient()
+      .from("appointments")
+      .select(SCHEDULE_SELECT)
+      .gte("scheduled_at", start)
+      .lt("scheduled_at", end);
+    if (doctorId) {
+      query = query.eq("doctor_id", doctorId);
+    }
+    if (status) {
+      query = query.eq("status", status);
+    }
+
+    const { data, error } = await query
+      .order("scheduled_at", { ascending: true })
+      .limit(limit);
+    if (error) {
+      throw new Error("Unable to load the daily schedule.");
+    }
+
+    const rows = data ?? [];
+    if (rows.length === 0) {
+      return [];
+    }
+    const [profiles, specialtyNames] = await Promise.all([
+      loadProfiles(unique(rows.flatMap((row) => [row.patient_id, row.doctor_id]))),
+      loadSpecialtyNames(rows),
+    ]);
+
+    return rows.map((row) => {
+      const patient = profiles.get(row.patient_id);
+      if (!patient) {
+        throw new Error("Unable to resolve an appointment patient.");
+      }
+      return {
+        id: row.id,
+        patientName: patient.full_name,
+        doctorName: profiles.get(row.doctor_id)?.full_name.trim() || "Doctor",
+        specialtyNames: specialtyNames.get(row.id) ?? [],
+        scheduledAt: row.scheduled_at,
+        durationMinutes: row.duration_minutes,
+        status: row.status,
+        bookingSource: row.booking_source,
+      } satisfies ScheduleItem;
+    });
   },
 };

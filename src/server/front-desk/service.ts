@@ -6,6 +6,12 @@ import { manilaDayRange, todayInManila } from "@/lib/appointments/filters";
 import type { AppointmentStatus } from "@/lib/appointments/status";
 import type { SlotCheck } from "@/lib/front-desk/decisions";
 import {
+  SCHEDULE_LIMIT,
+  type AttendanceStatus,
+  type ScheduleFilters,
+  type ScheduleItem,
+} from "@/lib/front-desk/schedule";
+import {
   REQUEST_QUEUE_LIMIT,
   type RequestDetails,
   type RequestQueueFilters,
@@ -82,6 +88,12 @@ export type FrontDeskRequestsWriter = {
     staffId: string;
     reason: string;
   }): Promise<WriteOutcome>;
+  /** cammi_connect_record_attendance (migration 0010). */
+  recordAttendance(input: {
+    appointmentId: string;
+    staffId: string;
+    status: AttendanceStatus;
+  }): Promise<WriteOutcome>;
 };
 
 type WriteOutcome =
@@ -107,15 +119,36 @@ const DECISION_REFUSAL_MESSAGES: Record<string, string> = {
 const GENERIC_DECISION_ERROR =
   "The request could not be updated. Try again in a moment.";
 
-function toDecisionResult(outcome: WriteOutcome): DecisionResult {
+/** Staff-facing text for the coded refusals raised by the 0010 function. */
+const ATTENDANCE_REFUSAL_MESSAGES: Record<string, string> = {
+  invalid_transition:
+    "This appointment's status changed and the update no longer applies. Refresh to see its current status.",
+  not_yet: "Attendance can only be recorded on or after the appointment day.",
+  invalid_status: "Choose check-in, completed, or no-show.",
+  not_found: "This appointment no longer exists.",
+};
+
+const GENERIC_ATTENDANCE_ERROR =
+  "The appointment could not be updated. Try again in a moment.";
+
+/**
+ * Translates a database outcome into staff-facing text. Only the coded
+ * refusals the functions raise are shown; anything else is replaced by the
+ * generic message so internals never reach the client.
+ */
+function toDecisionResult(
+  outcome: WriteOutcome,
+  refusalMessages: Record<string, string> = DECISION_REFUSAL_MESSAGES,
+  genericMessage: string = GENERIC_DECISION_ERROR,
+): DecisionResult {
   if (outcome.ok) {
     return { ok: true };
   }
   const message =
     outcome.error.code === RAISED_EXCEPTION
-      ? DECISION_REFUSAL_MESSAGES[outcome.error.message]
+      ? refusalMessages[outcome.error.message]
       : undefined;
-  return { ok: false, message: message ?? GENERIC_DECISION_ERROR };
+  return { ok: false, message: message ?? genericMessage };
 }
 
 /**
@@ -183,4 +216,61 @@ export async function checkRequestSlot(
     existing: [],
   });
   return validation.ok ? "available" : validation.reason;
+}
+
+export type ScheduleDayQuery = {
+  /** ISO bounds of the Manila day. */
+  start: string;
+  end: string;
+  doctorId: string | null;
+  status: AppointmentStatus | null;
+  limit: number;
+};
+
+/**
+ * Reads every appointment on a day, whatever its booking source
+ * (SPEC-frontdesk §8). Callers must have checked the front desk session first.
+ */
+export type FrontDeskScheduleReader = {
+  listDay(query: ScheduleDayQuery): Promise<ScheduleItem[]>;
+};
+
+export async function listDailySchedule(
+  filters: ScheduleFilters,
+  reader: FrontDeskScheduleReader,
+): Promise<{ items: ScheduleItem[]; limitReached: boolean }> {
+  const range = manilaDayRange(filters.date);
+  const dayItems = await reader.listDay({
+    start: range.start.toISOString(),
+    end: range.end.toISOString(),
+    doctorId: filters.doctorId,
+    status: filters.status === "all" ? null : filters.status,
+    limit: SCHEDULE_LIMIT,
+  });
+
+  // The day is bounded by the limit, so the name search runs here rather than
+  // as a cross-table query.
+  const search = filters.search?.toLocaleLowerCase();
+  const items = search
+    ? dayItems.filter((item) => item.patientName.toLocaleLowerCase().includes(search))
+    : dayItems;
+
+  return { items, limitReached: dayItems.length >= SCHEDULE_LIMIT };
+}
+
+/**
+ * Records check-in, completion, or no-show. The database function locks the
+ * row, re-checks the transition and the appointment day, and writes the audit
+ * entry with the staff member in one transaction (SPEC-frontdesk §8). The
+ * staff ID comes from the session.
+ */
+export async function recordAttendance(
+  input: { appointmentId: string; staffId: string; status: AttendanceStatus },
+  writer: FrontDeskRequestsWriter,
+): Promise<DecisionResult> {
+  return toDecisionResult(
+    await writer.recordAttendance(input),
+    ATTENDANCE_REFUSAL_MESSAGES,
+    GENERIC_ATTENDANCE_ERROR,
+  );
 }

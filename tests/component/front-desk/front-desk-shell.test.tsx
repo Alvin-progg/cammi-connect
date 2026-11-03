@@ -28,6 +28,27 @@ describe("FrontDeskShell", () => {
     expect(overview).toHaveAttribute("aria-current", "page");
     expect(requests).toHaveAttribute("href", "/front-desk/requests");
     expect(requests).not.toHaveAttribute("aria-current");
+    const schedule = within(nav).getByRole("link", { name: "Daily schedule" });
+    expect(schedule).toHaveAttribute("href", "/front-desk/schedule");
+    expect(schedule).not.toHaveAttribute("aria-current");
+  });
+
+  it("marks Daily schedule as current on the schedule page", () => {
+    render(
+      <FrontDeskShell
+        staffName="Synthetic Front Desk"
+        active="schedule"
+        crumbs={[{ label: "Daily schedule" }]}
+      >
+        <p>Schedule</p>
+      </FrontDeskShell>,
+    );
+
+    const nav = screen.getByRole("navigation", { name: "Front desk" });
+    expect(within(nav).getByRole("link", { name: "Daily schedule" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
   it("marks Requests as current on request pages", () => {

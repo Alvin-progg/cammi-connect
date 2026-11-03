@@ -83,7 +83,7 @@ describe("transitionDoctorAppointment", () => {
     expect(result).toEqual({ ok: true });
     expect(reader.applyTransition).toHaveBeenCalledWith({
       appointmentId: CONFIRMED.id,
-      from: ["confirmed"],
+      from: ["confirmed", "checked_in"],
       to: "completed",
       cancellationReason: null,
     });
@@ -91,6 +91,26 @@ describe("transitionDoctorAppointment", () => {
       expect.objectContaining({
         appointmentId: CONFIRMED.id,
         fromStatus: "confirmed",
+        toStatus: "completed",
+        changedByProfileId: "doctor-1",
+      }),
+    );
+  });
+
+  it("completes an appointment front desk checked in (FD-001 PR 5)", async () => {
+    const reader = createReader({
+      getForDoctor: vi.fn().mockResolvedValue({ ...CONFIRMED, status: "checked_in" }),
+    });
+
+    const result = await transitionDoctorAppointment(
+      { doctorId: "doctor-1", appointmentId: CONFIRMED.id, action: "complete" },
+      reader,
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(reader.insertHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromStatus: "checked_in",
         toStatus: "completed",
         changedByProfileId: "doctor-1",
       }),

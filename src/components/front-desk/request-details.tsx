@@ -8,10 +8,10 @@ import {
   formatManilaMediumDate,
   formatManilaTime,
 } from "@/lib/appointments/format";
-import type { BookingSource } from "@/lib/appointments/status";
 import { SLOT_CHECK_LABELS, type SlotCheck } from "@/lib/front-desk/decisions";
 import type { UserRole } from "@/lib/auth/roles";
 import {
+  BOOKING_SOURCE_LABELS,
   formatRequestId,
   type RequestAuditEntry,
   type RequestDetails,
@@ -33,12 +33,6 @@ const ROLE_LABELS: Record<UserRole, string> = {
   doctor: "Doctor",
   admin: "Administrator",
   front_desk: "Front desk",
-};
-
-const BOOKING_SOURCE_LABELS: Record<BookingSource, string> = {
-  ai_chatbot: "Cami (AI assistant)",
-  front_desk: "Front desk",
-  other: "Other",
 };
 
 function Section({

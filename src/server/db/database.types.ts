@@ -507,6 +507,18 @@ export type Database = {
         };
         Returns: undefined;
       };
+      /**
+       * Migration 0010. p_status is checked_in, completed, or no_show. Raises
+       * P0001 not_found, invalid_status, invalid_transition, or not_yet.
+       */
+      cammi_connect_record_attendance: {
+        Args: {
+          p_appointment_id: string;
+          p_staff_id: string;
+          p_status: Database["public"]["Enums"]["appointment_status"];
+        };
+        Returns: undefined;
+      };
       cammi_connect_match_knowledge_chunks: {
         Args: {
           /** pgvector text form, e.g. "[0.1,0.2,...]". */

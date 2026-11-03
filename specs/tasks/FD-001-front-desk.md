@@ -1,6 +1,6 @@
 # FD-001 — Front Desk Appointment Management
 
-- Status: In progress (PR 1 committed `8a2009f`; PR 2 committed `3085b61`; PR 3 committed `d63cb77`; PR 4 implemented 2026-11-03, awaiting review)
+- Status: In progress (PR 1 committed `8a2009f`; PR 2 committed `3085b61`; PR 3 committed `d63cb77`; PR 4 committed `9bfb7a4`; PR 5 implemented 2026-11-03, awaiting review)
 - Type: Feature
 - Priority: High
 - Module: Front Desk Staff
@@ -123,3 +123,32 @@ Limitations:
 **Limitations.**
 - There is no automated test of the SQL functions (ADR-0003: no local database). They are covered by smoke step 18.
 - Patients learn the outcome only by viewing their appointments. Notifications and showing the rejection reason come in PR 9.
+
+## PR 5 — traceability
+
+Decisions (2026-11-03):
+- Attendance is written by one atomic database function (`0010`), like PR 4.
+- Attendance can be recorded only from the appointment's Manila calendar day onward.
+- The details page opens appointments from every booking source; the request queue
+  stays Cami-only.
+- Doctors may complete a `checked_in` appointment (ADR-0007 amendment).
+
+| Requirement (SPEC-frontdesk) | Implementation | Verification |
+|---|---|---|
+| §8 daily schedule: time, patient, doctor, specialty, status, booking source | `/front-desk/schedule`; `listDailySchedule` and `supabaseFrontDeskScheduleRepository` (all sources, 200-row limit); `DailySchedule` | `tests/unit/front-desk/service.test.ts`, `tests/component/front-desk/daily-schedule.test.tsx`; smoke step 19 |
+| §8 view by date, filter by doctor and status, search patients | `parseScheduleFilters` in `src/lib/front-desk/schedule.ts`; name search in the service | `tests/unit/front-desk/schedule.test.ts`, `service.test.ts` |
+| §8 open appointment details | `getRequest` no longer limited to `ai_chatbot`; details page breadcrumb follows the source | smoke step 19 |
+| §8 attendance: confirmed → checked_in, completed, no_show; checked_in → completed | `allowedAttendanceActions` (uses `canTransition`); `cammi_connect_record_attendance` (0010); `recordAttendance`, `recordAttendanceAction`; `AttendanceActions` (no-show asks first) | `schedule.test.ts`, `service.test.ts`, `tests/unit/front-desk/actions.test.ts`, `tests/component/front-desk/attendance-actions.test.tsx`; smoke step 19 |
+| §8 record the staff member and timestamp | Audit row written inside the function with `actor_profile_id` = session staff ID; `created_at` and `new_values.recorded_at` | `actions.test.ts` (staff ID from session, not the form); smoke step 19 |
+| §3 server-side role authorization | `recordAttendanceAction` and the page call `getFrontDeskSession`; no write without it | `actions.test.ts` |
+| §11 checked_in → completed by the doctor | `complete` sources are `confirmed` and `checked_in` | `tests/unit/appointments/transitions.test.ts`, `mutations.test.ts` |
+
+**Changed doctor tests.** Letting doctors complete checked-in visits is an approved behavior change:
+- **`transitions.test.ts`:** `sourceStatusesForAction("complete")` now expects `["confirmed", "checked_in"]` (was `["confirmed"]`). New test: from `checked_in` only `complete` is allowed.
+- **`mutations.test.ts`:** the "completes a confirmed appointment" case now expects the guarded write's `from` to be `["confirmed", "checked_in"]`. New test: a doctor completes a checked-in appointment and the history records `checked_in → completed`.
+
+**Limitations.**
+- The SQL function has no automated test (ADR-0003: no local database). Smoke step 19 covers it.
+- The patient search runs over the day's first 200 appointments. A notice shows when the limit is reached.
+- The details page still labels its ID field "Request ID" for every booking source.
+- Doctor completion of a checked-in visit uses the existing doctor write path: a guarded update, then a separate audit insert. It is not the atomic function.
