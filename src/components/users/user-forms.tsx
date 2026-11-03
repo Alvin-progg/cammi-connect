@@ -11,7 +11,7 @@ import {
   updateUserProfileAction,
 } from "@/server/users/actions";
 
-import { FIELD_CLASS, Field, FormFooter } from "./form-parts";
+import { FIELD_CLASS, Field, FormFooter } from "@/components/admin/form-parts";
 import { useUserAdminForm } from "./use-user-admin-form";
 
 const NOTE_CLASS = "text-sm text-ink-secondary";

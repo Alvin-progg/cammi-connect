@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { ActiveBadge } from "@/components/admin/active-badge";
 import { EmptyState } from "@/components/admin/empty-state";
 import { CELL, HEADER_CELL, ROW, TableFrame } from "@/components/front-desk/table-frame";
 import { buttonVariants } from "@/components/ui/button";
@@ -82,18 +83,6 @@ export function UsersFilters({ filters }: { filters: UserListFilters }) {
   );
 }
 
-export function UserStatusBadge({ isActive }: { isActive: boolean }) {
-  return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-        isActive ? "bg-success-soft text-success-soft-ink" : "bg-surface-muted text-ink-secondary"
-      }`}
-    >
-      {isActive ? "Active" : "Inactive"}
-    </span>
-  );
-}
-
 export function UsersTable({
   users,
   total,
@@ -139,7 +128,7 @@ export function UsersTable({
               <td className={`${CELL} break-all`}>{user.email ?? "Not provided"}</td>
               <td className={CELL}>{USER_ROLE_LABELS[user.role]}</td>
               <td className={CELL}>
-                <UserStatusBadge isActive={user.isActive} />
+                <ActiveBadge isActive={user.isActive} />
               </td>
               <td className={CELL}>{formatManilaShortDate(user.createdAt)}</td>
               <td className={CELL}>

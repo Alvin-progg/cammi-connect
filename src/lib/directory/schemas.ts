@@ -4,7 +4,8 @@ import { z } from "zod";
 const blankToNull = (value: unknown) =>
   typeof value === "string" && value.trim() === "" ? null : value;
 
-const optionalDescription = z.preprocess(
+/** Optional description, shared with the department form. */
+export const optionalDescription = z.preprocess(
   blankToNull,
   z
     .string()
@@ -13,24 +14,6 @@ const optionalDescription = z.preprocess(
     .nullable()
     .default(null),
 );
-
-export const departmentSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Enter a department name.")
-    .max(100, "Keep the name under 100 characters."),
-  code: z
-    .string()
-    .trim()
-    .min(1, "Enter a short department code.")
-    .max(10, "Keep the code to 10 characters or fewer.")
-    .transform((code) => code.toUpperCase()),
-  description: optionalDescription,
-  isActive: z.boolean(),
-});
-
-export type DepartmentInput = z.infer<typeof departmentSchema>;
 
 export const specialtySchema = z.object({
   name: z

@@ -4,7 +4,7 @@ import { USER_ROLE_LABELS } from "@/lib/auth/roles";
 import { STAFF_ROLES } from "@/lib/users/types";
 import { inviteStaffAction } from "@/server/users/actions";
 
-import { FIELD_CLASS, Field, FormFooter } from "./form-parts";
+import { FIELD_CLASS, Field, FormFooter } from "@/components/admin/form-parts";
 import { useUserAdminForm } from "./use-user-admin-form";
 
 /**

@@ -8,7 +8,6 @@ import type {
 } from "@/lib/directory/types";
 import {
   listBookableDoctors,
-  saveDepartment,
   saveDoctor,
   saveSpecialty,
   type DirectoryStore,
@@ -61,7 +60,6 @@ const LINKABLE_PROFILE_ID = "00000000-0000-4000-8000-000000000001";
 function createStore(overrides: Partial<DirectoryStore> = {}): DirectoryStore {
   return {
     listDepartments: vi.fn().mockResolvedValue([CARDIOLOGY, CLOSED_WARD]),
-    saveDepartment: vi.fn().mockResolvedValue("saved"),
     listSpecialties: vi
       .fn()
       .mockResolvedValue([INTERNAL_MEDICINE, CARDIO_SPECIALTY, RETIRED_SPECIALTY]),
@@ -88,52 +86,6 @@ const NEW_DOCTOR = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-});
-
-describe("saveDepartment", () => {
-  it("creates a department", async () => {
-    const store = createStore();
-    const input = {
-      name: "Neurology",
-      code: "NEU",
-      description: null,
-      isActive: true,
-    };
-
-    await expect(saveDepartment({ id: null, ...input }, store)).resolves.toEqual({
-      ok: true,
-    });
-    expect(store.saveDepartment).toHaveBeenCalledWith({ id: null, ...input });
-  });
-
-  it("reports a duplicate name or code", async () => {
-    const store = createStore({
-      saveDepartment: vi.fn().mockResolvedValue("duplicate"),
-    });
-
-    await expect(
-      saveDepartment(
-        { id: CARDIOLOGY.id, name: "Cardiology", code: "CARD", description: null, isActive: false },
-        store,
-      ),
-    ).resolves.toEqual({
-      ok: false,
-      message: "A department with that name or code already exists.",
-    });
-  });
-
-  it("reports a missing department on update", async () => {
-    const store = createStore({
-      saveDepartment: vi.fn().mockResolvedValue("not_found"),
-    });
-
-    await expect(
-      saveDepartment(
-        { id: CARDIOLOGY.id, name: "Cardiology", code: "CARD", description: null, isActive: true },
-        store,
-      ),
-    ).resolves.toEqual({ ok: false, message: "That department no longer exists." });
-  });
 });
 
 describe("saveSpecialty", () => {

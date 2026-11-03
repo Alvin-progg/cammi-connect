@@ -91,16 +91,6 @@ export const supabaseDirectoryRepository: DirectoryStore = {
     );
   },
 
-  async saveDepartment({ id, name, code, description, isActive }) {
-    const supabase = getSupabaseAdminClient();
-    const values = { name, code, description, is_active: isActive };
-    const { data, error } = id
-      ? await supabase.from("departments").update(values).eq("id", id).select("id")
-      : await supabase.from("departments").insert(values).select("id");
-
-    return toOutcome(error, (data ?? []).length, "Unable to save the department.");
-  },
-
   async listSpecialties() {
     const supabase = getSupabaseAdminClient();
     const { data, error } = await supabase

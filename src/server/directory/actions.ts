@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 
 import {
-  departmentSchema,
   directoryRecordIdSchema,
   doctorSchema,
   specialtySchema,
@@ -12,7 +11,6 @@ import { getAdminSession } from "@/server/auth/dal";
 
 import { supabaseDirectoryRepository } from "./repository";
 import {
-  saveDepartment,
   saveDoctor,
   saveSpecialty,
   type DirectoryResult,
@@ -60,33 +58,6 @@ function toActionState(
   revalidatePath("/admin", "layout");
   revalidatePath("/doctor");
   return { status: "success", message: successMessage };
-}
-
-export async function saveDepartmentAction(
-  _previous: DirectoryActionState,
-  formData: FormData,
-): Promise<DirectoryActionState> {
-  if (!(await getAdminSession("/admin/departments"))) {
-    return NOT_AUTHORIZED;
-  }
-  const record = readRecordId(formData, "departmentId");
-  if ("error" in record) {
-    return record.error;
-  }
-  const parsed = departmentSchema.safeParse({
-    name: formData.get("name") ?? "",
-    code: formData.get("code") ?? "",
-    description: formData.get("description"),
-    isActive: formData.get("isActive") === "on",
-  });
-  if (!parsed.success) {
-    return { status: "error", message: firstIssueMessage(parsed.error) };
-  }
-
-  return toActionState(
-    await saveDepartment({ id: record.id, ...parsed.data }, supabaseDirectoryRepository),
-    "Department saved.",
-  );
 }
 
 export async function saveSpecialtyAction(

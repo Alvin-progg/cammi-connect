@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { getAdminSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import {
-  saveDepartmentAction,
   saveDoctorAction,
   saveSpecialtyAction,
 } from "@/server/directory/actions";
@@ -16,7 +15,6 @@ vi.mock("@/server/auth/dal", () => ({ getAdminSession: vi.fn() }));
 vi.mock("@/server/directory/repository", () => ({
   supabaseDirectoryRepository: {
     listDepartments: vi.fn(),
-    saveDepartment: vi.fn(),
     listSpecialties: vi.fn(),
     saveSpecialty: vi.fn(),
     listDoctors: vi.fn(),
@@ -47,7 +45,6 @@ function formData(fields: Record<string, string | string[]>): FormData {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  store.saveDepartment.mockResolvedValue("saved");
   store.saveSpecialty.mockResolvedValue("saved");
   store.saveDoctor.mockResolvedValue("saved");
   store.listDepartments.mockResolvedValue([]);
@@ -57,26 +54,6 @@ beforeEach(() => {
 });
 
 describe("directory actions", () => {
-  it("lets an admin create a department", async () => {
-    vi.mocked(getAdminSession).mockResolvedValue(ADMIN_SESSION);
-
-    await expect(
-      saveDepartmentAction(
-        IDLE,
-        formData({ name: "Neurology", code: "neu", description: "", isActive: "on" }),
-      ),
-    ).resolves.toEqual({ status: "success", message: "Department saved." });
-    expect(store.saveDepartment).toHaveBeenCalledWith({
-      id: null,
-      name: "Neurology",
-      code: "NEU",
-      description: null,
-      isActive: true,
-    });
-    // The admin sections are separate routes, so the whole /admin tree refreshes.
-    expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");
-  });
-
   it("lets an admin save a doctor with several specialty checkboxes", async () => {
     vi.mocked(getAdminSession).mockResolvedValue(ADMIN_SESSION);
 
@@ -95,6 +72,8 @@ describe("directory actions", () => {
     expect(store.saveDoctor).toHaveBeenCalledWith(
       expect.objectContaining({ doctorId: null, specialtyIds: [SPECIALTY_ID] }),
     );
+    // The admin sections are separate routes, so the whole /admin tree refreshes.
+    expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");
   });
 
   it("denies non-admin accounts every directory write", async () => {
@@ -105,9 +84,6 @@ describe("directory actions", () => {
     };
 
     await expect(
-      saveDepartmentAction(IDLE, formData({ name: "X", code: "X", isActive: "on" })),
-    ).resolves.toEqual(denied);
-    await expect(
       saveSpecialtyAction(IDLE, formData({ name: "X", isActive: "on" })),
     ).resolves.toEqual(denied);
     await expect(
@@ -116,7 +92,6 @@ describe("directory actions", () => {
         formData({ fullName: "Dr. X", specialtyIds: SPECIALTY_ID, isActive: "on" }),
       ),
     ).resolves.toEqual(denied);
-    expect(store.saveDepartment).not.toHaveBeenCalled();
     expect(store.saveSpecialty).not.toHaveBeenCalled();
     expect(store.saveDoctor).not.toHaveBeenCalled();
   });

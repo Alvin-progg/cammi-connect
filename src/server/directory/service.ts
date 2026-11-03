@@ -1,7 +1,6 @@
 import "server-only";
 
 import type {
-  DepartmentInput,
   DoctorInput,
   SpecialtyInput,
 } from "@/lib/directory/schemas";
@@ -27,7 +26,6 @@ export type DoctorFilter = {
  */
 export type DirectoryStore = {
   listDepartments(): Promise<Department[]>;
-  saveDepartment(input: { id: string | null } & DepartmentInput): Promise<SaveOutcome>;
   listSpecialties(): Promise<Specialty[]>;
   saveSpecialty(input: { id: string | null } & SpecialtyInput): Promise<SaveOutcome>;
   listDoctors(filter: DoctorFilter): Promise<DoctorSummary[]>;
@@ -44,20 +42,6 @@ export type DirectoryStore = {
 };
 
 export type DirectoryResult = { ok: true } | { ok: false; message: string };
-
-export async function saveDepartment(
-  input: { id: string | null } & DepartmentInput,
-  store: DirectoryStore,
-): Promise<DirectoryResult> {
-  const outcome = await store.saveDepartment(input);
-  if (outcome === "duplicate") {
-    return { ok: false, message: "A department with that name or code already exists." };
-  }
-  if (outcome === "not_found") {
-    return { ok: false, message: "That department no longer exists." };
-  }
-  return { ok: true };
-}
 
 export async function saveSpecialty(
   input: { id: string | null } & SpecialtyInput,

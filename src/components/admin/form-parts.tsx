@@ -1,7 +1,12 @@
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import type { UserAdminActionState } from "@/server/users/actions";
+
+/** The status shape every admin form action returns. */
+export type AdminFormState =
+  | { status: "idle" }
+  | { status: "error"; message: string }
+  | { status: "success"; message: string };
 
 export const FIELD_CLASS =
   "min-h-11 w-full rounded-lg border border-control-line bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus-ring";
@@ -25,7 +30,7 @@ export function FormFooter({
   pendingLabel = "Saving…",
   variant = "primary",
 }: {
-  state: UserAdminActionState;
+  state: AdminFormState;
   pending: boolean;
   label: string;
   pendingLabel?: string;

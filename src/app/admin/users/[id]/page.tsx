@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
+import { ActiveBadge } from "@/components/admin/active-badge";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AccessDenied } from "@/components/auth/access-denied";
-import { TaskCard } from "@/components/users/form-parts";
+import { TaskCard } from "@/components/admin/form-parts";
 import { UserActivity } from "@/components/users/user-activity";
 import {
   PasswordResetForm,
@@ -12,7 +13,6 @@ import {
   UserRoleForm,
   UserStatusForm,
 } from "@/components/users/user-forms";
-import { UserStatusBadge } from "@/components/users/users-list";
 import { formatManilaDateTime } from "@/lib/appointments/format";
 import { USER_ROLE_LABELS } from "@/lib/auth/roles";
 import { getAdminSession } from "@/server/auth/dal";
@@ -58,7 +58,7 @@ export default async function AdminUserPage({ params }: PageProps<"/admin/users/
           <div className="flex gap-2">
             <dt className="text-ink-muted">Status</dt>
             <dd>
-              <UserStatusBadge isActive={user.isActive} />
+              <ActiveBadge isActive={user.isActive} />
             </dd>
           </div>
           <div className="flex gap-2">

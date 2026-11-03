@@ -10,7 +10,6 @@ import type {
   Specialty,
 } from "@/lib/directory/types";
 import {
-  saveDepartmentAction,
   saveDoctorAction,
   saveSpecialtyAction,
   type DirectoryActionState,
@@ -91,75 +90,6 @@ function ActiveCheckbox({ defaultChecked }: { defaultChecked: boolean }) {
 
 function inactiveSuffix(isActive: boolean): string {
   return isActive ? "" : " (inactive)";
-}
-
-export function DepartmentForm({ department }: { department?: Department }) {
-  const { formRef, state, formAction, pending } = useDirectoryForm(
-    saveDepartmentAction,
-    !department,
-  );
-  const idPrefix = department ? `department-${department.id}` : "new-department";
-
-  return (
-    <form
-      ref={formRef}
-      action={formAction}
-      aria-label={department ? `Edit ${department.name}` : "Add department"}
-      className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4"
-    >
-      {department ? (
-        <input type="hidden" name="departmentId" value={department.id} />
-      ) : null}
-      <div className="grid gap-3 sm:grid-cols-[2fr_1fr_3fr_auto]">
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${idPrefix}-name`} className={LABEL_CLASS}>
-            Name
-          </label>
-          <input
-            id={`${idPrefix}-name`}
-            name="name"
-            required
-            maxLength={100}
-            defaultValue={department?.name}
-            className={FIELD_CLASS}
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${idPrefix}-code`} className={LABEL_CLASS}>
-            Code
-          </label>
-          <input
-            id={`${idPrefix}-code`}
-            name="code"
-            required
-            maxLength={10}
-            defaultValue={department?.code}
-            className={`${FIELD_CLASS} uppercase`}
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${idPrefix}-description`} className={LABEL_CLASS}>
-            Description
-          </label>
-          <input
-            id={`${idPrefix}-description`}
-            name="description"
-            maxLength={500}
-            defaultValue={department?.description ?? ""}
-            className={FIELD_CLASS}
-          />
-        </div>
-        <div className="flex items-end">
-          <ActiveCheckbox defaultChecked={department?.isActive ?? true} />
-        </div>
-      </div>
-      <FormFooter
-        state={state}
-        pending={pending}
-        label={department ? "Save" : "Add department"}
-      />
-    </form>
-  );
 }
 
 export function SpecialtyForm({ specialty }: { specialty?: Specialty }) {

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { AdminShell } from "@/components/admin/admin-shell";
-import { DepartmentForm } from "@/components/admin/directory-forms";
-import { EmptyState } from "@/components/admin/empty-state";
 import { AccessDenied } from "@/components/auth/access-denied";
+import { DepartmentsTable } from "@/components/departments/departments-table";
+import { buttonVariants } from "@/components/ui/button";
 import { getAdminSession } from "@/server/auth/dal";
-import { supabaseDirectoryRepository } from "@/server/directory/repository";
+import { supabaseDepartmentAdminRepository } from "@/server/departments/repository";
+import { listDepartmentsOverview } from "@/server/departments/service";
 
 import { ADMIN_ACCESS_DENIED_MESSAGE } from "../_shared/placeholder-page";
 
@@ -19,7 +21,7 @@ export default async function AdminDepartmentsPage() {
     return <AccessDenied message={ADMIN_ACCESS_DENIED_MESSAGE} />;
   }
 
-  const departments = await supabaseDirectoryRepository.listDepartments();
+  const departments = await listDepartmentsOverview(supabaseDepartmentAdminRepository);
 
   return (
     <AdminShell
@@ -27,15 +29,13 @@ export default async function AdminDepartmentsPage() {
       active="departments"
       crumbs={[{ label: "Departments" }]}
     >
-      <div className="flex flex-col gap-4">
-        <DepartmentForm />
-        {departments.length === 0 ? (
-          <EmptyState>No departments yet.</EmptyState>
-        ) : (
-          departments.map((department) => (
-            <DepartmentForm key={department.id} department={department} />
-          ))
-        )}
+      <div className="flex flex-col gap-6">
+        <div className="flex justify-end">
+          <Link href="/admin/departments/new" className={buttonVariants()}>
+            New department
+          </Link>
+        </div>
+        <DepartmentsTable departments={departments} />
       </div>
     </AdminShell>
   );

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  departmentSchema,
   doctorSchema,
   specialtySchema,
 } from "@/lib/directory/schemas";
@@ -14,41 +13,6 @@ const PROFILE_ID = "00000000-0000-4000-8000-000000000001";
 function firstMessage(result: { error?: { issues: { message: string }[] } }) {
   return result.error?.issues[0]?.message;
 }
-
-describe("departmentSchema", () => {
-  it("trims values, upper-cases the code, and nulls a blank description", () => {
-    expect(
-      departmentSchema.parse({
-        name: "  Cardiology ",
-        code: " card ",
-        description: "",
-        isActive: true,
-      }),
-    ).toEqual({
-      name: "Cardiology",
-      code: "CARD",
-      description: null,
-      isActive: true,
-    });
-  });
-
-  it("requires a name and a short code", () => {
-    expect(
-      firstMessage(
-        departmentSchema.safeParse({ name: " ", code: "CARD", isActive: true }),
-      ),
-    ).toBe("Enter a department name.");
-    expect(
-      firstMessage(
-        departmentSchema.safeParse({
-          name: "Cardiology",
-          code: "CARDIOLOGY-OPD",
-          isActive: true,
-        }),
-      ),
-    ).toBe("Keep the code to 10 characters or fewer.");
-  });
-});
 
 describe("specialtySchema", () => {
   it("parses a specialty with an optional description", () => {
