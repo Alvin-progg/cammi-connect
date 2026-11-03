@@ -77,7 +77,10 @@ Then run `db/migrations/0009_front_desk_confirm_reject.sql` once, then
 `db/migrations/0010_front_desk_attendance.sql` once, then
 `db/migrations/0011_front_desk_reschedule_cancel.sql` once, then
 `db/migrations/0012_front_desk_booking.sql` once, then
-`db/migrations/0013_admin_foundation.sql` once.
+`db/migrations/0013_admin_foundation.sql` once, then
+`db/migrations/0014_admin_user_management.sql` once. After 0014, re-run
+`npm run db:seed`: the seed now sets staff roles through
+`cammi_connect_bootstrap_staff_role`.
 
 `0001_profiles_appointments.sql`:
 
@@ -241,6 +244,41 @@ now fail.
   policies, and `select, insert` for `service_role` only. The server strips
   credential-like keys from the payloads before insert.
 
+`0014_admin_user_management.sql` (ADM-01):
+
+- adds the `profiles_guard_role_change` trigger: a plain `update` that changes
+  `profiles.role` fails with `role_change_forbidden`. Roles change only inside the
+  functions below and `cammi_connect_save_doctor` (recreated with the same body plus
+  the flag), which set the transaction-local `cammi_connect.role_change` flag;
+- adds `cammi_connect_admin_set_user_role`, `cammi_connect_admin_set_user_active`,
+  `cammi_connect_admin_update_user_profile`, and `cammi_connect_admin_provision_staff`.
+  Each locks the actor and target rows, checks that the actor is an active admin,
+  refuses self-changes and role changes on accounts with a `doctors` row, and writes
+  its `audit_logs` row in the same transaction. They raise `P0001` with `not_admin`,
+  `reason_required`, `not_found`, `unchanged`, `self_change`, `doctor_record`,
+  `invalid_role`, `already_provisioned`, or `full_name_required`;
+- adds `cammi_connect_admin_list_users` and `cammi_connect_admin_get_user`
+  (`security definer`, to join `auth.users` for email and last sign-in; no password or
+  token columns are selected);
+- adds `cammi_connect_bootstrap_staff_role`, used only by the seed script to create the
+  first admin and the seed staff accounts;
+- every function is executable by `service_role` only.
+
+#### Supabase Auth email templates (ADM-01, manual)
+
+Admin-sent invites and password resets land on `/auth/confirm`, which verifies the
+token on the server. In Supabase → Authentication:
+
+1. **URL Configuration:** set **Site URL** to the app's origin (for example
+   `http://localhost:3000` in development).
+2. **Email Templates → Invite user:** set the link to
+   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite`.
+3. **Email Templates → Reset password:** set the link to
+   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`.
+
+The default Supabase SMTP sends only a few emails per hour; configure custom SMTP
+before inviting more than a handful of staff (see Troubleshooting).
+
 ### Knowledge base ingestion (ADR-0004)
 
 The synthetic corpus lives in `db/knowledge/*.md` (one document per file; the file
@@ -313,7 +351,8 @@ The seed:
   each, split consultation periods (including 60-minute slots), one blocked period and
   one whole-day leave exception, and three doctor notifications;
 - deactivates (never deletes) other active schedule periods of the seed doctors;
-- promotes the `SEED_ADMIN_EMAIL` account to admin when set;
+- promotes the `SEED_ADMIN_EMAIL` account to admin when set (through
+  `cammi_connect_bootstrap_staff_role`, migration 0014);
 - sets the `SEED_FRONT_DESK_EMAIL` account to front desk when set;
 - upserts today/tomorrow/upcoming/past appointments in `Asia/Manila`, including every
   approved status and cross-doctor appointments at the same time;
@@ -585,6 +624,34 @@ No real patient data is used.
     - In SQL, insert one `audit_logs` row for the admin profile, then try `update` and
       `delete` on it: both fail with `audit_log_immutable`. (The test row stays; it is
       synthetic.)
+
+24. Check user and role management (ADM-01), after applying 0014, updating the email
+    templates, and re-running `npm run db:seed`. Use synthetic data and a mailbox you
+    control only:
+    - As the admin, open **Users**: the seed accounts are listed with email, role,
+      status, and last sign-in. Search by part of a name and of an email; filter by role
+      and by status.
+    - **Invite staff** with a synthetic front desk email. You land on the new account:
+      role Front desk, Active, activity "Account created". Open the email link: it goes
+      through `/auth/confirm` to **Set your password**; after saving you land on
+      `/front-desk`.
+    - Change that account's role to Patient with a reason: activity shows "Role changed"
+      and the reason. In SQL, the `audit_logs` row has `action = 'user.role_change'` and
+      the previous and new role.
+    - On your own account, the role and status forms are not offered. In SQL, calling
+      `cammi_connect_admin_set_user_role` with your profile as both actor and target
+      fails with `self_change`; with a non-admin actor it fails with `not_admin`.
+    - On the seed doctor, the role form points to Doctors; in SQL the function fails
+      with `doctor_record`.
+    - In SQL, `update public.profiles set role = 'admin' where id = '<any id>'` fails
+      with `role_change_forbidden`.
+    - Deactivate the invited account with a reason while it is signed in elsewhere: its
+      next page load shows access denied, and signing in again fails. Activate it again:
+      sign-in works.
+    - **Send password reset email**: the email arrives, its link opens **Set your
+      password**, and the activity shows "Password reset email sent".
+    - Link a patient account as a doctor from **Doctors** (existing flow): it still
+      works, because `cammi_connect_save_doctor` sets the role-change flag.
 
 ## Troubleshooting
 

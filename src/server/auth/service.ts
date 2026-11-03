@@ -20,6 +20,8 @@ export type SignUpPatientResult =
 
 export type SessionUser = { id: string; email: string };
 
+export type EmailLinkType = "invite" | "recovery";
+
 export async function signIn(input: SignInInput): Promise<SignInResult> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.signInWithPassword(input);
@@ -80,4 +82,33 @@ export async function getUser(): Promise<SessionUser | null> {
     return null;
   }
   return { id: data.user.id, email: data.user.email ?? "" };
+}
+
+/**
+ * Verifies an invite or password-reset link and signs the user in on this
+ * browser, so they can then set their password. Returns false for an
+ * expired, used, or forged link.
+ */
+export async function verifyEmailLink(input: {
+  tokenHash: string;
+  type: EmailLinkType;
+}): Promise<boolean> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.verifyOtp({
+    token_hash: input.tokenHash,
+    type: input.type,
+  });
+  return !error;
+}
+
+/** Sets the signed-in user's password. */
+export async function updatePassword(
+  password: string,
+): Promise<{ ok: true } | ServiceError> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) {
+    return { ok: false, code: error.code ?? undefined };
+  }
+  return { ok: true };
 }

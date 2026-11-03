@@ -9,7 +9,7 @@ import {
   formatManilaTime,
 } from "@/lib/appointments/format";
 import { SLOT_CHECK_LABELS, type SlotCheck } from "@/lib/front-desk/decisions";
-import type { UserRole } from "@/lib/auth/roles";
+import { USER_ROLE_LABELS } from "@/lib/auth/roles";
 import {
   BOOKING_SOURCE_LABELS,
   formatRequestId,
@@ -26,13 +26,6 @@ const AUDIT_ACTION_LABELS: Record<AppointmentAuditAction, string> = {
   checked_in: "Checked in",
   completed: "Completed",
   no_show: "Marked as no-show",
-};
-
-const ROLE_LABELS: Record<UserRole, string> = {
-  patient: "Patient",
-  doctor: "Doctor",
-  admin: "Administrator",
-  front_desk: "Front desk",
 };
 
 function Section({
@@ -72,7 +65,7 @@ function actorLabel(entry: RequestAuditEntry): string {
     return "System";
   }
   return entry.actorRole
-    ? `${entry.actorName} (${ROLE_LABELS[entry.actorRole]})`
+    ? `${entry.actorName} (${USER_ROLE_LABELS[entry.actorRole]})`
     : entry.actorName;
 }
 

@@ -6,6 +6,7 @@ const MESSAGES: Record<string, string> = {
   user_already_exists:
     "If an account can be created for this email, check your inbox.",
   weak_password: "Password does not meet the requirements.",
+  same_password: "Choose a password you have not used before.",
   over_email_send_rate_limit: "Too many attempts, try again later.",
   over_request_rate_limit: "Too many attempts, try again later.",
 };
