@@ -57,7 +57,7 @@ function toActionState(
   if (!result.ok) {
     return { status: "error", message: result.message };
   }
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   revalidatePath("/doctor");
   return { status: "success", message: successMessage };
 }
@@ -66,7 +66,7 @@ export async function saveDepartmentAction(
   _previous: DirectoryActionState,
   formData: FormData,
 ): Promise<DirectoryActionState> {
-  if (!(await getAdminSession("/admin"))) {
+  if (!(await getAdminSession("/admin/departments"))) {
     return NOT_AUTHORIZED;
   }
   const record = readRecordId(formData, "departmentId");
@@ -93,7 +93,7 @@ export async function saveSpecialtyAction(
   _previous: DirectoryActionState,
   formData: FormData,
 ): Promise<DirectoryActionState> {
-  if (!(await getAdminSession("/admin"))) {
+  if (!(await getAdminSession("/admin/specialties"))) {
     return NOT_AUTHORIZED;
   }
   const record = readRecordId(formData, "specialtyId");
@@ -119,7 +119,7 @@ export async function saveDoctorAction(
   _previous: DirectoryActionState,
   formData: FormData,
 ): Promise<DirectoryActionState> {
-  if (!(await getAdminSession("/admin"))) {
+  if (!(await getAdminSession("/admin/doctors"))) {
     return NOT_AUTHORIZED;
   }
   const record = readRecordId(formData, "doctorId");

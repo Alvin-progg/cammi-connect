@@ -36,6 +36,7 @@ describe("resolvePatientForApi", () => {
       id: "doctor-profile-1",
       role: "doctor",
       fullName: "Dr. Maya Santos",
+      isActive: true,
     });
 
     await expect(resolvePatientForApi()).resolves.toEqual({ status: "forbidden" });
@@ -47,6 +48,7 @@ describe("resolvePatientForApi", () => {
       id: "front-desk-profile-1",
       role: "front_desk",
       fullName: "Synthetic Front Desk",
+      isActive: true,
     });
 
     await expect(resolvePatientForApi()).resolves.toEqual({ status: "forbidden" });
@@ -59,12 +61,25 @@ describe("resolvePatientForApi", () => {
     await expect(resolvePatientForApi()).resolves.toEqual({ status: "forbidden" });
   });
 
+  it("forbids a deactivated patient account", async () => {
+    vi.mocked(getUser).mockResolvedValue(USER);
+    vi.mocked(getProfileForAuthUser).mockResolvedValue({
+      id: "patient-profile-1",
+      role: "patient",
+      fullName: "Synthetic Patient A",
+      isActive: false,
+    });
+
+    await expect(resolvePatientForApi()).resolves.toEqual({ status: "forbidden" });
+  });
+
   it("returns the patient profile for a patient account", async () => {
     vi.mocked(getUser).mockResolvedValue(USER);
     vi.mocked(getProfileForAuthUser).mockResolvedValue({
       id: "patient-profile-1",
       role: "patient",
       fullName: "Synthetic Patient A",
+      isActive: true,
     });
 
     await expect(resolvePatientForApi()).resolves.toEqual({

@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { revalidatePath } from "next/cache";
 
 import { getAdminSession, getDoctorSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
@@ -159,6 +160,7 @@ describe("admin schedule actions", () => {
     expect(store.createSchedulePeriod).toHaveBeenCalledWith(
       expect.objectContaining({ doctorId: OTHER_DOCTOR_ID }),
     );
+    expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");
   });
 
   it("denies doctors and patients, who have no admin session", async () => {

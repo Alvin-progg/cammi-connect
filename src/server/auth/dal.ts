@@ -2,9 +2,19 @@ import "server-only";
 
 import { redirect } from "next/navigation";
 
-import { getProfileForAuthUser } from "@/server/profiles/service";
+import { getProfileForAuthUser, type Profile } from "@/server/profiles/service";
 
 import { getUser, type SessionUser } from "./service";
+
+/**
+ * The signed-in user's profile, or null when there is none or an admin has
+ * deactivated it. Every session guard goes through this, so a deactivated
+ * account is denied for every role.
+ */
+async function loadActiveProfile(authUserId: string): Promise<Profile | null> {
+  const profile = await getProfileForAuthUser(authUserId);
+  return profile?.isActive ? profile : null;
+}
 
 export type DoctorSession = {
   user: SessionUser;
@@ -37,7 +47,7 @@ export async function getDoctorSession(
   returnTo: string,
 ): Promise<DoctorSession | null> {
   const user = await requireUser(returnTo);
-  const profile = await getProfileForAuthUser(user.id);
+  const profile = await loadActiveProfile(user.id);
 
   if (!profile || profile.role !== "doctor") {
     return null;
@@ -69,7 +79,7 @@ export async function getAdminSession(
   returnTo: string,
 ): Promise<AdminSession | null> {
   const user = await requireUser(returnTo);
-  const profile = await getProfileForAuthUser(user.id);
+  const profile = await loadActiveProfile(user.id);
 
   if (!profile || profile.role !== "admin") {
     return null;
@@ -102,7 +112,7 @@ export async function getFrontDeskSession(
   returnTo: string,
 ): Promise<FrontDeskSession | null> {
   const user = await requireUser(returnTo);
-  const profile = await getProfileForAuthUser(user.id);
+  const profile = await loadActiveProfile(user.id);
 
   if (!profile || profile.role !== "front_desk") {
     return null;
@@ -133,7 +143,7 @@ export async function getPatientSession(
   returnTo: string,
 ): Promise<PatientSession | null> {
   const user = await requireUser(returnTo);
-  const profile = await getProfileForAuthUser(user.id);
+  const profile = await loadActiveProfile(user.id);
 
   if (!profile || profile.role !== "patient") {
     return null;
@@ -163,7 +173,7 @@ export async function resolvePatientForApi(): Promise<PatientApiAccess> {
     return { status: "unauthenticated" };
   }
 
-  const profile = await getProfileForAuthUser(user.id);
+  const profile = await loadActiveProfile(user.id);
   if (!profile || profile.role !== "patient") {
     return { status: "forbidden" };
   }

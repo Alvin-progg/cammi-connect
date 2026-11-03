@@ -48,6 +48,7 @@ beforeEach(() => {
     id: "patient-profile-1",
     role: "patient",
     fullName: "Pat Doe",
+    isActive: true,
   });
 });
 
@@ -62,6 +63,7 @@ describe("loginAction", () => {
       id: "doctor-profile-1",
       role: "doctor",
       fullName: "Dr. Maya Santos",
+      isActive: true,
     });
 
     await loginAction({}, loginFormData());
@@ -73,6 +75,7 @@ describe("loginAction", () => {
       id: "front-desk-profile-1",
       role: "front_desk",
       fullName: "Synthetic Front Desk",
+      isActive: true,
     });
 
     await loginAction({}, loginFormData());
@@ -84,6 +87,7 @@ describe("loginAction", () => {
       id: "admin-profile-1",
       role: "admin",
       fullName: "Synthetic Admin",
+      isActive: true,
     });
 
     await loginAction({}, loginFormData());
@@ -95,6 +99,7 @@ describe("loginAction", () => {
       id: "doctor-profile-1",
       role: "doctor",
       fullName: "Dr. Maya Santos",
+      isActive: true,
     });
 
     await loginAction({}, loginFormData({ next: "/appointments" }));

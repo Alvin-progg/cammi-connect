@@ -15,12 +15,17 @@ vi.mock("@/server/profiles/service", () => ({
 
 const USER = { id: "auth-user-1", email: "staff@example.test" };
 
-function signedInAs(role: "patient" | "doctor" | "admin" | "front_desk", fullName = `Synthetic ${role}`) {
+function signedInAs(
+  role: "patient" | "doctor" | "admin" | "front_desk",
+  fullName = `Synthetic ${role}`,
+  isActive = true,
+) {
   vi.mocked(getUser).mockResolvedValue(USER);
   vi.mocked(getProfileForAuthUser).mockResolvedValue({
     id: `${role}-profile-1`,
     role,
     fullName,
+    isActive,
   });
 }
 
@@ -49,6 +54,12 @@ describe("getFrontDeskSession", () => {
 
   it.each(["patient", "doctor", "admin"] as const)("denies a %s account", async (role) => {
     signedInAs(role);
+
+    await expect(getFrontDeskSession("/front-desk")).resolves.toBeNull();
+  });
+
+  it("denies a deactivated front desk account", async () => {
+    signedInAs("front_desk", "Synthetic Front Desk", false);
 
     await expect(getFrontDeskSession("/front-desk")).resolves.toBeNull();
   });

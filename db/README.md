@@ -76,7 +76,8 @@ PostgreSQL cannot use a new enum value in the transaction that added it.
 Then run `db/migrations/0009_front_desk_confirm_reject.sql` once, then
 `db/migrations/0010_front_desk_attendance.sql` once, then
 `db/migrations/0011_front_desk_reschedule_cancel.sql` once, then
-`db/migrations/0012_front_desk_booking.sql` once.
+`db/migrations/0012_front_desk_booking.sql` once, then
+`db/migrations/0013_admin_foundation.sql` once.
 
 `0001_profiles_appointments.sql`:
 
@@ -229,6 +230,16 @@ now fail.
   `past`, `outside_hours`, or `blocked`, and is executable by `service_role` only;
 - walk-in patients need no function: the server inserts a `profiles` row with
   `role = 'patient'`, `auth_user_id = null`, a name, and a normalized phone.
+
+`0013_admin_foundation.sql` (ADM-00):
+
+- adds `profiles.is_active` (default `true`). The server's session guards deny an
+  inactive profile for every role; nothing is deleted;
+- creates `audit_logs` (actor profile, dotted `action`, `target_type`, `target_id`,
+  `previous_values`, `new_values`, `reason`), append-only through the same
+  `audit_log_immutable` triggers as `appointment_audit_logs`, with RLS on, no
+  policies, and `select, insert` for `service_role` only. The server strips
+  credential-like keys from the payloads before insert.
 
 ### Knowledge base ingestion (ADR-0004)
 
@@ -562,6 +573,18 @@ No real patient data is used.
     - Search "Test Walkin" and then `0900 000`: both list that patient's appointments,
       newest first, each linking to its details. A one-character search shows a
       validation message; a doctor's or staff member's name finds nothing.
+
+23. Check the admin foundation (ADM-00), after applying 0013. Use synthetic data only:
+    - As the admin account, open `/admin`: the sidebar lists 13 sections and each one
+      loads. Doctors, Departments, Specialties, and Schedules still save; the rest show
+      "Not built yet".
+    - As a patient, open `/admin/users`: access is denied. Signed out, you are sent to
+      `/login?next=%2Fadmin%2Fusers`.
+    - In SQL, set `is_active = false` on a synthetic doctor profile that has a login.
+      Signed in as that doctor, `/doctor` shows access denied. Set it back to `true`.
+    - In SQL, insert one `audit_logs` row for the admin profile, then try `update` and
+      `delete` on it: both fail with `audit_log_immutable`. (The test row stays; it is
+      synthetic.)
 
 ## Troubleshooting
 

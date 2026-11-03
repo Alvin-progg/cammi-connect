@@ -26,6 +26,7 @@ describe("getDoctorSession", () => {
       id: "doctor-profile-1",
       role: "doctor",
       fullName: "Dr. Maya Santos",
+      isActive: true,
     });
 
     await expect(getDoctorSession("/doctor")).resolves.toEqual({
@@ -40,6 +41,7 @@ describe("getDoctorSession", () => {
       id: "patient-profile-1",
       role: "patient",
       fullName: "Synthetic Patient A",
+      isActive: true,
     });
 
     await expect(getDoctorSession("/doctor")).resolves.toBeNull();
@@ -51,6 +53,7 @@ describe("getDoctorSession", () => {
       id: "front-desk-profile-1",
       role: "front_desk",
       fullName: "Synthetic Front Desk",
+      isActive: true,
     });
 
     await expect(getDoctorSession("/doctor")).resolves.toBeNull();
@@ -59,6 +62,18 @@ describe("getDoctorSession", () => {
   it("denies a signed-in account without a profile", async () => {
     vi.mocked(getUser).mockResolvedValue(USER);
     vi.mocked(getProfileForAuthUser).mockResolvedValue(null);
+
+    await expect(getDoctorSession("/doctor")).resolves.toBeNull();
+  });
+
+  it("denies a deactivated doctor account", async () => {
+    vi.mocked(getUser).mockResolvedValue(USER);
+    vi.mocked(getProfileForAuthUser).mockResolvedValue({
+      id: "doctor-profile-1",
+      role: "doctor",
+      fullName: "Dr. Maya Santos",
+      isActive: false,
+    });
 
     await expect(getDoctorSession("/doctor")).resolves.toBeNull();
   });
