@@ -11,6 +11,7 @@ import { REGISTER_ERROR_TOAST_ID } from "@/lib/auth/toast-ids";
 
 import { CheckCircleIcon } from "./auth-icons";
 import { FormField } from "./form-field";
+import { useMascot } from "./mascot-stage";
 import { SubmitButton } from "./submit-button";
 
 const INITIAL_STATE: AuthFormState = {};
@@ -20,9 +21,11 @@ export function RegisterForm({ next }: { next?: string }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
+  const { reportError } = useMascot();
 
   useEffect(() => {
     if (!state.formError) return;
+    reportError();
     toast.error("Could not create account", {
       id: REGISTER_ERROR_TOAST_ID,
       description: state.formError,
@@ -31,14 +34,15 @@ export function RegisterForm({ next }: { next?: string }) {
     return () => {
       toast.dismiss(REGISTER_ERROR_TOAST_ID);
     };
-  }, [state.formError]);
+  }, [state.formError, reportError]);
 
   useEffect(() => {
     if (!state.fieldErrors) return;
+    reportError();
     formRef.current
       ?.querySelector<HTMLInputElement>('[aria-invalid="true"]')
       ?.focus();
-  }, [state.fieldErrors]);
+  }, [state.fieldErrors, reportError]);
 
   if (state.success) {
     return (
@@ -106,7 +110,7 @@ export function RegisterForm({ next }: { next?: string }) {
           pendingLabel="Creating account…"
         />
       </form>
-      <p className="border-t border-line pt-6 text-center text-sm leading-6 text-ink-secondary">
+      <p className="pt-2 text-center text-sm leading-6 text-ink-secondary">
         Already have an account?{" "}
         <Link
           href="/login"

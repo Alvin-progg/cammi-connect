@@ -23,18 +23,16 @@ export default async function LoginPage({
 
   return (
     <main id="main" className="flex flex-1 flex-col bg-canvas">
-      <div className="page-container flex flex-1 flex-col items-center justify-center py-12 lg:py-20">
-        <AuthCard
-          title="Sign in"
-          subtitle="Welcome back. Sign in to manage your appointments."
-          note="Doctors and hospital staff sign in here with the account provided by the hospital."
-        >
-          <LoginForm
-            next={typeof next === "string" ? next : undefined}
-            callbackError={error === "callback" ? CALLBACK_ERROR_MESSAGE : undefined}
-          />
-        </AuthCard>
-      </div>
+      <AuthCard
+        title="Welcome back!"
+        subtitle="Please enter your details to manage your appointments."
+        note="Doctors and hospital staff sign in here with the account provided by the hospital."
+      >
+        <LoginForm
+          next={typeof next === "string" ? next : undefined}
+          callbackError={error === "callback" ? CALLBACK_ERROR_MESSAGE : undefined}
+        />
+      </AuthCard>
     </main>
   );
 }

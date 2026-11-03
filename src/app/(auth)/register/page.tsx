@@ -20,15 +20,13 @@ export default async function RegisterPage({
 
   return (
     <main id="main" className="flex flex-1 flex-col bg-canvas">
-      <div className="page-container flex flex-1 flex-col items-center justify-center py-12 lg:py-20">
-        <AuthCard
-          title="Create your account"
-          subtitle="Register as a patient to book and follow your appointments."
-          note="Doctor and administrator accounts are provided by the hospital and cannot be created here."
-        >
-          <RegisterForm next={typeof next === "string" ? next : undefined} />
-        </AuthCard>
-      </div>
+      <AuthCard
+        title="Create your account"
+        subtitle="Register as a patient to book and follow your appointments."
+        note="Doctor and administrator accounts are provided by the hospital and cannot be created here."
+      >
+        <RegisterForm next={typeof next === "string" ? next : undefined} />
+      </AuthCard>
     </main>
   );
 }
