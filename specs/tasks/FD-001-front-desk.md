@@ -1,6 +1,6 @@
 # FD-001 — Front Desk Appointment Management
 
-- Status: In progress (PR 1 committed `8a2009f`; PR 2 implemented 2026-11-03, awaiting review)
+- Status: In progress (PR 1 committed `8a2009f`; PR 2 committed `3085b61`; PR 3 implemented 2026-11-03, awaiting review)
 - Type: Feature
 - Priority: High
 - Module: Front Desk Staff
@@ -71,3 +71,30 @@ Each PR uses TDD and stops for review.
 Open item: `cammi_connect_upsert_doctor` (0003) refuses to convert an admin profile
 but not a `front_desk` profile, so an admin could turn a staff account into a doctor.
 Unchanged in PR 2; tighten in a later migration if wanted.
+
+## PR 3 — traceability
+
+Decisions (2026-11-03):
+- **No chat link.** Appointments are not linked to chat conversations, and staff see
+  no chat text. The details page shows the patient's stated reason and the booking
+  metadata instead.
+- **Contact is the email plus the phone when set.**
+  - The email is the patient's sign-in email, read server-side through the
+    service-role Auth admin API.
+  - The phone comes from `profiles.phone`.
+  - Either one shows "not provided" when it is missing.
+
+| Requirement (SPEC-frontdesk) | Implementation | Verification |
+|---|---|---|
+| §5 queue of Cami requests | `/front-desk/requests`; `listRequestQueue` and `supabaseFrontDeskRequestsRepository` (`booking_source = ai_chatbot` only, 100-row limit) | `tests/unit/front-desk/service.test.ts`; smoke step 17 |
+| §5 queue fields (request ID, patient, contact, specialty, doctor, date, time, submitted, status) | `RequestQueue` component | `tests/component/front-desk/request-queue.test.tsx` |
+| §5 filters (pending, confirmed, rejected, cancelled, date, doctor, specialty) | `parseRequestQueueFilters` in `src/lib/front-desk/requests.ts`; the service maps pending to `requested` and the date to a Manila day | `tests/unit/front-desk/requests.test.ts`, `service.test.ts` |
+| §5 request details with previous status changes | `/front-desk/requests/[id]`; `RequestDetailsView`; history from `appointment_audit_logs` with actor names | `tests/component/front-desk/request-details.test.tsx`; smoke step 17 |
+| §3 server-side role authorization | Both pages call `getFrontDeskSession` and show access denied otherwise; a malformed, unknown or non-Cami ID gets not found | `front-desk-session.test.ts`, `service.test.ts`; smoke step 17 |
+| §14 "pending requests appear in a centralized queue", "staff can view complete request details" | as above | as above |
+
+Limitations:
+- **No requested specialty on chat bookings.** `cammi_connect_book_appointment` doesn't record `specialty_id`, so the queue shows the doctor's specialties. Capturing the specialty needs a migration and is a possible follow-up.
+- **No "relevant appointment requirements".** §5 lists them, but no data source exists, so they are not shown.
+- **No chat context.** By decision, staff see no AI conversation context.
+- **No pagination.** The queue shows the first 100 matches, ordered by appointment time.

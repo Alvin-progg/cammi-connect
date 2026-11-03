@@ -1295,7 +1295,9 @@ Applies to `SPEC-frontdesk.md` (FD-001). Added 2026-11-03.
 
 - Uses the administrator shell (§6.7): 240px white sidebar with the brand and view navigation, a 64px top bar with a breadcrumb ("Front desk / <view>"), the signed-in staff name, and sign-out, and the content area on `canvas`. The active nav item uses `primary-soft` with `primary` text.
 - Below `lg`, the sidebar stacks above the content as a top section (§5 Tablet); navigation is never hidden.
-- The sidebar lists only views that exist. Each FD-001 slice adds its own item.
+- The sidebar lists only views that exist. Each FD-001 slice adds its own item: Overview and Requests (PR 3) so far. The breadcrumb's last step is the page `<h1>`; earlier steps link back.
+- **Request queue** (`/front-desk/requests`): a GET filter row (status, appointment date, doctor, specialty, "Clear filters") above one table on `surface` with `shadow-card`. Columns: request ID (monospace, 8 characters), patient with email and phone (or "not provided"), specialty, doctor, requested date and time, submitted, status badge, and a "View" link. Below `lg` the table scrolls inside its frame so the page never scrolls sideways. Pending is the default filter.
+- **Request details** (`/front-desk/requests/<id>`): cards in a two-column grid at `lg` (one column below): Patient, Appointment (as a definition list), Patient-provided information (with the note that chat transcripts are not shared), and Status history as a timeline, oldest first, with the actor and role.
 - Density, tables, and destructive-action confirmation follow §6.7. Pending requests come first (`SPEC-frontdesk.md` §4).
 - States follow the Admin row of §6.9. A non-staff account gets the neutral access-denied state.
 

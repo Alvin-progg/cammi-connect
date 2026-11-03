@@ -241,6 +241,9 @@ The seed:
 - sets the `SEED_FRONT_DESK_EMAIL` account to front desk when set;
 - upserts today/tomorrow/upcoming/past appointments in `Asia/Manila`, including every
   approved status and cross-doctor appointments at the same time;
+- marks the pending (`requested`) appointments as Cami requests
+  (`booking_source = ai_chatbot`, created by the patient) and inserts one `created`
+  audit entry for each, once (re-runs never rewrite audit rows);
 - is idempotent for these rows, but re-running it resets them.
 
 No real patient data is used.
@@ -361,6 +364,20 @@ No real patient data is used.
       access-denied state. `/chat` also shows access denied.
     - Sign in as a patient and confirm `/front-desk` shows access denied.
     - Sign out and confirm `/front-desk` redirects to `/login?next=%2Ffront-desk`.
+17. Check the front desk request queue (FD-001 PR 3), after re-running the seed:
+    - As the front desk account, open **Requests** (`/front-desk/requests`). The seeded
+      pending Cami requests are listed by appointment time, each with a request ID,
+      patient contact (seed patients have no login or phone, so both read "not
+      provided"), specialty, doctor, and the "Pending confirmation" badge.
+    - Filter by doctor, by specialty, by an appointment date, and by status
+      (Confirmed shows none yet). "Clear filters" returns to the pending list.
+    - Book an appointment through `/chat` as a patient with a login, then confirm it
+      appears in the queue with that patient's sign-in email.
+    - Open a request and confirm the Patient, Appointment, Patient-provided
+      information, and Status history sections, with a "Request submitted" entry by
+      the patient. No chat transcript is shown.
+    - An unknown or non-Cami appointment ID under `/front-desk/requests/` shows the
+      not-found page. As a patient, the same URL shows access denied.
 
 ## Troubleshooting
 
