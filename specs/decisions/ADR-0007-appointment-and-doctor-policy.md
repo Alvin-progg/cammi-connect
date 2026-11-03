@@ -166,8 +166,10 @@ Approved by the project owner while planning the Front Desk module
 - **Audit.** `appointment_audit_logs` replaces `appointment_status_history` as the
   append-only audit history.
 - **Who confirms.** Confirmation becomes a front desk action only. Doctors lose the
-  `confirm` action in FD-001 PR 4, when front-desk confirmation ships. Until then the
-  2026-10-25 doctor matrix stays in effect.
+  `confirm` action in FD-001 PR 4, when front-desk confirmation ships. Done in PR 4:
+  staff confirm and reject through `cammi_connect_confirm_appointment` and
+  `cammi_connect_reject_appointment` (migration 0009); doctors keep complete, no-show,
+  cancel and reschedule.
 
 ## Consequences
 

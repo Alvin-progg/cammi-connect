@@ -490,6 +490,23 @@ export type Database = {
         };
         Returns: string;
       };
+      /** Migration 0009. Raises P0001 not_found, not_pending, inactive_doctor, past, outside_hours, or blocked. */
+      cammi_connect_confirm_appointment: {
+        Args: {
+          p_appointment_id: string;
+          p_staff_id: string;
+        };
+        Returns: undefined;
+      };
+      /** Migration 0009. Raises P0001 not_found, not_pending, or reason_required. */
+      cammi_connect_reject_appointment: {
+        Args: {
+          p_appointment_id: string;
+          p_staff_id: string;
+          p_reason: string;
+        };
+        Returns: undefined;
+      };
       cammi_connect_match_knowledge_chunks: {
         Args: {
           /** pgvector text form, e.g. "[0.1,0.2,...]". */

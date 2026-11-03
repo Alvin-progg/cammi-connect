@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { AccessDenied } from "@/components/auth/access-denied";
 import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
@@ -18,9 +19,20 @@ export default async function FrontDeskPage() {
   }
 
   return (
-    <FrontDeskShell staffName={session.staff.fullName}>
+    <FrontDeskShell
+      staffName={session.staff.fullName}
+      active="overview"
+      crumbs={[{ label: "Overview" }]}
+    >
       <p className="rounded-xl border border-dashed border-line px-4 py-6 text-sm text-ink-muted">
-        Nothing to review yet. Appointment requests will appear here.
+        The overview is coming soon. Review appointment requests from Cami in{" "}
+        <Link
+          href="/front-desk/requests"
+          className="rounded font-medium text-primary underline underline-offset-4 focus-ring hover:text-primary-hover"
+        >
+          Requests
+        </Link>
+        .
       </p>
     </FrontDeskShell>
   );

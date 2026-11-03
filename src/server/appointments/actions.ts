@@ -32,7 +32,6 @@ export type AppointmentActionState =
 
 const SUCCESS_MESSAGES: Record<DoctorAppointmentAction | "reschedule", string> =
   {
-    confirm: "Appointment confirmed.",
     complete: "Appointment marked as completed.",
     no_show: "Appointment marked as no-show.",
     cancel: "Appointment cancelled.",
@@ -89,7 +88,6 @@ function transitionAction(action: DoctorAppointmentAction) {
   };
 }
 
-export const confirmAppointmentAction = transitionAction("confirm");
 export const completeAppointmentAction = transitionAction("complete");
 export const markNoShowAppointmentAction = transitionAction("no_show");
 

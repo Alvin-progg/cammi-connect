@@ -1,6 +1,6 @@
 # FD-001 — Front Desk Appointment Management
 
-- Status: In progress (PR 1 committed `8a2009f`; PR 2 implemented 2026-11-03, awaiting review)
+- Status: In progress (PR 1 committed `8a2009f`; PR 2 committed `3085b61`; PR 3 committed `d63cb77`; PR 4 implemented 2026-11-03, awaiting review)
 - Type: Feature
 - Priority: High
 - Module: Front Desk Staff
@@ -71,3 +71,55 @@ Each PR uses TDD and stops for review.
 Open item: `cammi_connect_upsert_doctor` (0003) refuses to convert an admin profile
 but not a `front_desk` profile, so an admin could turn a staff account into a doctor.
 Unchanged in PR 2; tighten in a later migration if wanted.
+
+## PR 3 — traceability
+
+Decisions (2026-11-03):
+- **No chat link.** Appointments are not linked to chat conversations, and staff see
+  no chat text. The details page shows the patient's stated reason and the booking
+  metadata instead.
+- **Contact is the email plus the phone when set.**
+  - The email is the patient's sign-in email, read server-side through the
+    service-role Auth admin API.
+  - The phone comes from `profiles.phone`.
+  - Either one shows "not provided" when it is missing.
+
+| Requirement (SPEC-frontdesk) | Implementation | Verification |
+|---|---|---|
+| §5 queue of Cami requests | `/front-desk/requests`; `listRequestQueue` and `supabaseFrontDeskRequestsRepository` (`booking_source = ai_chatbot` only, 100-row limit) | `tests/unit/front-desk/service.test.ts`; smoke step 17 |
+| §5 queue fields (request ID, patient, contact, specialty, doctor, date, time, submitted, status) | `RequestQueue` component | `tests/component/front-desk/request-queue.test.tsx` |
+| §5 filters (pending, confirmed, rejected, cancelled, date, doctor, specialty) | `parseRequestQueueFilters` in `src/lib/front-desk/requests.ts`; the service maps pending to `requested` and the date to a Manila day | `tests/unit/front-desk/requests.test.ts`, `service.test.ts` |
+| §5 request details with previous status changes | `/front-desk/requests/[id]`; `RequestDetailsView`; history from `appointment_audit_logs` with actor names | `tests/component/front-desk/request-details.test.tsx`; smoke step 17 |
+| §3 server-side role authorization | Both pages call `getFrontDeskSession` and show access denied otherwise; a malformed, unknown or non-Cami ID gets not found | `front-desk-session.test.ts`, `service.test.ts`; smoke step 17 |
+| §14 "pending requests appear in a centralized queue", "staff can view complete request details" | as above | as above |
+
+Limitations:
+- **No requested specialty on chat bookings.** `cammi_connect_book_appointment` doesn't record `specialty_id`, so the queue shows the doctor's specialties. Capturing the specialty needs a migration and is a possible follow-up.
+- **No "relevant appointment requirements".** §5 lists them, but no data source exists, so they are not shown.
+- **No chat context.** By decision, staff see no AI conversation context.
+- **No pagination.** The queue shows the first 100 matches, ordered by appointment time.
+
+## PR 4 — traceability
+
+| Requirement (SPEC-frontdesk) | Implementation | Verification |
+|---|---|---|
+| §6 confirm through a controlled backend operation: still pending, availability re-checked, staff and timestamp recorded, success only after commit | `cammi_connect_confirm_appointment` (0009); `confirmRequest` and `confirmRequestAction`; `RequestDecision` confirm dialog | `tests/unit/front-desk/service.test.ts`, `actions.test.ts`, `tests/component/front-desk/request-decision.test.tsx`; smoke step 18 |
+| §6 reject with a required reason; staff recorded; never deleted | `cammi_connect_reject_appointment` (0009); `rejectRequestSchema` (SPEC §6 presets, details required for "Other"); reject dialog | `tests/unit/front-desk/decisions.test.ts`, `service.test.ts`, `actions.test.ts`, `request-decision.test.tsx`; smoke step 18 |
+| §14 staff can verify doctor and schedule availability | `checkRequestSlot` (reuses `validateAppointmentSlot`); "Schedule check" field | `service.test.ts`, `request-details.test.tsx` |
+| §14 concurrent confirmation cannot double-book | Row lock plus the `not_pending` check; the pending row already holds its slot under `appointments_no_active_overlap` | smoke step 18 (two tabs) |
+| §14 rejected requests retain their history; every action audited | Audit row written inside each function | smoke step 18 |
+| §3 server-side role authorization | Both actions call `getFrontDeskSession` and never write without it; the staff ID comes from the session | `actions.test.ts` |
+| §13 the AI cannot confirm | Only front desk actions call the confirm function; the chat tools have no confirm; the 0007 AI insert guard still applies | `tests/unit/chat/tools.test.ts` (existing) |
+| ADR-0007 "Who confirms" | `confirm` removed from `DOCTOR_APPOINTMENT_ACTIONS`, `confirmAppointmentAction` and the doctor UI | `tests/unit/appointments/transitions.test.ts`, `mutations.test.ts`, `tests/component/doctor/week-schedule.test.tsx` |
+
+**Changed doctor tests.** Removing doctor confirm is an approved behavior change. Each change is listed here so it can be reviewed:
+- **`transitions.test.ts`:**
+  - "allows confirm and cancel from requested" now asserts that requested allows only `cancel`.
+  - `canDoctorPerform("confirmed", "confirm") === false` became an exact `allowedDoctorActions("confirmed")` list.
+  - The `targetStatusForAction("confirm")` and `sourceStatusesForAction("confirm")` checks were removed (`sourceStatusesForAction("complete")` replaces the second), and `isDoctorAppointmentAction("confirm")` now expects false, in a new test.
+- **`mutations.test.ts`:** the success, illegal-transition, scope and race cases use `complete` instead of `confirm`, with the same assertions.
+- **`week-schedule.test.tsx`:** the popover asserts there is no Confirm button and shows "Awaiting front desk confirmation".
+
+**Limitations.**
+- There is no automated test of the SQL functions (ADR-0003: no local database). They are covered by smoke step 18.
+- Patients learn the outcome only by viewing their appointments. Notifications and showing the rejection reason come in PR 9.

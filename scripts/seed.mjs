@@ -16,6 +16,8 @@
  * exceptions, notifications, and the listed appointments. Re-running it resets
  * those rows to the values below. It never deletes rows; other active schedule
  * periods of the seed doctors are deactivated so the seeded periods apply.
+ * Pending appointments are seeded as Cami (ai_chatbot) requests with a
+ * "created" audit entry, which is inserted once and never rewritten.
  */
 import { createClient } from "@supabase/supabase-js";
 
@@ -558,11 +560,50 @@ async function main() {
     },
   ];
 
+  // Pending requests stand in for bookings the patients made through Cami, so
+  // the front desk queue (FD-001) has something to review. The AI guard
+  // trigger (0007) only accepts ai_chatbot rows as requested. Every row sets
+  // both columns because an array upsert writes NULL for missing keys.
+  const seededAppointments = appointments.map((appointment) => {
+    const fromCami = appointment.status === "requested";
+    return {
+      ...appointment,
+      booking_source: fromCami ? "ai_chatbot" : "other",
+      created_by_profile_id: fromCami ? appointment.patient_id : null,
+    };
+  });
+
   const { error: appointmentError } = await supabase
     .from("appointments")
-    .upsert(appointments, { onConflict: "id" });
+    .upsert(seededAppointments, { onConflict: "id" });
   if (appointmentError) {
     throw new Error(`Unable to upsert appointments: ${appointmentError.message}`);
+  }
+
+  // One "created" audit entry per Cami request. The audit log is append-only,
+  // so existing entries are left alone (ON CONFLICT DO NOTHING) and a re-run
+  // never rewrites history, even if staff have since acted on the request.
+  const camiRequests = seededAppointments.filter(
+    (appointment) => appointment.booking_source === "ai_chatbot",
+  );
+  const auditEntries = camiRequests.map((appointment, index) => ({
+    id: `00000000-0000-4000-8000-${String(701 + index).padStart(12, "0")}`,
+    appointment_id: appointment.id,
+    actor_profile_id: appointment.patient_id,
+    action: "created",
+    previous_status: null,
+    new_status: "requested",
+    new_values: {
+      scheduled_at: appointment.scheduled_at,
+      booking_source: "ai_chatbot",
+    },
+  }));
+
+  const { error: auditError } = await supabase
+    .from("appointment_audit_logs")
+    .upsert(auditEntries, { onConflict: "id", ignoreDuplicates: true });
+  if (auditError) {
+    throw new Error(`Unable to insert audit entries: ${auditError.message}`);
   }
 
   // Consultation periods. day_of_week is Sunday-first. The main doctor has
@@ -714,7 +755,7 @@ async function main() {
   console.log(`Doctor profile: ${doctorProfileId}`);
   console.log(`Synthetic profiles: ${syntheticProfiles.length}`);
   console.log(
-    `Appointments: ${appointments.length} (${todayCount} today, ${appointments.length - todayCount} other days)`,
+    `Appointments: ${appointments.length} (${todayCount} today, ${appointments.length - todayCount} other days; ${camiRequests.length} pending Cami requests)`,
   );
   console.log(
     `Doctors: ${doctors.length} · Specialties: ${SPECIALTY_NAMES.length} · Schedule periods: ${schedules.length} · Exceptions: ${scheduleExceptions.length} · Notifications: ${notifications.length}`,

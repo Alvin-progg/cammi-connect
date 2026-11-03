@@ -6,36 +6,82 @@ import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
 vi.mock("@/server/auth/actions", () => ({ signOutAction: vi.fn() }));
 
 describe("FrontDeskShell", () => {
-  function renderShell() {
+  function renderOverview() {
     render(
-      <FrontDeskShell staffName="Synthetic Front Desk">
+      <FrontDeskShell
+        staffName="Synthetic Front Desk"
+        active="overview"
+        crumbs={[{ label: "Overview" }]}
+      >
         <p>Overview content</p>
       </FrontDeskShell>,
     );
   }
 
-  it("marks Overview as the current page in the front desk navigation", () => {
-    renderShell();
+  it("links every front desk view and marks the active one", () => {
+    renderOverview();
 
     const nav = screen.getByRole("navigation", { name: "Front desk" });
     const overview = within(nav).getByRole("link", { name: "Overview" });
+    const requests = within(nav).getByRole("link", { name: "Requests" });
     expect(overview).toHaveAttribute("href", "/front-desk");
     expect(overview).toHaveAttribute("aria-current", "page");
+    expect(requests).toHaveAttribute("href", "/front-desk/requests");
+    expect(requests).not.toHaveAttribute("aria-current");
   });
 
-  it("shows a breadcrumb ending at the current page", () => {
-    renderShell();
+  it("marks Requests as current on request pages", () => {
+    render(
+      <FrontDeskShell
+        staffName="Synthetic Front Desk"
+        active="requests"
+        crumbs={[{ label: "Requests" }]}
+      >
+        <p>Queue</p>
+      </FrontDeskShell>,
+    );
 
-    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
-    expect(within(breadcrumb).getByText("Front desk")).toBeInTheDocument();
-    expect(within(breadcrumb).getByText("Overview")).toHaveAttribute(
+    const nav = screen.getByRole("navigation", { name: "Front desk" });
+    expect(within(nav).getByRole("link", { name: "Requests" })).toHaveAttribute(
       "aria-current",
       "page",
     );
+    expect(within(nav).getByRole("link", { name: "Overview" })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
+  it("shows a breadcrumb ending at the current page", () => {
+    render(
+      <FrontDeskShell
+        staffName="Synthetic Front Desk"
+        active="requests"
+        crumbs={[
+          { label: "Requests", href: "/front-desk/requests" },
+          { label: "Request AB12CD34" },
+        ]}
+      >
+        <p>Details</p>
+      </FrontDeskShell>,
+    );
+
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(breadcrumb).getByText("Front desk")).toBeInTheDocument();
+    expect(within(breadcrumb).getByRole("link", { name: "Requests" })).toHaveAttribute(
+      "href",
+      "/front-desk/requests",
+    );
+    expect(within(breadcrumb).getByText("Request AB12CD34")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Request AB12CD34" }),
+    ).toBeInTheDocument();
   });
 
   it("shows the signed-in staff member, a sign-out control, and the page content", () => {
-    renderShell();
+    renderOverview();
 
     expect(screen.getByText("Synthetic Front Desk")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
