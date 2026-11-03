@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-23
-- Amended: 2026-10-25 (doctor mutation slice)
+- Amended: 2026-10-25 (doctor mutation slice); 2026-11-03 (front desk lifecycle, FD-001)
 - Decision owner: Human project owner
 - Related ticket: `CC-008`
 - Related requirements: `FR-004`, `FR-005`, `UI-003`, `UI-004`
@@ -140,6 +140,34 @@ This amendment supersedes the one-row-per-weekday model above.
 - **Management.** Admins manage departments, specialties, doctors, and any doctor's
   schedule. Doctors keep editing their own schedule periods and exceptions. Front Desk
   and AI Chatbot roles are deferred.
+
+## Amendment (2026-11-03, FD-001)
+
+Approved by the project owner while planning the Front Desk module
+(`SPEC-frontdesk.md`, ticket `FD-001`).
+
+- **Statuses.** `rejected` and `checked_in` are added. The stored value `requested` is
+  kept for what the spec calls `pending_confirmation`; the UI labels it "Pending
+  confirmation".
+- **Transition matrix** (`canTransition` in `src/lib/appointments/transitions.ts`):
+  `requested → confirmed | rejected | cancelled`;
+  `confirmed → checked_in | cancelled | no_show | completed`;
+  `checked_in → completed`. `rejected`, `cancelled`, `completed`, and `no_show` are
+  terminal. `confirmed → completed` is not in the spec's §11 list; it is kept so a
+  doctor can still complete a visit that was never checked in. A reschedule keeps the
+  status.
+- **Slot holding.** `requested`, `confirmed`, and `checked_in` hold the doctor's slot
+  (the `appointments_no_active_overlap` predicate and `SLOT_HOLDING_STATUSES`).
+- **Booking source.** Every appointment records `booking_source` (`ai_chatbot`,
+  `front_desk`, `other`) and its creator. A database trigger rejects an `ai_chatbot`
+  row inserted in any status other than `requested`.
+- **Rejection.** A `rejected` row requires a `rejection_reason`, and rejected rows are
+  never deleted.
+- **Audit.** `appointment_audit_logs` replaces `appointment_status_history` as the
+  append-only audit history.
+- **Who confirms.** Confirmation becomes a front desk action only. Doctors lose the
+  `confirm` action in FD-001 PR 4, when front-desk confirmation ships. Until then the
+  2026-10-25 doctor matrix stays in effect.
 
 ## Consequences
 

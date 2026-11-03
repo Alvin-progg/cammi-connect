@@ -102,6 +102,19 @@ the `extensions` schema and used only through `security invoker` database functi
 executable by `service_role` only, called through the Data API with `rpc()`. There is
 still no `DATABASE_URL` or direct Postgres connection.
 
+## Note (2026-11-03, FD-001)
+
+The Front Desk module keeps this model; the project owner chose it over the RLS
+policies proposed in `SPEC-frontdesk.md` §3 and §13. Front-desk reads and writes go
+through server-only code using the service-role client, gated by a per-role DAL guard
+(`getFrontDeskSession`, added in FD-001 PR 2). No front-desk RLS policies are created,
+because the service role bypasses them.
+
+`appointment_audit_logs` (migration `0007`) is append-only even for the service role. A
+trigger raises `audit_log_immutable` on UPDATE, DELETE, and TRUNCATE, and `service_role`
+is granted SELECT and INSERT only. `appointment_status_history` is deprecated and
+read-only from `0007` on.
+
 ## Consequences
 
 - No new database dependency and no database password is required.

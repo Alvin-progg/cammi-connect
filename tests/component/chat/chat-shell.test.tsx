@@ -590,7 +590,7 @@ describe("ChatShell appointments view", () => {
     const upcoming = screen.getByRole("region", { name: "Upcoming" });
     expect(within(upcoming).getByText("Dr. Maya Santos")).toBeInTheDocument();
     expect(within(upcoming).getByText(/Cardiology/)).toBeInTheDocument();
-    expect(within(upcoming).getByText("Requested")).toBeInTheDocument();
+    expect(within(upcoming).getByText("Pending confirmation")).toBeInTheDocument();
     expect(within(upcoming).getByText("Follow-up on blood pressure")).toBeInTheDocument();
 
     const past = screen.getByRole("region", { name: "Past" });

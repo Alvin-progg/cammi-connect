@@ -65,6 +65,9 @@ Open the Supabase dashboard for the project, go to **SQL Editor**, paste the con
 `db/migrations/0002_doctor_dashboard_suite.sql` once, then
 `db/migrations/0003_doctor_specialty_schedules.sql` once, then
 `db/migrations/0004_chat.sql` once, then `db/migrations/0005_knowledge.sql` once.
+Then run `db/migrations/0006_appointment_status_values.sql` **on its own**, and only
+after it has finished, run `db/migrations/0007_appointment_lifecycle_audit.sql`.
+PostgreSQL cannot use a new enum value in the transaction that added it.
 
 `0001_profiles_appointments.sql`:
 
@@ -124,6 +127,33 @@ renamed table and dropped `doctor_schedules_day_unique` constraint break older c
   `cammi_connect_replace_document_chunks` (atomic re-ingestion of one document),
   executable by `service_role` only (ADR-0003);
 - applies the same RLS/revoke/grant model.
+
+`0006_appointment_status_values.sql` (FD-001 PR 1):
+
+- adds `rejected` and `checked_in` to `appointment_status`. Nothing else, so it can
+  commit before 0007 uses the values.
+
+`0007_appointment_lifecycle_audit.sql` (FD-001 PR 1):
+
+- adds the `booking_source` enum and the `appointments` columns `booking_source`,
+  `created_by_profile_id`, `confirmed_by_profile_id`, `confirmed_at`,
+  `rejection_reason`, and `specialty_id`, backfilling the source and creator from the
+  creation history row;
+- requires a `rejection_reason` on `rejected` rows;
+- recreates `appointments_no_active_overlap` so `checked_in` also holds the slot;
+- adds the `appointments_guard_ai_booking` trigger: an `ai_chatbot` row can only be
+  inserted as `requested` (`ai_requires_confirmation`);
+- creates `appointment_audit_logs`, backfilled from `appointment_status_history`. It is
+  append-only: a trigger raises `audit_log_immutable` on UPDATE, DELETE, and TRUNCATE,
+  and `service_role` has SELECT and INSERT only;
+- makes `appointment_status_history` read-only (deprecated; a later migration drops
+  it);
+- replaces `cammi_connect_book_appointment` with a six-argument version that takes the
+  booking source and creator and writes the `created` audit row.
+
+Deploy the matching application code at the same time: older code writes
+`appointment_status_history` and calls the four-argument booking function, and both
+now fail.
 
 ### Knowledge base ingestion (ADR-0004)
 
@@ -281,7 +311,8 @@ No real patient data is used.
     ```sql
     select public.cammi_connect_book_appointment(
       '<doctor-id>', '00000000-0000-4000-8000-000000000001',
-      '<YYYY-MM-DD>T08:00:00+08:00', 'Smoke test');
+      '<YYYY-MM-DD>T08:00:00+08:00', 'Smoke test',
+      'ai_chatbot', '00000000-0000-4000-8000-000000000001');
     ```
 
     Run it a second time with the same slot and confirm it fails with SQLSTATE
@@ -289,6 +320,23 @@ No real patient data is used.
     leave exception raises `blocked`, and a past time raises `past`. For the
     concurrency check, run the same call from two SQL editor tabs at once and confirm
     exactly one succeeds. Cancel the smoke-test appointments afterwards.
+15. Check the FD-001 lifecycle guards in the SQL editor with synthetic IDs:
+    - The appointment booked in step 14 has `booking_source = 'ai_chatbot'`,
+      `created_by_profile_id` set, and exactly one `appointment_audit_logs` row with
+      `action = 'created'`.
+    - Inserting an appointment directly with `booking_source = 'ai_chatbot'` and
+      `status = 'confirmed'` fails with `ai_requires_confirmation`.
+    - `update public.appointment_audit_logs set reason = 'x' where id = '<audit-id>'`
+      and `delete from public.appointment_audit_logs where id = '<audit-id>'` both fail
+      with `audit_log_immutable`.
+    - Setting a smoke-test appointment to `rejected` without a `rejection_reason` fails
+      on `appointments_rejection_reason_required`.
+    - With one smoke-test appointment set to `checked_in`, inserting an overlapping
+      appointment for the same doctor fails with SQLSTATE `23P01`.
+    - Open `/doctor` and confirm older appointments still show their history (now read
+      from `appointment_audit_logs`).
+
+    Cancel the smoke-test appointments afterwards. Audit rows stay, by design.
 
 ## Troubleshooting
 
@@ -322,6 +370,7 @@ Do not use real patient or clinician email addresses for synthetic testing.
 - If a booking turn fails unexpectedly after Confirm was claimed (provider or database
   outage), the conversation's booking state stays at `booking` and its cards stop
   accepting actions. The patient recovers by typing a new booking request.
-- The booking function, its grants, the new constraints, and concurrent booking are
-  verified only by the manual smoke test above.
+- The booking function, its grants, the new constraints, the AI confirmation guard,
+  audit-log immutability, and concurrent booking are verified only by the manual
+  smoke test above.
 - There is no local database for integration or E2E tests yet.

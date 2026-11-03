@@ -187,7 +187,7 @@ describe("BookingCard", () => {
     });
 
     expect(screen.getByText("Request received")).toBeInTheDocument();
-    expect(screen.getByText("Requested")).toBeInTheDocument();
+    expect(screen.getByText("Pending confirmation")).toBeInTheDocument();
     expect(screen.queryByText(/confirmed/i)).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View my appointments" })).toHaveAttribute(
       "href",

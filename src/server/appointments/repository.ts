@@ -1,6 +1,13 @@
 import "server-only";
 
-import type { AppointmentStatus } from "@/lib/appointments/status";
+import {
+  auditActionFor,
+  scheduledAtFromAuditValues,
+} from "@/lib/appointments/audit";
+import {
+  SLOT_HOLDING_STATUSES,
+  type AppointmentStatus,
+} from "@/lib/appointments/status";
 import type {
   AppointmentHistoryEntry,
   DoctorAppointment,
@@ -77,8 +84,12 @@ async function mapRowsToAppointments(
  * repository in the UI DTO. Patient contact details and clinical records are
  * not selected.
  */
-/** The one writer for appointment_status_history, shared by doctor and patient transitions. */
-const insertStatusHistory: DoctorAppointmentsReader["insertHistory"] = async ({
+/**
+ * The one writer for appointment_audit_logs, shared by doctor and patient
+ * transitions. The table is append-only (FD-001); the action is derived from
+ * the status change, and the schedule snapshot goes into `new_values`.
+ */
+const insertAuditEntry: DoctorAppointmentsReader["insertHistory"] = async ({
   appointmentId,
   fromStatus,
   toStatus,
@@ -87,13 +98,14 @@ const insertStatusHistory: DoctorAppointmentsReader["insertHistory"] = async ({
   scheduledAtSnapshot,
 }) => {
   const supabase = getSupabaseAdminClient();
-  const { error } = await supabase.from("appointment_status_history").insert({
+  const { error } = await supabase.from("appointment_audit_logs").insert({
     appointment_id: appointmentId,
-    from_status: fromStatus,
-    to_status: toStatus,
-    changed_by_profile_id: changedByProfileId,
+    actor_profile_id: changedByProfileId,
+    action: auditActionFor(fromStatus, toStatus),
+    previous_status: fromStatus,
+    new_status: toStatus,
+    new_values: scheduledAtSnapshot ? { scheduled_at: scheduledAtSnapshot } : null,
     reason,
-    scheduled_at_snapshot: scheduledAtSnapshot,
   });
 
   if (error) {
@@ -165,7 +177,7 @@ export const supabaseDoctorAppointmentsRepository: DoctorAppointmentsReader = {
       .from("appointments")
       .select("id, scheduled_at, duration_minutes")
       .eq("doctor_id", doctorId)
-      .in("status", ["requested", "confirmed"])
+      .in("status", [...SLOT_HOLDING_STATUSES])
       .gte("scheduled_at", start)
       .lt("scheduled_at", end);
     if (excludeId) {
@@ -229,14 +241,14 @@ export const supabaseDoctorAppointmentsRepository: DoctorAppointmentsReader = {
     return (data ?? []).length > 0;
   },
 
-  insertHistory: insertStatusHistory,
+  insertHistory: insertAuditEntry,
 
   async listHistory({ appointmentIds }) {
     const supabase = getSupabaseAdminClient();
     const { data, error } = await supabase
-      .from("appointment_status_history")
+      .from("appointment_audit_logs")
       .select(
-        "id, appointment_id, from_status, to_status, reason, scheduled_at_snapshot, created_at",
+        "id, appointment_id, previous_status, new_status, reason, new_values, created_at",
       )
       .in("appointment_id", appointmentIds)
       .order("created_at", { ascending: true })
@@ -249,10 +261,10 @@ export const supabaseDoctorAppointmentsRepository: DoctorAppointmentsReader = {
       (row): AppointmentHistoryEntry => ({
         id: row.id,
         appointmentId: row.appointment_id,
-        fromStatus: row.from_status,
-        toStatus: row.to_status,
+        fromStatus: row.previous_status,
+        toStatus: row.new_status,
         reason: row.reason,
-        scheduledAtSnapshot: row.scheduled_at_snapshot,
+        scheduledAtSnapshot: scheduledAtFromAuditValues(row.new_values),
         createdAt: row.created_at,
       }),
     );
@@ -261,17 +273,26 @@ export const supabaseDoctorAppointmentsRepository: DoctorAppointmentsReader = {
 
 /**
  * Calls the cammi_connect_book_appointment database function, which locks the
- * doctor, re-checks availability, and inserts the appointment and its history
+ * doctor, re-checks availability, and inserts the appointment and its audit
  * row in one transaction.
  */
 export const supabaseAppointmentBooker: AppointmentBooker = {
-  async book({ doctorId, patientId, scheduledAt, reason }) {
+  async book({
+    doctorId,
+    patientId,
+    scheduledAt,
+    reason,
+    bookingSource,
+    createdByProfileId,
+  }) {
     const supabase = getSupabaseAdminClient();
     const { data, error } = await supabase.rpc("cammi_connect_book_appointment", {
       p_doctor_id: doctorId,
       p_patient_id: patientId,
       p_scheduled_at: scheduledAt,
       p_reason: reason,
+      p_booking_source: bookingSource,
+      p_created_by: createdByProfileId,
     });
 
     if (error) {
@@ -405,5 +426,5 @@ export const supabasePatientAppointmentsRepository: PatientAppointmentsStore = {
     return (data ?? []).length > 0;
   },
 
-  insertHistory: insertStatusHistory,
+  insertHistory: insertAuditEntry,
 };

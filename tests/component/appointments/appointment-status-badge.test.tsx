@@ -5,8 +5,10 @@ import { AppointmentStatusBadge } from "@/components/appointments/appointment-st
 import type { AppointmentStatus } from "@/lib/appointments/status";
 
 const LABELS: Array<[AppointmentStatus, string]> = [
-  ["requested", "Requested"],
+  ["requested", "Pending confirmation"],
   ["confirmed", "Confirmed"],
+  ["rejected", "Rejected"],
+  ["checked_in", "Checked in"],
   ["completed", "Completed"],
   ["cancelled", "Cancelled"],
   ["no_show", "No-show"],

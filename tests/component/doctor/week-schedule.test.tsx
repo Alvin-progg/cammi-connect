@@ -81,7 +81,7 @@ describe("WeekSchedule", () => {
     const popover = screen.getByRole("dialog", { name: "Synthetic Patient A" });
     expect(slot).toHaveAttribute("aria-expanded", "true");
     expect(within(popover).getByText("Routine consultation")).toBeInTheDocument();
-    expect(within(popover).getByText("Requested")).toBeInTheDocument();
+    expect(within(popover).getByText("Pending confirmation")).toBeInTheDocument();
     expect(within(popover).getByText("30 min")).toBeInTheDocument();
     expect(
       within(popover).getByRole("button", { name: "Confirm" }),

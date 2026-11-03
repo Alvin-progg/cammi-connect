@@ -3,6 +3,8 @@ import { APPOINTMENT_STATUS_LABELS, type AppointmentStatus } from "@/lib/appoint
 const STATUS_TONES: Record<AppointmentStatus, string> = {
   requested: "border-warning/30 bg-warning-soft text-warning-soft-ink",
   confirmed: "border-success/30 bg-success-soft text-success-soft-ink",
+  rejected: "border-danger/30 bg-danger-soft text-danger-soft-ink",
+  checked_in: "border-primary/30 bg-primary-soft text-primary",
   completed: "border-success/30 bg-success-soft text-success-soft-ink",
   cancelled: "border-danger/30 bg-danger-soft text-danger-soft-ink",
   no_show: "border-line bg-surface-muted text-ink-secondary",

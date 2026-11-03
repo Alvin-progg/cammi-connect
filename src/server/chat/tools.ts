@@ -153,7 +153,14 @@ export function createChatTools({
     async createAppointment(input) {
       const { patientId, doctorId, start, reason } = createAppointmentInputSchema.parse(input);
       return bookAppointment(
-        { patientId, doctorId, scheduledAt: new Date(start), reason },
+        {
+          patientId,
+          doctorId,
+          scheduledAt: new Date(start),
+          reason,
+          bookingSource: "ai_chatbot",
+          createdByProfileId: patientId,
+        },
         booker,
       );
     },
