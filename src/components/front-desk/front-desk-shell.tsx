@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { key: "overview", href: "/front-desk", label: "Overview" },
   { key: "requests", href: "/front-desk/requests", label: "Requests" },
   { key: "schedule", href: "/front-desk/schedule", label: "Daily schedule" },
+  { key: "book", href: "/front-desk/book", label: "New appointment" },
 ] as const;
 
 export type FrontDeskSection = (typeof NAV_ITEMS)[number]["key"];

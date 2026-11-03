@@ -31,6 +31,9 @@ describe("FrontDeskShell", () => {
     const schedule = within(nav).getByRole("link", { name: "Daily schedule" });
     expect(schedule).toHaveAttribute("href", "/front-desk/schedule");
     expect(schedule).not.toHaveAttribute("aria-current");
+    const book = within(nav).getByRole("link", { name: "New appointment" });
+    expect(book).toHaveAttribute("href", "/front-desk/book");
+    expect(book).not.toHaveAttribute("aria-current");
   });
 
   it("marks Daily schedule as current on the schedule page", () => {

@@ -15,6 +15,12 @@ import {
   recordAttendance,
   rejectRequest,
   rescheduleAppointment,
+  bookForPatient,
+  listBookingSlots,
+  registerPatient,
+  searchPatients,
+  type FrontDeskBooker,
+  type FrontDeskPatientsStore,
   type FrontDeskRequestsReader,
   type FrontDeskRequestsWriter,
   type FrontDeskScheduleReader,
@@ -656,6 +662,235 @@ describe("listRescheduleSlots", () => {
           doctorId: DOCTOR_ID,
           currentScheduledAt: CURRENT,
           date: "2026-11-05",
+        },
+        source(),
+        NOW,
+      ),
+    ).resolves.toEqual([]);
+  });
+});
+
+const PATIENT_ID = "00000000-0000-4000-8000-000000000401";
+
+function createPatientsStore(
+  overrides: Partial<FrontDeskPatientsStore> = {},
+): FrontDeskPatientsStore {
+  return {
+    searchPatients: vi.fn().mockResolvedValue([]),
+    getPatient: vi.fn().mockResolvedValue(null),
+    findPatientsByPhone: vi.fn().mockResolvedValue([]),
+    insertPatient: vi.fn().mockResolvedValue({ id: PATIENT_ID }),
+    ...overrides,
+  };
+}
+
+describe("searchPatients", () => {
+  it("refuses a query shorter than two characters without reading", async () => {
+    const store = createPatientsStore();
+
+    await expect(searchPatients(" a ", store)).resolves.toEqual({
+      ok: false,
+      message: "Enter at least 2 characters of the name or phone number.",
+    });
+    expect(store.searchPatients).not.toHaveBeenCalled();
+  });
+
+  it("searches by the trimmed name and leaves the phone out for a text query", async () => {
+    const match = { id: PATIENT_ID, fullName: "Test Walkin", phone: null, hasAccount: false };
+    const store = createPatientsStore({ searchPatients: vi.fn().mockResolvedValue([match]) });
+
+    await expect(searchPatients("  Walkin ", store)).resolves.toEqual({
+      ok: true,
+      patients: [match],
+    });
+    expect(store.searchPatients).toHaveBeenCalledWith({
+      name: "Walkin",
+      phone: null,
+      limit: 20,
+    });
+  });
+
+  it("also matches the normalized phone when the query looks like a number", async () => {
+    const store = createPatientsStore();
+
+    await searchPatients("0900 000", store);
+
+    expect(store.searchPatients).toHaveBeenCalledWith({
+      name: "0900 000",
+      phone: "0900000",
+      limit: 20,
+    });
+  });
+});
+
+describe("registerPatient", () => {
+  it("creates a walk-in record with the normalized phone", async () => {
+    const store = createPatientsStore();
+
+    await expect(
+      registerPatient({ fullName: "Test Walkin", phone: "0900 000 0000" }, store),
+    ).resolves.toEqual({ ok: true, patientId: PATIENT_ID });
+    expect(store.findPatientsByPhone).toHaveBeenCalledWith("09000000000");
+    expect(store.insertPatient).toHaveBeenCalledWith({
+      fullName: "Test Walkin",
+      phone: "09000000000",
+    });
+  });
+
+  it("refuses a phone number another patient already has", async () => {
+    const store = createPatientsStore({
+      findPatientsByPhone: vi.fn().mockResolvedValue([
+        { id: PATIENT_ID, fullName: "Test Walkin", phone: "09000000000", hasAccount: false },
+      ]),
+    });
+
+    await expect(
+      registerPatient({ fullName: "Another Walkin", phone: "0900-000-0000" }, store),
+    ).resolves.toEqual({
+      ok: false,
+      message:
+        "A patient with this phone number is already registered. Search for them instead.",
+    });
+    expect(store.insertPatient).not.toHaveBeenCalled();
+  });
+});
+
+describe("bookForPatient", () => {
+  const scheduledAt = "2026-11-05T01:30:00.000Z";
+  const input = {
+    patientId: PATIENT_ID,
+    doctorId: DOCTOR_ID,
+    specialtyId: SPECIALTY_ID,
+    scheduledAt,
+    reason: "Follow-up",
+    staffId: STAFF_ID,
+  };
+
+  function booker(outcome: Awaited<ReturnType<FrontDeskBooker["bookForPatient"]>>) {
+    return { bookForPatient: vi.fn().mockResolvedValue(outcome) };
+  }
+
+  it("books for the patient while recording the staff member as the creator", async () => {
+    const fake = booker({ ok: true, appointmentId: APPOINTMENT_ID });
+
+    await expect(bookForPatient(input, fake)).resolves.toEqual({
+      ok: true,
+      appointmentId: APPOINTMENT_ID,
+    });
+    expect(fake.bookForPatient).toHaveBeenCalledWith({
+      patientId: PATIENT_ID,
+      doctorId: DOCTOR_ID,
+      specialtyId: SPECIALTY_ID,
+      scheduledAt,
+      reason: "Follow-up",
+      staffId: STAFF_ID,
+    });
+  });
+
+  it("refuses an overlapping slot", async () => {
+    await expect(
+      bookForPatient(
+        input,
+        booker({ ok: false, error: { code: "23P01", message: "conflicting key value" } }),
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      message: "That slot was just taken. Choose another time.",
+    });
+  });
+
+  it.each([
+    ["invalid_patient", "This patient record can't be booked. Search for the patient again."],
+    ["inactive_doctor", "This doctor is no longer accepting appointments."],
+    ["specialty_mismatch", "This doctor doesn't offer the chosen specialty."],
+    ["past", "Choose a future time."],
+    ["outside_hours", "That time is not one of the doctor's consultation slots."],
+    ["blocked", "The doctor is unavailable at that time."],
+  ])("explains the %s refusal", async (code, message) => {
+    await expect(
+      bookForPatient(input, booker({ ok: false, error: { code: "P0001", message: code } })),
+    ).resolves.toEqual({ ok: false, message });
+  });
+
+  it("hides any other database error behind a generic message", async () => {
+    await expect(
+      bookForPatient(
+        input,
+        booker({ ok: false, error: { code: "42501", message: "permission denied" } }),
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      message: "The appointment could not be booked. Try again in a moment.",
+    });
+  });
+});
+
+describe("listBookingSlots", () => {
+  // 2026-11-04 is a Wednesday in Manila; 08:00–09:00 PHT is 00:00Z–01:00Z.
+  const NOW = new Date("2026-11-03T04:00:00.000Z");
+  const DOCTOR = {
+    id: DOCTOR_ID,
+    fullName: "Dr. Synthetic",
+    departmentId: null,
+    departmentName: null,
+    isActive: true,
+    specialties: [{ id: SPECIALTY_ID, name: "Cardiology" }],
+  };
+
+  function source(intervals: { start: string; end: string }[] = []) {
+    return {
+      listSpecialties: vi.fn().mockResolvedValue([
+        { id: SPECIALTY_ID, name: "Cardiology", description: null, isActive: true },
+      ]),
+      listDoctors: vi.fn().mockResolvedValue([DOCTOR]),
+      getDoctor: vi.fn().mockResolvedValue(DOCTOR),
+      listSchedulesForDoctor: vi.fn().mockResolvedValue([
+        {
+          id: "00000000-0000-4000-8000-000000000914",
+          doctorId: DOCTOR_ID,
+          dayOfWeek: 3,
+          startTime: "08:00",
+          endTime: "09:00",
+          slotDurationMinutes: 30,
+          effectiveFrom: "2026-01-01",
+          effectiveUntil: null,
+          isActive: true,
+        },
+      ]),
+      listExceptionsForDoctor: vi.fn().mockResolvedValue([]),
+      listActiveIntervals: vi.fn().mockResolvedValue(intervals),
+    };
+  }
+
+  it("offers the doctor's free slots on the chosen Manila date", async () => {
+    const reader = source([
+      { start: "2026-11-04T00:00:00.000Z", end: "2026-11-04T00:30:00.000Z" },
+    ]);
+
+    await expect(
+      listBookingSlots(
+        { doctorId: DOCTOR_ID, specialtyId: SPECIALTY_ID, date: "2026-11-04" },
+        reader,
+        NOW,
+      ),
+    ).resolves.toEqual([
+      { start: "2026-11-04T00:30:00.000Z", end: "2026-11-04T01:00:00.000Z" },
+    ]);
+    expect(reader.getDoctor).toHaveBeenCalledWith(DOCTOR_ID);
+    expect(reader.listActiveIntervals).toHaveBeenCalledWith({
+      doctorId: DOCTOR_ID,
+      start: "2026-11-03T16:00:00.000Z",
+      end: "2026-11-04T16:00:00.000Z",
+    });
+  });
+
+  it("offers nothing when the doctor lacks the chosen specialty", async () => {
+    await expect(
+      listBookingSlots(
+        {
+          doctorId: DOCTOR_ID,
+          specialtyId: "00000000-0000-4000-8000-000000000599",
+          date: "2026-11-04",
         },
         source(),
         NOW,

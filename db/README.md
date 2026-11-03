@@ -75,7 +75,8 @@ Then run `db/migrations/0008_front_desk_role.sql` **on its own**.
 PostgreSQL cannot use a new enum value in the transaction that added it.
 Then run `db/migrations/0009_front_desk_confirm_reject.sql` once, then
 `db/migrations/0010_front_desk_attendance.sql` once, then
-`db/migrations/0011_front_desk_reschedule_cancel.sql` once.
+`db/migrations/0011_front_desk_reschedule_cancel.sql` once, then
+`db/migrations/0012_front_desk_booking.sql` once.
 
 `0001_profiles_appointments.sql`:
 
@@ -211,6 +212,23 @@ now fail.
 - both raise `P0001` with a code (`reason_required`, `not_found`,
   `not_reschedulable`, `unchanged`, `inactive_doctor`, `past`, `outside_hours`,
   `blocked`, `not_cancellable`) and are executable by `service_role` only.
+
+`0012_front_desk_booking.sql` (FD-001 PR 7):
+
+- adds `cammi_connect_front_desk_book_appointment(patient, doctor, specialty,
+  scheduled_at, reason, staff)`. In one transaction it requires a `role = 'patient'`
+  profile, locks the active doctor, checks the optional specialty against
+  `doctor_specialties`, then checks that the time is in the future, on one of the
+  doctor's slots (same grid check as booking), and clear of schedule exceptions. It
+  inserts the appointment already `confirmed` with `booking_source = 'front_desk'`,
+  `created_by_profile_id` and `confirmed_by_profile_id` set to the staff member,
+  `confirmed_at`, and `specialty_id`, and writes one `created` audit row
+  (`previous_status` null, `new_status` `confirmed`). A slot already held fails on
+  `appointments_no_active_overlap` (`23P01`) and nothing is written;
+- raises `P0001` with `invalid_patient`, `inactive_doctor`, `specialty_mismatch`,
+  `past`, `outside_hours`, or `blocked`, and is executable by `service_role` only;
+- walk-in patients need no function: the server inserts a `profiles` row with
+  `role = 'patient'`, `auth_user_id = null`, a name, and a normalized phone.
 
 ### Knowledge base ingestion (ADR-0004)
 
@@ -496,6 +514,31 @@ No real patient data is used.
       **Reschedule** nor **Cancel appointment**.
     - As the doctor, the rescheduled appointment shows its new time in `/doctor`, and
       the cancelled one shows Cancelled.
+
+21. Check staff-assisted booking (FD-001 PR 7), after applying 0012. Use synthetic data
+    only:
+    - As the front desk account, open **New appointment** and search for "Test Walkin".
+      No match is found. Register "Test Walkin" with phone `0900 000 0000`. You land on
+      step 2 with the patient shown as a walk-in record. In SQL, the new `profiles` row
+      has `role = 'patient'`, `auth_user_id` null, and `phone = '09000000000'`.
+      Registering another patient with `0900-000-0000` is refused as a duplicate, and
+      searching `0900 000` finds Test Walkin.
+    - Choose a specialty, a doctor, and a date the doctor works, then **Show slots**.
+      Pick a slot, check the review, and **Book and confirm**. You land on the
+      appointment details: status Confirmed, booking source Front desk, and one history
+      entry with your name. In SQL, the row has `patient_id` = Test Walkin,
+      `created_by_profile_id` = `confirmed_by_profile_id` = your staff profile (not the
+      patient), `confirmed_at` set, and `specialty_id` set; there is exactly one
+      `created` audit row with `new_status = 'confirmed'`.
+    - The booked slot no longer appears for that doctor and date. Open the slot list in
+      two tabs, book a slot in the first, then book the same slot in the second: it fails
+      with "That slot was just taken" and no second row or audit row is written.
+    - In SQL, calling the function with a doctor's profile id as the patient fails with
+      `invalid_patient`; a specialty the doctor lacks fails with `specialty_mismatch`;
+      a time off the slot grid fails with `outside_hours`.
+    - `insert into public.appointments (..., status, booking_source) values (...,
+      'confirmed', 'ai_chatbot')` still fails with `ai_requires_confirmation`.
+    - As the doctor, the new appointment appears as Confirmed in `/doctor`.
 
 ## Troubleshooting
 

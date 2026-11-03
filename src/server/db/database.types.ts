@@ -532,6 +532,17 @@ export type Database = {
         Args: { p_appointment_id: string; p_staff_id: string; p_reason: string };
         Returns: undefined;
       };
+      cammi_connect_front_desk_book_appointment: {
+        Args: {
+          p_patient_id: string;
+          p_doctor_id: string;
+          p_specialty_id: string | null;
+          p_scheduled_at: string;
+          p_reason: string | null;
+          p_staff_id: string;
+        };
+        Returns: string;
+      };
       cammi_connect_match_knowledge_chunks: {
         Args: {
           /** pgvector text form, e.g. "[0.1,0.2,...]". */

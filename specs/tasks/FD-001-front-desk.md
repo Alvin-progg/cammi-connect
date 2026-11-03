@@ -1,6 +1,6 @@
 # FD-001 — Front Desk Appointment Management
 
-- Status: In progress (PR 1 committed `8a2009f`; PR 2 committed `3085b61`; PR 3 committed `d63cb77`; PR 4 committed `9bfb7a4`; PR 5 committed `4c48037`; PR 6 implemented 2026-11-03, awaiting review)
+- Status: In progress (PR 1 committed `8a2009f`; PR 2 committed `3085b61`; PR 3 committed `d63cb77`; PR 4 committed `9bfb7a4`; PR 5 committed `4c48037`; PR 6 committed `8e783f8`; PR 7 implemented 2026-11-03, awaiting review)
 - Type: Feature
 - Priority: High
 - Module: Front Desk Staff
@@ -182,3 +182,38 @@ Decisions (2026-11-03):
 - The doctor-side reschedule and cancel (`/doctor`) still use the older non-atomic path (a guarded update, then a separate audit insert).
 - Patients see the new time or the cancellation in their appointments. Notifications come in PR 9.
 
+
+## PR 7 — traceability
+
+Decisions (2026-11-03):
+- **New patients are records only, with no login.** Staff register a walk-in or
+  phone-in patient as a `profiles` row (`role = 'patient'`, `auth_user_id` null) with
+  a name and a required phone, stored normalized (separators removed). No email or
+  password is collected. A registration with a phone number already on file is
+  refused.
+- **Staff bookings are confirmed at once.** The staff member checks availability with
+  the patient, so `cammi_connect_front_desk_book_appointment` (0012) inserts the
+  appointment as `confirmed`. Only Cami requests go through the queue.
+- A doctor is required before slots are shown. Specialty is an optional filter; when
+  chosen it is stored in `specialty_id` and checked against the doctor.
+
+| Requirement (SPEC-frontdesk) | Implementation | Verification |
+|---|---|---|
+| §7 steps 1–2: search for a patient, register one if none exists | `/front-desk/book` step 1; `patientSearchSchema`, `normalizePhone`, `registerPatientSchema` (`src/lib/front-desk/booking.ts`); `searchPatients`, `registerPatient`; `supabaseFrontDeskPatientsRepository` (patients only); `registerPatientAction`; `RegisterPatientForm` | `tests/unit/front-desk/booking.test.ts`, `service.test.ts`, `actions.test.ts`, `tests/component/front-desk/register-patient-form.test.tsx`; smoke step 21 |
+| §7 steps 3–6: specialty, doctor, available slots, choose a slot | Step 2 GET form (specialty, doctor, date); `listBookingSlots` (uses `getAvailableSlots`, the same source as Cami) | `service.test.ts`; smoke step 21 |
+| §7 steps 7–8: review and submit | `BookingForm` review panel and "Book and confirm"; `frontDeskBookingSchema`; `bookForPatientAction`; `cammi_connect_front_desk_book_appointment` (0012) | `booking.test.ts`, `actions.test.ts`, `tests/component/front-desk/booking-form.test.tsx`; smoke step 21 |
+| Owner and creator stay distinct; booking source and staff identity recorded | `patient_id` from the chosen patient; `created_by_profile_id`/`confirmed_by_profile_id` from the session staff, never the form; `booking_source = 'front_desk'` | `service.test.ts`, `actions.test.ts` (posted `staffId` ignored); smoke step 21 |
+| An overlapping slot is rejected | `appointments_no_active_overlap` (23P01) rolls the function back; "That slot was just taken" | `service.test.ts`, `actions.test.ts`; smoke step 21 (two tabs) |
+| The audit row is written | One `created` row with `new_status = 'confirmed'` and the staff member, in the same transaction | smoke step 21 |
+| §14 walk-in and phone-in bookings | "New appointment" in the front desk navigation | `tests/component/front-desk/front-desk-shell.test.tsx` |
+| §3 server-side role authorization | The page and both actions call `getFrontDeskSession`; nothing is written without it | `actions.test.ts` |
+
+**Refactor.** The phone pattern in `src/lib/profiles/schemas.ts` is now exported (`PHONE_PATTERN`) and shared with patient registration. The doctor profile rule is unchanged. The front desk service's refusal mapping moved into one `refusalMessage` helper, also unchanged in behavior.
+
+**Limitations.**
+- The SQL function has no automated test (ADR-0003: no local database). Smoke step 21 covers it.
+- A walk-in record is not linked to an account if the patient later signs up; they get a second profile.
+- Search covers name and phone only, not email (emails live in Supabase Auth). Patients who registered online usually have no phone on file.
+- Existing phone numbers entered before PR 7 are not normalized, so the duplicate check and phone search only match numbers stored in the new form.
+- The slot-grid SQL is now copied in three functions (0007, 0011, 0012).
+- Booking succeeds by navigating to the appointment details. There is no toast.
