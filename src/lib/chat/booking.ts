@@ -7,25 +7,25 @@ import { MANILA_TIME_ZONE } from "@/lib/appointments/filters";
 export const BOOKING_COPY = {
   chooseSpecialty: "Which specialty would you like to book?",
   specialtyNotFound:
-    "I couldn't find that specialty. Here are the specialties you can book:",
+    "I couldn't find that specialty. Here are the specialties you can book; please choose one:",
   severalSpecialties: "A few specialties match. Which one did you mean?",
   noSpecialties:
-    "There are no specialties open for booking right now. Please contact the hospital directly.",
-  doctorNotFound: "I couldn't find an active doctor with that name.",
+    "I'm sorry, there are no specialties open for booking right now. Please contact the hospital directly so they can help you.",
+  doctorNotFound: "I'm sorry, I couldn't find an active doctor with that name.",
   severalDoctors: "A few doctors match that name. Which one would you like to see?",
-  doctorUnavailable: "That doctor isn't taking appointments right now.",
-  optionUnavailable: "That option isn't available anymore.",
-  slotTaken: "That time is no longer available.",
+  doctorUnavailable: "I'm sorry, that doctor isn't taking appointments right now.",
+  optionUnavailable: "Sorry, that option isn't available anymore.",
+  slotTaken: "I'm sorry, that time is no longer available.",
   confirmPrompt:
-    "Please review your appointment request. Nothing is booked until you confirm.",
+    "Here's a summary of your appointment request. Please review it; nothing is booked until you confirm.",
   requested:
-    "Your appointment request has been received. It is awaiting the doctor's confirmation; you'll see its status in My Appointments.",
+    "All set! Your appointment request has been received and is awaiting the doctor's confirmation. You'll see its status in My Appointments.",
   alreadyProcessing:
     "This booking is already being processed. Please wait a moment before trying again.",
   outOfOrder:
-    "That option isn't active anymore. Tell me what you'd like to book and we'll pick up from there.",
-  stopped: "Okay, I've stopped this booking. Nothing was booked.",
-  dateInPast: "That date has already passed. Which upcoming date would you prefer?",
+    "That option isn't active anymore. Just tell me what you'd like to book and we'll pick up from there.",
+  stopped: "Okay, I've stopped this booking. Nothing was booked. Let me know whenever you'd like to try again.",
+  dateInPast: "That date has already passed. Which upcoming date would work for you?",
   dateBeyondHorizon:
     "I can only book up to 60 days ahead. Please choose a date within the next 60 days.",
 } as const;

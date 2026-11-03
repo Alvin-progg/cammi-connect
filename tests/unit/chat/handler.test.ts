@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BOOKING_COPY } from "@/lib/chat/booking";
 import type { ChatMessage } from "@/lib/chat/schemas";
-import { NOT_AVAILABLE_YET, NOT_VERIFIED } from "@/lib/chat/safety";
+import { NOT_VERIFIED } from "@/lib/chat/safety";
 import { IDLE_STATE, type BookingState } from "@/lib/chat/state";
 import type { PatientApiAccess } from "@/server/auth/dal";
 import { ProviderError } from "@/server/ai/http";
@@ -233,6 +233,9 @@ describe("handleChatRequest", () => {
   });
 
   it("starts a new conversation and persists both messages in order", async () => {
+    vi.mocked(deps.generate)
+      .mockResolvedValueOnce(JSON.stringify({ intent: "other" }))
+      .mockResolvedValueOnce("Hi, I'm Cami!");
     const response = await handleChatRequest(
       chatRequest(messageBody("  I want to book a cardiologist  ")),
       deps,
@@ -256,14 +259,14 @@ describe("handleChatRequest", () => {
     expect(conversationId).toBe(NEW_CONVERSATION_ID);
     expect(messages.map((message) => message.role)).toEqual(["user", "assistant"]);
     expect(messages[0].content).toBe("I want to book a cardiologist");
-    expect(messages[1].content).toBe(NOT_AVAILABLE_YET);
+    expect(messages[1].content).toBe("Hi, I'm Cami!");
     expect(messages[1].createdAt.getTime()).toBeGreaterThan(messages[0].createdAt.getTime());
 
     expect(body).toEqual({
       conversationId: NEW_CONVERSATION_ID,
       messages: [
         expect.objectContaining({ role: "user", content: "I want to book a cardiologist" }),
-        expect.objectContaining({ role: "assistant", content: NOT_AVAILABLE_YET }),
+        expect.objectContaining({ role: "assistant", content: "Hi, I'm Cami!" }),
       ],
       state: IDLE_STATE,
       requestId: REQUEST_ID,

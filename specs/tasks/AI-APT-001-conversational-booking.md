@@ -28,6 +28,12 @@ appointments. The booking backend from DOC-SCH-001 (`getAvailableSlots`,
    extracts intent and details into Zod-validated JSON and writes grounded RAG answers.
    All booking-step text is templated by the server. Doctors and slots are cards built
    from database rows. A booking happens only from an explicit Confirm event.
+   - *Amendment 2026-11-03 (approved by the project owner):* the assistant is "Cami"
+     (`src/lib/chat/persona.ts`), and the LLM may also write replies to the `other`
+     intent (greetings, thanks, "what can you do?") in Cami's voice. Those replies must
+     never state doctors, specialties, schedules, availability, prices, policies, or
+     booking outcomes; an empty reply falls back to the templated `CAMI_INTRO`; and the
+     urgency check and `medical_advice` decline still run first.
 2. **No new dependencies.** Gemini and OpenCode Zen adapters use plain `fetch` with Zod
    validation (ADR-0006 deviation from SPEC §2.2).
 3. **Conversations are stored in Supabase**, scoped to the patient, together with their
@@ -119,6 +125,8 @@ All tables follow ADR-0003: RLS enabled with no permissive policies, `anon` and
 - [x] A failed booking never shows a confirmation.
 - [x] A patient can view their appointments and cancel a `requested` or `confirmed` one.
 - [x] Reschedule requests get the "not available yet" reply.
+- [ ] Greetings and small talk get a short reply in Cami's voice (amendment
+      2026-11-03), with the templated introduction as the fallback.
 - [x] Unauthenticated, non-patient, over-limit, and provider-down requests get
       401/403, 429, and 503 responses without chat content in logs.
 - [x] Provider adapters enforce timeouts and bounded retries and never expose keys or

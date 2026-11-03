@@ -17,6 +17,10 @@ vi.mock("@/server/appointments/actions", () => ({
   cancelPatientAppointmentAction: mocks.cancelAction,
 }));
 
+vi.mock("@/server/auth/actions", () => ({
+  signOutAction: vi.fn(),
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mocks.replace, push: mocks.push, refresh: vi.fn() }),
 }));
@@ -68,6 +72,7 @@ function renderShell(
     <ChatShell
       salutation="Good Morning"
       firstName="Ana"
+      patientName="Ana Dela Cruz"
       conversations={CONVERSATIONS}
       conversationId={overrides.conversationId ?? null}
       initialMessages={overrides.initialMessages ?? []}
@@ -227,6 +232,30 @@ describe("ChatShell sidebar", () => {
 
     expect(sidebar()).toHaveAttribute("data-state", "open");
     expect(screen.getByRole("searchbox", { name: "Search conversations" })).toHaveFocus();
+  });
+
+  it("shows the signed-in patient and a sign out button below the conversation list", () => {
+    renderShell();
+
+    expect(within(sidebar()).getByText("Ana Dela Cruz")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("AD")).toBeInTheDocument();
+
+    const signOut = within(sidebar()).getByRole("button", { name: "Sign out" });
+    expect(signOut).toHaveAttribute("type", "submit");
+    expect(signOut.closest("form")).not.toBeNull();
+
+    // The footer follows the conversation list in document order.
+    const list = within(sidebar()).getByRole("navigation", { name: "Previous conversations" });
+    expect(list.compareDocumentPosition(signOut) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("keeps the sign out button usable on the collapsed rail", () => {
+    renderShell();
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+
+    const signOut = within(sidebar()).getByRole("button", { name: "Sign out" });
+    expect(signOut.closest("[inert]")).toBeNull();
   });
 
   it("opens history search from the composer", () => {

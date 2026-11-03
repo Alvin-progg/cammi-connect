@@ -10,6 +10,7 @@ export {
   ClipboardIcon,
   CloseIcon,
   PlusIcon,
+  SignOutIcon,
 } from "@/components/doctor/icons";
 
 export function SparkleIcon({ className }: IconProps) {

@@ -55,6 +55,7 @@ async function errorMessageFrom(response: Response): Promise<string> {
 export function ChatShell({
   salutation,
   firstName,
+  patientName,
   conversations,
   conversationId,
   initialMessages,
@@ -62,6 +63,8 @@ export function ChatShell({
 }: {
   salutation: string;
   firstName: string;
+  /** Full name, shown in the sidebar's account footer. */
+  patientName: string;
   conversations: ConversationSummary[];
   conversationId: string | null;
   initialMessages: ChatMessage[];
@@ -196,6 +199,7 @@ export function ChatShell({
           conversations={conversations}
           activeConversationId={appointments ? null : activeConversationId}
           appointmentsActive={appointments !== null}
+          patientName={patientName}
         />
       </div>
 

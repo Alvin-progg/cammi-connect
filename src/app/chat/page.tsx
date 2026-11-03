@@ -47,6 +47,7 @@ export default async function ChatPage({
         key={`${pageView}:${view.conversationId ?? "new"}`}
         salutation={salutation}
         firstName={firstName}
+        patientName={session.patient.fullName}
         conversations={view.conversations}
         conversationId={view.conversationId}
         initialMessages={view.messages}
