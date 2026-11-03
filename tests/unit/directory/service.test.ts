@@ -8,7 +8,6 @@ import type {
 } from "@/lib/directory/types";
 import {
   listBookableDoctors,
-  saveDoctor,
   type DirectoryStore,
 } from "@/server/directory/service";
 
@@ -54,7 +53,6 @@ const EXISTING_DOCTOR: DoctorSummary = {
   isActive: true,
   specialties: [{ id: INTERNAL_MEDICINE.id, name: "Internal Medicine" }],
 };
-const LINKABLE_PROFILE_ID = "00000000-0000-4000-8000-000000000001";
 
 function createStore(overrides: Partial<DirectoryStore> = {}): DirectoryStore {
   return {
@@ -64,126 +62,12 @@ function createStore(overrides: Partial<DirectoryStore> = {}): DirectoryStore {
       .mockResolvedValue([INTERNAL_MEDICINE, CARDIO_SPECIALTY, RETIRED_SPECIALTY]),
     listDoctors: vi.fn().mockResolvedValue([EXISTING_DOCTOR]),
     getDoctor: vi.fn().mockResolvedValue(EXISTING_DOCTOR),
-    saveDoctor: vi.fn().mockResolvedValue("saved"),
-    listLinkableAccounts: vi
-      .fn()
-      .mockResolvedValue([
-        { profileId: LINKABLE_PROFILE_ID, fullName: "Synthetic Account" },
-      ]),
     ...overrides,
   };
 }
 
-const NEW_DOCTOR = {
-  profileId: null,
-  fullName: "Dr. Ana Cruz",
-  departmentId: CARDIOLOGY.id,
-  specialtyIds: [INTERNAL_MEDICINE.id, CARDIO_SPECIALTY.id],
-  isActive: true,
-};
-
 beforeEach(() => {
   vi.clearAllMocks();
-});
-
-describe("saveDoctor", () => {
-  it("creates a login-less doctor with a department and several specialties", async () => {
-    const store = createStore();
-
-    await expect(saveDoctor({ doctorId: null, ...NEW_DOCTOR }, store)).resolves.toEqual({
-      ok: true,
-    });
-    expect(store.saveDoctor).toHaveBeenCalledWith({
-      doctorId: null,
-      fullName: "Dr. Ana Cruz",
-      departmentId: CARDIOLOGY.id,
-      specialtyIds: [INTERNAL_MEDICINE.id, CARDIO_SPECIALTY.id],
-      isActive: true,
-    });
-  });
-
-  it("promotes a linkable registered account", async () => {
-    const store = createStore();
-
-    await saveDoctor(
-      { doctorId: null, ...NEW_DOCTOR, profileId: LINKABLE_PROFILE_ID },
-      store,
-    );
-
-    expect(store.saveDoctor).toHaveBeenCalledWith(
-      expect.objectContaining({ doctorId: LINKABLE_PROFILE_ID }),
-    );
-  });
-
-  it("refuses to promote an account that is not linkable", async () => {
-    const store = createStore();
-
-    await expect(
-      saveDoctor(
-        {
-          doctorId: null,
-          ...NEW_DOCTOR,
-          profileId: "00000000-0000-4000-8000-0000000000aa",
-        },
-        store,
-      ),
-    ).resolves.toEqual({
-      ok: false,
-      message: "That account cannot be linked as a doctor.",
-    });
-    expect(store.saveDoctor).not.toHaveBeenCalled();
-  });
-
-  it("updates an existing doctor, including deactivation", async () => {
-    const store = createStore();
-
-    await expect(
-      saveDoctor(
-        { doctorId: EXISTING_DOCTOR.id, ...NEW_DOCTOR, isActive: false },
-        store,
-      ),
-    ).resolves.toEqual({ ok: true });
-    expect(store.getDoctor).toHaveBeenCalledWith(EXISTING_DOCTOR.id);
-    expect(store.saveDoctor).toHaveBeenCalledWith(
-      expect.objectContaining({ doctorId: EXISTING_DOCTOR.id, isActive: false }),
-    );
-  });
-
-  it("refuses to update an id that is not an existing doctor", async () => {
-    const store = createStore({ getDoctor: vi.fn().mockResolvedValue(null) });
-
-    await expect(
-      saveDoctor({ doctorId: LINKABLE_PROFILE_ID, ...NEW_DOCTOR }, store),
-    ).resolves.toEqual({ ok: false, message: "That doctor no longer exists." });
-    expect(store.saveDoctor).not.toHaveBeenCalled();
-  });
-
-  it("rejects an inactive department", async () => {
-    const store = createStore();
-
-    await expect(
-      saveDoctor(
-        { doctorId: null, ...NEW_DOCTOR, departmentId: CLOSED_WARD.id },
-        store,
-      ),
-    ).resolves.toEqual({ ok: false, message: "Choose an active department." });
-  });
-
-  it("rejects inactive or unknown specialties", async () => {
-    const store = createStore();
-
-    await expect(
-      saveDoctor(
-        {
-          doctorId: null,
-          ...NEW_DOCTOR,
-          specialtyIds: [INTERNAL_MEDICINE.id, RETIRED_SPECIALTY.id],
-        },
-        store,
-      ),
-    ).resolves.toEqual({ ok: false, message: "Choose active specialties only." });
-    expect(store.saveDoctor).not.toHaveBeenCalled();
-  });
 });
 
 describe("listBookableDoctors", () => {

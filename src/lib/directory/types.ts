@@ -26,6 +26,3 @@ export type DoctorSummary = {
   isActive: boolean;
   specialties: { id: string; name: string }[];
 };
-
-/** A registered account an admin can link as a doctor login. */
-export type LinkableAccount = { profileId: string; fullName: string };

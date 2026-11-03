@@ -80,7 +80,8 @@ Then run `db/migrations/0009_front_desk_confirm_reject.sql` once, then
 `db/migrations/0013_admin_foundation.sql` once, then
 `db/migrations/0014_admin_user_management.sql` once, then
 `db/migrations/0015_admin_departments.sql` once, then
-`db/migrations/0016_admin_specialties.sql` once. After 0014, re-run
+`db/migrations/0016_admin_specialties.sql` once, then
+`db/migrations/0017_admin_doctors.sql` once. After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
 department names differ only by case, and 0016 likewise for specialty names;
@@ -294,6 +295,28 @@ now fail.
   is an active admin and write `specialty.*` audit rows in the same transaction.
   Deactivation is never blocked and leaves `doctor_specialties` and
   `appointments.specialty_id` alone: it only hides the specialty from patients;
+- every function is executable by `service_role` only.
+
+`0017_admin_doctors.sql` (ADM-04):
+
+- adds admin-managed `doctors.contact_email`, `contact_phone`, and `bio` (admin pages
+  only; the patient and Cami directory never selects them) and a `NOT VALID` check that
+  every new or edited doctor has a department;
+- adds a trigger that rejects a `doctors` row whose profile is not a `doctor`;
+- adds `cammi_connect_admin_save_doctor` (create or update with the specialty set),
+  `cammi_connect_admin_set_doctor_specialties` (replaces the set in one transaction),
+  `cammi_connect_admin_link_doctor_account`, and `cammi_connect_admin_set_doctor_active`.
+  Each re-checks that the actor is an active admin and writes `doctor.*` audit rows in
+  the same transaction. Deactivation is refused while the doctor has future requested or
+  confirmed appointments;
+- linking: a linkable account is an active `doctor` profile with a login and no doctor
+  record (for example one invited at `/admin/users`). On create, the doctor record is
+  made on that profile. For an existing doctor without a login, the account's
+  `auth_user_id` moves onto the doctor's profile and the emptied account profile is
+  deactivated; this is refused if anything already references the account profile;
+- adds the read functions `cammi_connect_doctor_future_conflicts` (no patient data) and
+  `cammi_connect_admin_list_linkable_doctor_accounts`;
+- leaves `cammi_connect_save_doctor` in place; the app no longer calls it;
 - every function is executable by `service_role` only.
 
 #### Supabase Auth email templates (ADM-01, manual)
@@ -711,6 +734,27 @@ No real patient data is used.
       doctor still lists it under Doctors. Activate it again.
     - In SQL, calling `cammi_connect_admin_set_specialty_active` with a non-admin actor
       fails with `not_admin`.
+
+27. Check doctor management (ADM-04), after applying 0017. Use synthetic data only:
+    - As the admin, open **Doctors**: each seed doctor shows department, specialty
+      chips, status, and sign-in. Filter by department, specialty, and status.
+    - **New doctor** "Dr. Test Doctor" in an active department with two specialties and
+      no linked account: you land on its page. In `/chat`, Cami offers the doctor when
+      booking by either specialty, and the front desk booking form lists them. In SQL,
+      `audit_logs` has `doctor.create` and `doctor.specialties_change`.
+    - Edit the department, contact email, and bio: they save, and `doctor.update` is
+      logged. Unticking every specialty is refused.
+    - At **Users**, invite a synthetic doctor account. On Dr. Test Doctor's page, the
+      Account card offers it: link it. `doctor.link_account` is logged; sign in as that
+      account and `/doctor` shows Dr. Test Doctor's dashboard. In SQL, linking a patient
+      profile with `cammi_connect_admin_link_doctor_account` fails with `not_linkable`.
+    - Book a future appointment with the doctor, then **Deactivate doctor**: it is
+      refused and the appointment is listed. Cancel it at the front desk, deactivate
+      again: it succeeds, Cami and front desk booking no longer offer the doctor, and the
+      **Appointments** tab still shows the cancelled appointment.
+    - In SQL, calling `cammi_connect_admin_set_doctor_active` with a non-admin actor fails
+      with `not_admin`, and `cammi_connect_admin_set_doctor_specialties` with an inactive
+      specialty fails with `inactive_specialty` and leaves the doctor's set unchanged.
 
 ## Troubleshooting
 

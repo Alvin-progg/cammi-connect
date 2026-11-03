@@ -85,6 +85,9 @@ export type Database = {
           id: string;
           department_id: string | null;
           full_name: string;
+          contact_email: string | null;
+          contact_phone: string | null;
+          bio: string | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -93,6 +96,9 @@ export type Database = {
           id: string;
           department_id?: string | null;
           full_name: string;
+          contact_email?: string | null;
+          contact_phone?: string | null;
+          bio?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -100,6 +106,9 @@ export type Database = {
         Update: {
           department_id?: string | null;
           full_name?: string;
+          contact_email?: string | null;
+          contact_phone?: string | null;
+          bio?: string | null;
           is_active?: boolean;
           updated_at?: string;
         };
@@ -637,6 +646,60 @@ export type Database = {
           p_is_active: boolean;
         };
         Returns: undefined;
+      };
+      /** Migration 0017 (admin doctors). Each raises P0001 with a DoctorRefusal code. */
+      cammi_connect_admin_save_doctor: {
+        Args: {
+          p_actor_profile_id: string;
+          p_doctor_id: string | null;
+          p_account_profile_id: string | null;
+          p_full_name: string;
+          p_department_id: string;
+          p_contact_email: string | null;
+          p_contact_phone: string | null;
+          p_bio: string | null;
+          p_specialty_ids: string[];
+        };
+        Returns: string;
+      };
+      cammi_connect_admin_set_doctor_specialties: {
+        Args: {
+          p_actor_profile_id: string;
+          p_doctor_id: string;
+          p_specialty_ids: string[];
+        };
+        Returns: undefined;
+      };
+      cammi_connect_admin_link_doctor_account: {
+        Args: {
+          p_actor_profile_id: string;
+          p_doctor_id: string;
+          p_account_profile_id: string;
+        };
+        Returns: undefined;
+      };
+      cammi_connect_admin_set_doctor_active: {
+        Args: {
+          p_actor_profile_id: string;
+          p_doctor_id: string;
+          p_is_active: boolean;
+        };
+        Returns: undefined;
+      };
+      cammi_connect_doctor_future_conflicts: {
+        Args: { p_doctor_id: string };
+        Returns: {
+          appointment_id: string;
+          scheduled_at: string;
+          status: AppointmentStatus;
+        }[];
+      };
+      cammi_connect_admin_list_linkable_doctor_accounts: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          profile_id: string;
+          full_name: string;
+        }[];
       };
       /** Seed script only (scripts/seed.mjs). */
       cammi_connect_bootstrap_staff_role: {
