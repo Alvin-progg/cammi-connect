@@ -6,10 +6,19 @@ import {
   confirmRequestSchema,
   rejectRequestSchema,
 } from "@/lib/front-desk/decisions";
+import {
+  recordAttendanceSchema,
+  type AttendanceStatus,
+} from "@/lib/front-desk/schedule";
 import { getFrontDeskSession } from "@/server/auth/dal";
 
 import { supabaseFrontDeskRequestsWriter } from "./repository";
-import { confirmRequest, rejectRequest, type DecisionResult } from "./service";
+import {
+  confirmRequest,
+  recordAttendance,
+  rejectRequest,
+  type DecisionResult,
+} from "./service";
 
 export type RequestDecisionState =
   | { status: "idle" }
@@ -17,6 +26,7 @@ export type RequestDecisionState =
   | { status: "success"; message: string };
 
 const QUEUE_PATH = "/front-desk/requests";
+const SCHEDULE_PATH = "/front-desk/schedule";
 
 /**
  * Runs a decision as the signed-in front desk staff member. The staff ID
@@ -43,6 +53,7 @@ async function runDecision(
 
   revalidatePath(QUEUE_PATH);
   revalidatePath(`${QUEUE_PATH}/${appointmentId}`);
+  revalidatePath(SCHEDULE_PATH);
   revalidatePath("/doctor");
   return { status: "success", message: successMessage };
 }
@@ -92,5 +103,39 @@ export async function rejectRequestAction(
         supabaseFrontDeskRequestsWriter,
       ),
     "Request rejected.",
+  );
+}
+
+const ATTENDANCE_SUCCESS_MESSAGES: Record<AttendanceStatus, string> = {
+  checked_in: "Patient checked in.",
+  completed: "Appointment marked completed.",
+  no_show: "Appointment marked as no-show.",
+};
+
+/** Records check-in, completion, or no-show (SPEC-frontdesk §8). */
+export async function recordAttendanceAction(
+  _previous: RequestDecisionState,
+  formData: FormData,
+): Promise<RequestDecisionState> {
+  const parsed = recordAttendanceSchema.safeParse({
+    appointmentId: formData.get("appointmentId"),
+    status: formData.get("status"),
+  });
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.error.issues[0]?.message ?? "Check the attendance update.",
+    };
+  }
+  const { appointmentId, status } = parsed.data;
+
+  return runDecision(
+    appointmentId,
+    (staffId) =>
+      recordAttendance(
+        { appointmentId, staffId, status },
+        supabaseFrontDeskRequestsWriter,
+      ),
+    ATTENDANCE_SUCCESS_MESSAGES[status],
   );
 }

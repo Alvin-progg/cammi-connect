@@ -2,15 +2,19 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { RequestDetails } from "@/lib/front-desk/requests";
+import { SCHEDULE_LIMIT, type ScheduleItem } from "@/lib/front-desk/schedule";
 import {
   QUEUE_LIMIT,
   checkRequestSlot,
   confirmRequest,
   getRequestDetails,
+  listDailySchedule,
   listRequestQueue,
+  recordAttendance,
   rejectRequest,
   type FrontDeskRequestsReader,
   type FrontDeskRequestsWriter,
+  type FrontDeskScheduleReader,
 } from "@/server/front-desk/service";
 
 vi.mock("server-only", () => ({}));
@@ -150,6 +154,7 @@ function createWriter(
   return {
     confirm: vi.fn().mockResolvedValue({ ok: true }),
     reject: vi.fn().mockResolvedValue({ ok: true }),
+    recordAttendance: vi.fn().mockResolvedValue({ ok: true }),
     ...overrides,
   };
 }
@@ -318,5 +323,134 @@ describe("checkRequestSlot", () => {
     ]);
 
     await expect(checkRequestSlot(REQUEST, reader, NOW)).resolves.toBe("blocked");
+  });
+});
+
+function scheduleItem(overrides: Partial<ScheduleItem> = {}): ScheduleItem {
+  return {
+    id: APPOINTMENT_ID,
+    patientName: "Synthetic Patient B",
+    doctorName: "Dr. Synthetic Reyes",
+    specialtyNames: ["Cardiology"],
+    scheduledAt: "2026-11-04T01:00:00.000Z",
+    durationMinutes: 30,
+    status: "confirmed",
+    bookingSource: "ai_chatbot",
+    ...overrides,
+  };
+}
+
+function createScheduleReader(items: ScheduleItem[] = []): FrontDeskScheduleReader {
+  return { listDay: vi.fn().mockResolvedValue(items) };
+}
+
+describe("listDailySchedule", () => {
+  it("reads the Manila day with the doctor and status filters", async () => {
+    const reader = createScheduleReader();
+
+    await listDailySchedule(
+      { date: "2026-11-04", doctorId: DOCTOR_ID, status: "checked_in", search: null },
+      reader,
+    );
+
+    expect(reader.listDay).toHaveBeenCalledWith({
+      start: "2026-11-03T16:00:00.000Z",
+      end: "2026-11-04T16:00:00.000Z",
+      doctorId: DOCTOR_ID,
+      status: "checked_in",
+      limit: SCHEDULE_LIMIT,
+    });
+  });
+
+  it("applies no status filter for all", async () => {
+    const reader = createScheduleReader();
+
+    await listDailySchedule(
+      { date: "2026-11-04", doctorId: null, status: "all", search: null },
+      reader,
+    );
+
+    expect(reader.listDay).toHaveBeenCalledWith(
+      expect.objectContaining({ doctorId: null, status: null }),
+    );
+  });
+
+  it("keeps only patients whose name contains the search, ignoring case", async () => {
+    const ana = scheduleItem({ id: "a", patientName: "Synthetic Ana Cruz" });
+    const ben = scheduleItem({ id: "b", patientName: "Synthetic Ben Reyes" });
+    const reader = createScheduleReader([ana, ben]);
+
+    await expect(
+      listDailySchedule(
+        { date: "2026-11-04", doctorId: null, status: "all", search: "ana" },
+        reader,
+      ),
+    ).resolves.toEqual({ items: [ana], limitReached: false });
+  });
+
+  it("flags when the day reached the row limit", async () => {
+    const reader = createScheduleReader(
+      Array.from({ length: SCHEDULE_LIMIT }, (_, index) => scheduleItem({ id: String(index) })),
+    );
+
+    const schedule = await listDailySchedule(
+      { date: "2026-11-04", doctorId: null, status: "all", search: null },
+      reader,
+    );
+
+    expect(schedule.limitReached).toBe(true);
+  });
+});
+
+describe("recordAttendance", () => {
+  it("records the status through the writer as the signed-in staff member", async () => {
+    const writer = createWriter();
+
+    await expect(
+      recordAttendance(
+        { appointmentId: APPOINTMENT_ID, staffId: STAFF_ID, status: "checked_in" },
+        writer,
+      ),
+    ).resolves.toEqual({ ok: true });
+    expect(writer.recordAttendance).toHaveBeenCalledWith({
+      appointmentId: APPOINTMENT_ID,
+      staffId: STAFF_ID,
+      status: "checked_in",
+    });
+  });
+
+  it.each([
+    [
+      "invalid_transition",
+      "This appointment's status changed and the update no longer applies. Refresh to see its current status.",
+    ],
+    ["not_yet", "Attendance can only be recorded on or after the appointment day."],
+    ["invalid_status", "Choose check-in, completed, or no-show."],
+    ["not_found", "This appointment no longer exists."],
+  ])("explains a %s refusal", async (code, message) => {
+    const writer = createWriter({ recordAttendance: failingWith(code) });
+
+    await expect(
+      recordAttendance(
+        { appointmentId: APPOINTMENT_ID, staffId: STAFF_ID, status: "no_show" },
+        writer,
+      ),
+    ).resolves.toEqual({ ok: false, message });
+  });
+
+  it("hides unexpected database errors", async () => {
+    const writer = createWriter({
+      recordAttendance: failingWith("function does not exist", "42883"),
+    });
+
+    await expect(
+      recordAttendance(
+        { appointmentId: APPOINTMENT_ID, staffId: STAFF_ID, status: "completed" },
+        writer,
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      message: "The appointment could not be updated. Try again in a moment.",
+    });
   });
 });

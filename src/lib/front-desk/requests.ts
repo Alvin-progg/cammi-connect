@@ -26,6 +26,12 @@ export const REQUEST_STATUS_FILTER_LABELS: Record<RequestStatusFilter, string> =
   all: "All statuses",
 };
 
+export const BOOKING_SOURCE_LABELS: Record<BookingSource, string> = {
+  ai_chatbot: "Cami (AI assistant)",
+  front_desk: "Front desk",
+  other: "Other",
+};
+
 /** The queue shows at most this many requests; staff narrow it with filters. */
 export const REQUEST_QUEUE_LIMIT = 100;
 

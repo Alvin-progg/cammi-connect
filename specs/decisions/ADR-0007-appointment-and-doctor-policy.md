@@ -170,6 +170,11 @@ Approved by the project owner while planning the Front Desk module
   staff confirm and reject through `cammi_connect_confirm_appointment` and
   `cammi_connect_reject_appointment` (migration 0009); doctors keep complete, no-show,
   cancel and reschedule.
+- **Attendance (FD-001 PR 5).** Front desk staff record `checked_in`, `completed`, and
+  `no_show` through `cammi_connect_record_attendance` (migration 0010), only from the
+  appointment's Manila calendar day onward. Doctors may now `complete` from
+  `checked_in` as well as `confirmed`, so a visit checked in at the front desk can be
+  closed by the doctor.
 
 ## Consequences
 

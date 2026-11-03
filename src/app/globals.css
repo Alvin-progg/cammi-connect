@@ -158,6 +158,32 @@
     }
   }
 
+  /* Occasional eye blink for the decorative auth illustration */
+  --animate-blink: blink 6s ease-in-out infinite;
+  @keyframes blink {
+    0%,
+    94%,
+    100% {
+      transform: scaleY(1);
+    }
+    97% {
+      transform: scaleY(0.1);
+    }
+  }
+
+  /* One-shot "no, no" shake when the auth mascots disapprove */
+  --animate-head-shake: head-shake 400ms ease-in-out;
+  @keyframes head-shake {
+    20%,
+    60% {
+      transform: translateX(-4px);
+    }
+    40%,
+    80% {
+      transform: translateX(4px);
+    }
+  }
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);

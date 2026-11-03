@@ -73,7 +73,8 @@ Then run `db/migrations/0006_appointment_status_values.sql` **on its own**, and 
 after it has finished, run `db/migrations/0007_appointment_lifecycle_audit.sql`.
 Then run `db/migrations/0008_front_desk_role.sql` **on its own**.
 PostgreSQL cannot use a new enum value in the transaction that added it.
-Then run `db/migrations/0009_front_desk_confirm_reject.sql` once.
+Then run `db/migrations/0009_front_desk_confirm_reject.sql` once, then
+`db/migrations/0010_front_desk_attendance.sql` once.
 
 `0001_profiles_appointments.sql`:
 
@@ -179,6 +180,17 @@ now fail.
 - both raise `P0001` with a code (`not_found`, `not_pending`, `inactive_doctor`,
   `past`, `outside_hours`, `blocked`, `reason_required`) and are executable by
   `service_role` only.
+
+`0010_front_desk_attendance.sql` (FD-001 PR 5):
+
+- adds `cammi_connect_record_attendance(appointment, staff, status)`. In one
+  transaction it locks the appointment, accepts only `checked_in`, `completed`, or
+  `no_show`, allows only `confirmed → checked_in | completed | no_show` and
+  `checked_in → completed`, refuses an appointment whose Manila date is after today,
+  then sets the status and writes the audit row with the staff member (the row's
+  `created_at` is the recorded time);
+- raises `P0001` with `not_found`, `invalid_status`, `invalid_transition`, or
+  `not_yet`, and is executable by `service_role` only.
 
 ### Knowledge base ingestion (ADR-0004)
 
@@ -414,6 +426,27 @@ No real patient data is used.
       confirmation" and no Confirm button.
     - As the patient who booked through `/chat`, the confirmed or rejected status shows
       in their appointments.
+
+19. Check the daily schedule and attendance (FD-001 PR 5), after applying 0010 and
+    re-running the seed:
+    - As the front desk account, open **Daily schedule** (`/front-desk/schedule`). Today's
+      appointments from every booking source are listed with a "Booked via" badge. The
+      doctor, status, and patient-name filters narrow the list, and a different date
+      shows that day.
+    - On a confirmed appointment today, click **Check in**. A toast appears after the
+      save, the status becomes Checked in, and only **Mark completed** remains. Open the
+      appointment (**View**): Status history shows "Checked in" with your name and time.
+      Non-Cami appointments open too, under the "Daily schedule" breadcrumb.
+    - Click **Mark no-show** on another confirmed appointment today, then **Confirm
+      no-show**. The status becomes No-show and the history records it.
+    - Tomorrow's confirmed appointments show no attendance buttons.
+    - In the SQL editor, `select public.cammi_connect_record_attendance('<tomorrow
+      confirmed id>', '<staff profile id>', 'checked_in');` fails with `not_yet`;
+      calling it with `'checked_in'` on a completed id fails with `invalid_transition`;
+      calling it with `'cancelled'` fails with `invalid_status`. Each successful call
+      adds one `appointment_audit_logs` row with `actor_profile_id` set to the staff id.
+    - As the doctor, a checked-in appointment in `/doctor` offers **Mark completed**,
+      and completing it adds a "Completed" history entry.
 
 ## Troubleshooting
 

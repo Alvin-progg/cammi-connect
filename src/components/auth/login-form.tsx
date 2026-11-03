@@ -9,6 +9,7 @@ import type { AuthFormState } from "@/lib/auth/form-state";
 import { LOGIN_ERROR_TOAST_ID } from "@/lib/auth/toast-ids";
 
 import { FormField } from "./form-field";
+import { useMascot } from "./mascot-stage";
 import { SubmitButton } from "./submit-button";
 
 const INITIAL_STATE: AuthFormState = {};
@@ -23,11 +24,13 @@ export function LoginForm({
   const [state, formAction, pending] = useActionState(loginAction, INITIAL_STATE);
   const [email, setEmail] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
+  const { reportError } = useMascot();
 
   const errorMessage = state.formError ?? callbackError;
 
   useEffect(() => {
     if (!errorMessage) return;
+    reportError();
     toast.error("Sign-in failed", {
       id: LOGIN_ERROR_TOAST_ID,
       description: errorMessage,
@@ -36,14 +39,15 @@ export function LoginForm({
     return () => {
       toast.dismiss(LOGIN_ERROR_TOAST_ID);
     };
-  }, [errorMessage]);
+  }, [errorMessage, reportError]);
 
   useEffect(() => {
     if (!state.fieldErrors) return;
+    reportError();
     formRef.current
       ?.querySelector<HTMLInputElement>('[aria-invalid="true"]')
       ?.focus();
-  }, [state.fieldErrors]);
+  }, [state.fieldErrors, reportError]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -76,7 +80,7 @@ export function LoginForm({
         />
         <SubmitButton pending={pending} label="Sign in" pendingLabel="Signing in…" />
       </form>
-      <p className="border-t border-line pt-6 text-center text-sm leading-6 text-ink-secondary">
+      <p className="pt-2 text-center text-sm leading-6 text-ink-secondary">
         No account yet?{" "}
         <Link
           href="/register"

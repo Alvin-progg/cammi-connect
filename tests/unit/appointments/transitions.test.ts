@@ -29,6 +29,13 @@ describe("doctor appointment transition matrix (ADR-0007, amended)", () => {
     expect(allowedDoctorActions("confirmed")).toEqual(["complete", "no_show", "cancel"]);
   });
 
+  it("allows only complete once the patient is checked in (FD-001 PR 5)", () => {
+    expect(canDoctorPerform("checked_in", "complete")).toBe(true);
+    expect(canDoctorPerform("checked_in", "no_show")).toBe(false);
+    expect(canDoctorPerform("checked_in", "cancel")).toBe(false);
+    expect(allowedDoctorActions("checked_in")).toEqual(["complete"]);
+  });
+
   it("allows no actions from terminal statuses", () => {
     for (const status of ["completed", "cancelled", "no_show"] as const) {
       expect(allowedDoctorActions(status)).toEqual([]);
@@ -42,7 +49,7 @@ describe("doctor appointment transition matrix (ADR-0007, amended)", () => {
   });
 
   it("exposes the source statuses used for guarded writes", () => {
-    expect(sourceStatusesForAction("complete")).toEqual(["confirmed"]);
+    expect(sourceStatusesForAction("complete")).toEqual(["confirmed", "checked_in"]);
     expect(sourceStatusesForAction("cancel")).toEqual([
       "requested",
       "confirmed",

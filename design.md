@@ -1132,6 +1132,16 @@ Applies to `/login`, `/register`, and account/session states (`UI-002`).
 - Password fields have a show/hide toggle (§5.3) that is `aria-pressed` and labelled "Show password" / "Hide password". Field errors carry an alert icon and a screen-reader "Error:" prefix. The registration password shows its minimum-length hint before submit (it shares `PASSWORD_MIN_LENGTH` with the schema).
 - The submit button shows a spinner alongside the pending label. Registration success uses the `success-soft` panel with a check icon.
 
+**Amendment 2026-11-03 (owner request, split layout with a hospital illustration):** supersedes the centered-card, plain-white-canvas, and card-sizing bullets above for `/login` and `/register`.
+
+- At `lg` and up, the page is a 12-column split on `surface-muted` with a small inset. The left 7 columns hold a decorative flat hospital illustration (`HospitalIllustration`: building with a cross, clipboard, smiling blob, capsule with thermometer, heart and pulse line; token colors only; `aria-hidden`) above a short tagline. The right 5 columns are a white `rounded-3xl` panel with `shadow-card`.
+- Below `lg`, the illustration is hidden and the form panel fills a white page.
+- The panel holds the brand lockup (top), a centered `text-3xl sm:text-4xl` `<h1>` with subtitle, and the form (`max-w-sm`). The hospital-accounts note sits at the bottom of the panel in `text-xs` muted text. The sign-in title is "Welcome back!".
+- Inputs are `min-h-12 rounded-xl` with visible labels; the submit button is a full-width `rounded-full` pill. The switch-page link no longer has a rule above it.
+- The illustration's eyes may blink every few seconds (`animate-blink`), only under `motion-safe`.
+- The mascots react to the form (`MascotStage` + `deriveMascotMood` in `src/lib/auth/mascot-mood.ts`): **idle** with no field focused; **curious** while a field is focused (pupils look toward the form and drift with the typed length); **look-away** while the focused password is shown; **disapprove** (frowns, angled brows, one `animate-head-shake`) after any failed submit, until the user types again. Every failure gets the same reaction, so nothing hints at whether an account exists. Under `motion-reduce` the expressions change instantly with no transitions, shake, or blink.
+- A nurse sprite mascot (`NurseMascot`, sheets in `public/mascots/nurse-*.webp`) sits above the `<h1>` on both pages and at every width. When idle she follows the pointer, and clicking her plays a heart, sparkle or delighted reaction. She looks down at the form while the user types, turns **bashful** while a password is shown, and goes **dizzy** after a failed submit (`nursePose`). Her click squash is skipped under reduced motion.
+
 ### 6.3 Patient appointment booking
 
 Applies to department/doctor browsing, availability, booking, and confirmation (`UI-003`).

@@ -36,7 +36,8 @@ export function allowedTransitionsFrom(
  * Doctor-initiated appointment actions and their legal source statuses.
  * Mirrors ADR-0007 (amended 2026-10-25). Terminal statuses allow no actions.
  * Confirmation is a front desk action only (ADR-0007 amendment 2026-11-03,
- * FD-001 PR 4), so doctors have no `confirm`.
+ * FD-001 PR 4), so doctors have no `confirm`. A doctor may complete a visit
+ * that front desk checked in (FD-001 PR 5).
  */
 export const DOCTOR_APPOINTMENT_ACTIONS = [
   "complete",
@@ -51,7 +52,7 @@ const ACTION_SOURCES: Record<
   DoctorAppointmentAction,
   readonly AppointmentStatus[]
 > = {
-  complete: ["confirmed"],
+  complete: ["confirmed", "checked_in"],
   no_show: ["confirmed"],
   cancel: ["requested", "confirmed"],
 };

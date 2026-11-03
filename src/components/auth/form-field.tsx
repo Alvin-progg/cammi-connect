@@ -3,6 +3,7 @@
 import { useState, type ChangeEvent } from "react";
 
 import { AlertCircleIcon, EyeIcon, EyeOffIcon } from "./auth-icons";
+import { useMascot } from "./mascot-stage";
 
 export type FormFieldProps = {
   id: string;
@@ -30,6 +31,7 @@ export function FormField({
   error,
 }: FormFieldProps) {
   const [revealed, setRevealed] = useState(false);
+  const { setPasswordRevealed } = useMascot();
   const isPassword = type === "password";
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
@@ -38,7 +40,11 @@ export function FormField({
     undefined;
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div
+      className="flex flex-col gap-1.5"
+      data-mascot-field={name}
+      data-mascot-secret={isPassword ? "true" : undefined}
+    >
       <label htmlFor={id} className="text-sm font-medium text-ink">
         {label}
       </label>
@@ -53,7 +59,7 @@ export function FormField({
           required
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
-          className={`min-h-11 w-full rounded-lg border border-control-line bg-surface px-3 text-base text-ink transition-colors duration-150 placeholder:text-ink-muted focus:border-primary focus-ring motion-reduce:transition-none aria-[invalid=true]:border-danger [@media(hover:hover)]:hover:border-ink-muted ${
+          className={`min-h-12 w-full rounded-xl border border-control-line bg-surface px-3 text-base text-ink transition-colors duration-150 placeholder:text-ink-muted focus:border-primary focus-ring motion-reduce:transition-none aria-[invalid=true]:border-danger [@media(hover:hover)]:hover:border-ink-muted ${
             isPassword ? "pr-12" : ""
           }`}
         />
@@ -62,8 +68,11 @@ export function FormField({
             type="button"
             aria-controls={id}
             aria-pressed={revealed}
-            onClick={() => setRevealed((current) => !current)}
-            className="focus-ring absolute right-1 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:text-ink motion-reduce:transition-none"
+            onClick={() => {
+              setRevealed(!revealed);
+              setPasswordRevealed(name, !revealed);
+            }}
+            className="focus-ring absolute right-1.5 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:text-ink motion-reduce:transition-none"
           >
             {revealed ? (
               <EyeOffIcon className="size-5" />
