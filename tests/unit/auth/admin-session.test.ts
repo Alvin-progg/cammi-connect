@@ -15,7 +15,7 @@ vi.mock("@/server/profiles/service", () => ({
 
 const USER = { id: "auth-user-1", email: "person@example.test" };
 
-function signedInAs(role: "patient" | "doctor" | "admin") {
+function signedInAs(role: "patient" | "doctor" | "admin" | "front_desk") {
   vi.mocked(getUser).mockResolvedValue(USER);
   vi.mocked(getProfileForAuthUser).mockResolvedValue({
     id: `${role}-profile-1`,
@@ -38,7 +38,7 @@ describe("getAdminSession", () => {
     });
   });
 
-  it.each(["patient", "doctor"] as const)("denies a %s account", async (role) => {
+  it.each(["patient", "doctor", "front_desk"] as const)("denies a %s account", async (role) => {
     signedInAs(role);
 
     await expect(getAdminSession("/admin")).resolves.toBeNull();
@@ -72,7 +72,7 @@ describe("getPatientSession", () => {
     });
   });
 
-  it.each(["doctor", "admin"] as const)("denies a %s account", async (role) => {
+  it.each(["doctor", "admin", "front_desk"] as const)("denies a %s account", async (role) => {
     signedInAs(role);
 
     await expect(getPatientSession("/account")).resolves.toBeNull();

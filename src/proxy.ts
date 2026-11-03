@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { getPublicEnv } from "@/lib/config.public";
 
-const PROTECTED_PREFIXES = ["/account", "/chat", "/doctor", "/admin"];
+const PROTECTED_PREFIXES = ["/account", "/chat", "/doctor", "/admin", "/front-desk"];
 
 function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PREFIXES.some(
@@ -76,5 +76,11 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/account/:path*", "/chat/:path*", "/doctor/:path*", "/admin/:path*"],
+  matcher: [
+    "/account/:path*",
+    "/chat/:path*",
+    "/doctor/:path*",
+    "/admin/:path*",
+    "/front-desk/:path*",
+  ],
 };

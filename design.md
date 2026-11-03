@@ -1289,6 +1289,16 @@ Applies to `UI-006` and `FR-007`.
 | Admin | Skeleton table/status | "No documents/jobs/events" + safe next action | Server-confirmed status; toast supplementary | Field errors + summary | Bounded retry for reads; destructive errors inline |
 | Analytics | Skeleton KPI/chart | "No data for this period" | Refreshed measured data | Range validation inline | Per-chart or page-level; retry reads only |
 
+### 6.10 Front desk dashboard
+
+Applies to `SPEC-frontdesk.md` (FD-001). Added 2026-11-03.
+
+- Uses the administrator shell (§6.7): 240px white sidebar with the brand and view navigation, a 64px top bar with a breadcrumb ("Front desk / <view>"), the signed-in staff name, and sign-out, and the content area on `canvas`. The active nav item uses `primary-soft` with `primary` text.
+- Below `lg`, the sidebar stacks above the content as a top section (§5 Tablet); navigation is never hidden.
+- The sidebar lists only views that exist. Each FD-001 slice adds its own item.
+- Density, tables, and destructive-action confirmation follow §6.7. Pending requests come first (`SPEC-frontdesk.md` §4).
+- States follow the Admin row of §6.9. A non-staff account gets the neutral access-denied state.
+
 ---
 
 ## 7. Accessibility, Responsive, and Content Requirements

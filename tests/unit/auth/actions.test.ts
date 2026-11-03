@@ -68,6 +68,17 @@ describe("loginAction", () => {
     expect(redirect).toHaveBeenCalledWith("/doctor?auth_notice=signed-in");
   });
 
+  it("redirects front desk staff to the front desk dashboard", async () => {
+    vi.mocked(getProfileForAuthUser).mockResolvedValue({
+      id: "front-desk-profile-1",
+      role: "front_desk",
+      fullName: "Synthetic Front Desk",
+    });
+
+    await loginAction({}, loginFormData());
+    expect(redirect).toHaveBeenCalledWith("/front-desk?auth_notice=signed-in");
+  });
+
   it("redirects an admin to /account until an admin dashboard exists", async () => {
     vi.mocked(getProfileForAuthUser).mockResolvedValue({
       id: "admin-profile-1",

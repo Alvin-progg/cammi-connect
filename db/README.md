@@ -21,6 +21,10 @@ SEED_DOCTOR_NAME=Dr. Maya Santos
 SEED_ADMIN_EMAIL=admin@example.test
 SEED_ADMIN_PASSWORD=...
 SEED_ADMIN_NAME=Synthetic Administrator
+# Optional: provisions synthetic front desk staff for /front-desk (needs 0008).
+SEED_FRONT_DESK_EMAIL=frontdesk@example.test
+SEED_FRONT_DESK_PASSWORD=...
+SEED_FRONT_DESK_NAME=Synthetic Front Desk
 # AI providers (AI-APT-001, ADR-0006). Server-only; never NEXT_PUBLIC_*.
 GEMINI_API_KEY=...
 # Optional: defaults shown.
@@ -67,6 +71,7 @@ Open the Supabase dashboard for the project, go to **SQL Editor**, paste the con
 `db/migrations/0004_chat.sql` once, then `db/migrations/0005_knowledge.sql` once.
 Then run `db/migrations/0006_appointment_status_values.sql` **on its own**, and only
 after it has finished, run `db/migrations/0007_appointment_lifecycle_audit.sql`.
+Then run `db/migrations/0008_front_desk_role.sql` **on its own**.
 PostgreSQL cannot use a new enum value in the transaction that added it.
 
 `0001_profiles_appointments.sql`:
@@ -155,6 +160,11 @@ Deploy the matching application code at the same time: older code writes
 `appointment_status_history` and calls the four-argument booking function, and both
 now fail.
 
+`0008_front_desk_role.sql` (FD-001 PR 2):
+
+- adds `front_desk` to `user_role`. Nothing else. Authorization stays in the server
+  layer (`getFrontDeskSession`, ADR-0003); no RLS policies are added.
+
 ### Knowledge base ingestion (ADR-0004)
 
 The synthetic corpus lives in `db/knowledge/*.md` (one document per file; the file
@@ -208,6 +218,11 @@ Set `SEED_ADMIN_EMAIL` (and `SEED_ADMIN_PASSWORD` if the auth user does not exis
 The seed promotes that account's profile to `role = admin`. Admin accounts are not
 available through public registration.
 
+Front desk staff work the same way: set `SEED_FRONT_DESK_EMAIL` (and
+`SEED_FRONT_DESK_PASSWORD` if the auth user does not exist yet), after applying 0008.
+The seed sets that account's profile to `role = front_desk`. There is no registration
+or admin screen for front desk accounts.
+
 ## 4. Seed synthetic data
 
 ```bash
@@ -223,6 +238,7 @@ The seed:
   one whole-day leave exception, and three doctor notifications;
 - deactivates (never deletes) other active schedule periods of the seed doctors;
 - promotes the `SEED_ADMIN_EMAIL` account to admin when set;
+- sets the `SEED_FRONT_DESK_EMAIL` account to front desk when set;
 - upserts today/tomorrow/upcoming/past appointments in `Asia/Manila`, including every
   approved status and cross-doctor appointments at the same time;
 - is idempotent for these rows, but re-running it resets them.
@@ -337,6 +353,14 @@ No real patient data is used.
       from `appointment_audit_logs`).
 
     Cancel the smoke-test appointments afterwards. Audit rows stay, by design.
+16. Check front desk access (FD-001 PR 2), after applying 0008 and seeding with
+    `SEED_FRONT_DESK_EMAIL`:
+    - Sign in as the seed front desk account with no `next` path and confirm you land
+      on `/front-desk`, which shows the Overview shell with your name.
+    - As that account, open `/admin` and `/doctor` and confirm both show the neutral
+      access-denied state. `/chat` also shows access denied.
+    - Sign in as a patient and confirm `/front-desk` shows access denied.
+    - Sign out and confirm `/front-desk` redirects to `/login?next=%2Ffront-desk`.
 
 ## Troubleshooting
 

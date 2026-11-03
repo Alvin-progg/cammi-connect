@@ -23,6 +23,7 @@ const ROLE_LANDING_PATHS: Record<UserRole, string> = {
   doctor: "/doctor",
   admin: DEFAULT_AUTH_REDIRECT, // No admin dashboard route yet.
   patient: PATIENT_LANDING_PATH,
+  front_desk: "/front-desk",
 };
 
 function readString(value: FormDataEntryValue | null): string {

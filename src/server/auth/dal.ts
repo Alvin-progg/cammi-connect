@@ -84,6 +84,39 @@ export async function getAdminSession(
   };
 }
 
+export type FrontDeskSession = {
+  user: SessionUser;
+  staff: {
+    id: string;
+    fullName: string;
+  };
+};
+
+/**
+ * Resolves the signed-in front desk staff profile. Every front desk page and
+ * Server Action calls this first; a null result must be treated as access
+ * denied. Later actions record this profile ID as the acting staff member, so
+ * it must come from the session, never from form input.
+ */
+export async function getFrontDeskSession(
+  returnTo: string,
+): Promise<FrontDeskSession | null> {
+  const user = await requireUser(returnTo);
+  const profile = await getProfileForAuthUser(user.id);
+
+  if (!profile || profile.role !== "front_desk") {
+    return null;
+  }
+
+  return {
+    user,
+    staff: {
+      id: profile.id,
+      fullName: profile.fullName.trim() || "Front desk",
+    },
+  };
+}
+
 export type PatientSession = {
   user: SessionUser;
   patient: {

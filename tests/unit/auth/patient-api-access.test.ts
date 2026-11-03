@@ -41,6 +41,17 @@ describe("resolvePatientForApi", () => {
     await expect(resolvePatientForApi()).resolves.toEqual({ status: "forbidden" });
   });
 
+  it("forbids a front desk account", async () => {
+    vi.mocked(getUser).mockResolvedValue(USER);
+    vi.mocked(getProfileForAuthUser).mockResolvedValue({
+      id: "front-desk-profile-1",
+      role: "front_desk",
+      fullName: "Synthetic Front Desk",
+    });
+
+    await expect(resolvePatientForApi()).resolves.toEqual({ status: "forbidden" });
+  });
+
   it("forbids a signed-in account without a profile", async () => {
     vi.mocked(getUser).mockResolvedValue(USER);
     vi.mocked(getProfileForAuthUser).mockResolvedValue(null);
