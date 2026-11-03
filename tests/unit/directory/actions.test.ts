@@ -4,10 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { getAdminSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
-import {
-  saveDoctorAction,
-  saveSpecialtyAction,
-} from "@/server/directory/actions";
+import { saveDoctorAction } from "@/server/directory/actions";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -16,7 +13,6 @@ vi.mock("@/server/directory/repository", () => ({
   supabaseDirectoryRepository: {
     listDepartments: vi.fn(),
     listSpecialties: vi.fn(),
-    saveSpecialty: vi.fn(),
     listDoctors: vi.fn(),
     getDoctor: vi.fn(),
     saveDoctor: vi.fn(),
@@ -45,7 +41,6 @@ function formData(fields: Record<string, string | string[]>): FormData {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  store.saveSpecialty.mockResolvedValue("saved");
   store.saveDoctor.mockResolvedValue("saved");
   store.listDepartments.mockResolvedValue([]);
   store.listSpecialties.mockResolvedValue([
@@ -84,15 +79,11 @@ describe("directory actions", () => {
     };
 
     await expect(
-      saveSpecialtyAction(IDLE, formData({ name: "X", isActive: "on" })),
-    ).resolves.toEqual(denied);
-    await expect(
       saveDoctorAction(
         IDLE,
         formData({ fullName: "Dr. X", specialtyIds: SPECIALTY_ID, isActive: "on" }),
       ),
     ).resolves.toEqual(denied);
-    expect(store.saveSpecialty).not.toHaveBeenCalled();
     expect(store.saveDoctor).not.toHaveBeenCalled();
   });
 });

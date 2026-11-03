@@ -1,19 +1,23 @@
 "use client";
 
 import { FormFooter } from "@/components/admin/form-parts";
+import { useAdminForm } from "@/components/admin/use-admin-form";
 import { formatManilaDateTime } from "@/lib/appointments/format";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
 import type { Department } from "@/lib/directory/types";
-import { setDepartmentActiveAction } from "@/server/departments/actions";
+import {
+  setDepartmentActiveAction,
+  type DepartmentActionState,
+} from "@/server/departments/actions";
 
-import { useDepartmentForm } from "./use-department-form";
+const IDLE_STATE: DepartmentActionState = { status: "idle" };
 
 /**
  * Activates or deactivates a department. A refused deactivation lists the
  * upcoming appointments that block it, so they can go to the front desk.
  */
 export function DepartmentStatusForm({ department }: { department: Department }) {
-  const { state, formAction, pending } = useDepartmentForm(setDepartmentActiveAction);
+  const { state, formAction, pending } = useAdminForm(setDepartmentActiveAction, IDLE_STATE);
   const nextActive = !department.isActive;
   const conflicts = state.status === "error" ? (state.conflicts ?? []) : [];
 

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   doctorSchema,
-  specialtySchema,
 } from "@/lib/directory/schemas";
 
 const DEPARTMENT_ID = "00000000-0000-4000-8000-000000000501";
@@ -13,28 +12,6 @@ const PROFILE_ID = "00000000-0000-4000-8000-000000000001";
 function firstMessage(result: { error?: { issues: { message: string }[] } }) {
   return result.error?.issues[0]?.message;
 }
-
-describe("specialtySchema", () => {
-  it("parses a specialty with an optional description", () => {
-    expect(
-      specialtySchema.parse({
-        name: "Pediatric Cardiology",
-        description: "Heart conditions in children",
-        isActive: false,
-      }),
-    ).toEqual({
-      name: "Pediatric Cardiology",
-      description: "Heart conditions in children",
-      isActive: false,
-    });
-  });
-
-  it("requires a name", () => {
-    expect(
-      firstMessage(specialtySchema.safeParse({ name: "", isActive: true })),
-    ).toBe("Enter a specialty name.");
-  });
-});
 
 describe("doctorSchema", () => {
   it("accepts several specialties and an optional linked account", () => {

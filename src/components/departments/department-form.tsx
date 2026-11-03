@@ -1,14 +1,15 @@
 "use client";
 
 import { FIELD_CLASS, Field, FormFooter } from "@/components/admin/form-parts";
+import { useAdminForm } from "@/components/admin/use-admin-form";
 import type { Department } from "@/lib/directory/types";
-import { saveDepartmentAction } from "@/server/departments/actions";
+import { saveDepartmentAction, type DepartmentActionState } from "@/server/departments/actions";
 
-import { useDepartmentForm } from "./use-department-form";
+const IDLE_STATE: DepartmentActionState = { status: "idle" };
 
 /** Creates a department, or edits one's name, code, and description. */
 export function DepartmentForm({ department }: { department?: Department }) {
-  const { state, formAction, pending } = useDepartmentForm(saveDepartmentAction);
+  const { state, formAction, pending } = useAdminForm(saveDepartmentAction, IDLE_STATE);
 
   return (
     <form action={formAction} className="flex max-w-xl flex-col gap-4">

@@ -5,7 +5,6 @@ import { DoctorForm } from "@/components/admin/directory-forms";
 import type { Department, DoctorSummary, Specialty } from "@/lib/directory/types";
 
 vi.mock("@/server/directory/actions", () => ({
-  saveSpecialtyAction: vi.fn(),
   saveDoctorAction: vi.fn(),
 }));
 

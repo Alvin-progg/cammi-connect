@@ -62,6 +62,7 @@ export type Database = {
           description: string | null;
           is_active: boolean;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -69,11 +70,13 @@ export type Database = {
           description?: string | null;
           is_active?: boolean;
           created_at?: string;
+          updated_at?: string;
         };
         Update: {
           name?: string;
           description?: string | null;
           is_active?: boolean;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -616,6 +619,24 @@ export type Database = {
           status: AppointmentStatus;
           doctor_name: string;
         }[];
+      };
+      /** Migration 0016 (admin specialties). Raise P0001 not_admin, duplicate, not_found, or unchanged. */
+      cammi_connect_admin_save_specialty: {
+        Args: {
+          p_actor_profile_id: string;
+          p_specialty_id: string | null;
+          p_name: string;
+          p_description: string | null;
+        };
+        Returns: string;
+      };
+      cammi_connect_admin_set_specialty_active: {
+        Args: {
+          p_actor_profile_id: string;
+          p_specialty_id: string;
+          p_is_active: boolean;
+        };
+        Returns: undefined;
       };
       /** Seed script only (scripts/seed.mjs). */
       cammi_connect_bootstrap_staff_role: {

@@ -15,18 +15,6 @@ export const optionalDescription = z.preprocess(
     .default(null),
 );
 
-export const specialtySchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Enter a specialty name.")
-    .max(100, "Keep the name under 100 characters."),
-  description: optionalDescription,
-  isActive: z.boolean(),
-});
-
-export type SpecialtyInput = z.infer<typeof specialtySchema>;
-
 export const doctorSchema = z.object({
   /** Existing profile to promote; null creates a doctor without a login. */
   profileId: z.preprocess(

@@ -9,7 +9,6 @@ import type {
 import {
   listBookableDoctors,
   saveDoctor,
-  saveSpecialty,
   type DirectoryStore,
 } from "@/server/directory/service";
 
@@ -63,7 +62,6 @@ function createStore(overrides: Partial<DirectoryStore> = {}): DirectoryStore {
     listSpecialties: vi
       .fn()
       .mockResolvedValue([INTERNAL_MEDICINE, CARDIO_SPECIALTY, RETIRED_SPECIALTY]),
-    saveSpecialty: vi.fn().mockResolvedValue("saved"),
     listDoctors: vi.fn().mockResolvedValue([EXISTING_DOCTOR]),
     getDoctor: vi.fn().mockResolvedValue(EXISTING_DOCTOR),
     saveDoctor: vi.fn().mockResolvedValue("saved"),
@@ -86,35 +84,6 @@ const NEW_DOCTOR = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-});
-
-describe("saveSpecialty", () => {
-  it("deactivates a specialty", async () => {
-    const store = createStore();
-
-    await expect(
-      saveSpecialty(
-        { id: CARDIO_SPECIALTY.id, name: "Cardiology", description: null, isActive: false },
-        store,
-      ),
-    ).resolves.toEqual({ ok: true });
-    expect(store.saveSpecialty).toHaveBeenCalledWith(
-      expect.objectContaining({ id: CARDIO_SPECIALTY.id, isActive: false }),
-    );
-  });
-
-  it("reports a duplicate name", async () => {
-    const store = createStore({
-      saveSpecialty: vi.fn().mockResolvedValue("duplicate"),
-    });
-
-    await expect(
-      saveSpecialty({ id: null, name: "Cardiology", description: null, isActive: true }, store),
-    ).resolves.toEqual({
-      ok: false,
-      message: "A specialty with that name already exists.",
-    });
-  });
 });
 
 describe("saveDoctor", () => {

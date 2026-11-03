@@ -37,7 +37,6 @@ function fakeStore(): DirectoryStore {
     listSpecialties: vi.fn(async () => SPECIALTIES),
     listDoctors: vi.fn(async () => [MAYA, JOSE]),
     getDoctor: vi.fn(),
-    saveSpecialty: vi.fn(),
     saveDoctor: vi.fn(),
     listLinkableAccounts: vi.fn(),
   };

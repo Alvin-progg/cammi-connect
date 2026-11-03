@@ -2,7 +2,6 @@ import "server-only";
 
 import type {
   DoctorInput,
-  SpecialtyInput,
 } from "@/lib/directory/schemas";
 import type {
   Department,
@@ -27,7 +26,6 @@ export type DoctorFilter = {
 export type DirectoryStore = {
   listDepartments(): Promise<Department[]>;
   listSpecialties(): Promise<Specialty[]>;
-  saveSpecialty(input: { id: string | null } & SpecialtyInput): Promise<SaveOutcome>;
   listDoctors(filter: DoctorFilter): Promise<DoctorSummary[]>;
   getDoctor(doctorId: string): Promise<DoctorSummary | null>;
   /** Creates (doctorId null) or updates a doctor and replaces its specialty set atomically. */
@@ -42,20 +40,6 @@ export type DirectoryStore = {
 };
 
 export type DirectoryResult = { ok: true } | { ok: false; message: string };
-
-export async function saveSpecialty(
-  input: { id: string | null } & SpecialtyInput,
-  store: DirectoryStore,
-): Promise<DirectoryResult> {
-  const outcome = await store.saveSpecialty(input);
-  if (outcome === "duplicate") {
-    return { ok: false, message: "A specialty with that name already exists." };
-  }
-  if (outcome === "not_found") {
-    return { ok: false, message: "That specialty no longer exists." };
-  }
-  return { ok: true };
-}
 
 /**
  * Creates or updates a doctor. `doctorId` identifies an existing doctor to
