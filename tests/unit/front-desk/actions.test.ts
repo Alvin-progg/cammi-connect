@@ -12,9 +12,11 @@ import {
   registerPatientAction,
   rejectRequestAction,
   rescheduleAppointmentAction,
+  searchAppointmentsQuickAction,
 } from "@/server/front-desk/actions";
 import {
   supabaseFrontDeskBooker,
+  supabaseFrontDeskOverviewRepository,
   supabaseFrontDeskPatientsRepository,
   supabaseFrontDeskRequestsWriter,
 } from "@/server/front-desk/repository";
@@ -39,6 +41,7 @@ vi.mock("@/server/front-desk/repository", () => ({
     insertPatient: vi.fn(),
   },
   supabaseFrontDeskBooker: { bookForPatient: vi.fn() },
+  supabaseFrontDeskOverviewRepository: { searchAppointments: vi.fn() },
 }));
 
 const IDLE = { status: "idle" } as const;
@@ -46,6 +49,7 @@ const APPOINTMENT_ID = "00000000-0000-4000-8000-000000000202";
 const writer = vi.mocked(supabaseFrontDeskRequestsWriter);
 const patients = vi.mocked(supabaseFrontDeskPatientsRepository);
 const booker = vi.mocked(supabaseFrontDeskBooker);
+const overview = vi.mocked(supabaseFrontDeskOverviewRepository);
 const PATIENT_ID = "00000000-0000-4000-8000-000000000401";
 const DOCTOR_ID = "00000000-0000-4000-8000-000000000101";
 
@@ -507,5 +511,55 @@ describe("bookForPatientAction", () => {
     });
     expect(revalidatePath).not.toHaveBeenCalled();
     expect(redirect).not.toHaveBeenCalled();
+  });
+});
+
+describe("searchAppointmentsQuickAction", () => {
+  const RESULT = {
+    id: APPOINTMENT_ID,
+    patientName: "Synthetic Patient A",
+    patientPhone: "09171234567",
+    doctorName: "Dr. Synthetic Reyes",
+    scheduledAt: "2026-11-05T01:30:00.000Z",
+    status: "confirmed" as const,
+    bookingSource: "front_desk" as const,
+  };
+
+  it("refuses anyone who is not front desk staff and reads nothing", async () => {
+    vi.mocked(getFrontDeskSession).mockResolvedValue(null);
+
+    await expect(searchAppointmentsQuickAction("Synthetic")).resolves.toEqual({
+      status: "error",
+      message: "You are not authorized to search appointments.",
+    });
+    expect(overview.searchAppointments).not.toHaveBeenCalled();
+  });
+
+  it("rejects a query that is too short without reading", async () => {
+    await expect(searchAppointmentsQuickAction(" S ")).resolves.toEqual({
+      status: "error",
+      message: "Enter at least 2 characters of the name or phone number.",
+    });
+    expect(overview.searchAppointments).not.toHaveBeenCalled();
+  });
+
+  it("rejects input that is not text", async () => {
+    await expect(
+      searchAppointmentsQuickAction(42 as unknown as string),
+    ).resolves.toMatchObject({ status: "error" });
+    expect(overview.searchAppointments).not.toHaveBeenCalled();
+  });
+
+  it("searches by name, and by phone when the query has digits, without refreshing views", async () => {
+    overview.searchAppointments.mockResolvedValue([RESULT]);
+
+    await expect(searchAppointmentsQuickAction("  0917 123 ")).resolves.toEqual({
+      status: "success",
+      items: [RESULT],
+    });
+    expect(overview.searchAppointments).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "0917 123", phone: expect.stringContaining("0917123") }),
+    );
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

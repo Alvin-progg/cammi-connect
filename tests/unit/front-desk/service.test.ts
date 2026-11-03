@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { RequestDetails } from "@/lib/front-desk/requests";
 import { SCHEDULE_LIMIT, type ScheduleItem } from "@/lib/front-desk/schedule";
 import {
+  APPOINTMENT_SEARCH_LIMIT,
+  OVERVIEW_LIST_LIMIT,
+} from "@/lib/front-desk/overview";
+import {
   QUEUE_LIMIT,
   checkRequestSlot,
   confirmRequest,
@@ -19,7 +23,12 @@ import {
   listBookingSlots,
   registerPatient,
   searchPatients,
+  getOverviewCounts,
+  getRecentActivity,
+  listPendingPreview,
+  searchAppointments,
   type FrontDeskBooker,
+  type FrontDeskOverviewReader,
   type FrontDeskPatientsStore,
   type FrontDeskRequestsReader,
   type FrontDeskRequestsWriter,
@@ -896,5 +905,140 @@ describe("listBookingSlots", () => {
         NOW,
       ),
     ).resolves.toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Dashboard overview (SPEC-frontdesk §4)
+// ---------------------------------------------------------------------------
+
+function createOverviewReader(
+  overrides: Partial<FrontDeskOverviewReader> = {},
+): FrontDeskOverviewReader {
+  return {
+    countPending: vi.fn().mockResolvedValue(3),
+    countConfirmedBetween: vi.fn().mockResolvedValue(4),
+    countStatusChangedBetween: vi
+      .fn()
+      .mockImplementation(async (status: string) => (status === "completed" ? 5 : 1)),
+    listRecentConfirmed: vi.fn().mockResolvedValue([]),
+    listRecentClosed: vi.fn().mockResolvedValue([]),
+    searchAppointments: vi.fn().mockResolvedValue([]),
+    ...overrides,
+  };
+}
+
+describe("getOverviewCounts", () => {
+  it("returns the four card counts", async () => {
+    const reader = createOverviewReader();
+    await expect(
+      getOverviewCounts(reader, new Date("2026-11-04T02:00:00.000Z")),
+    ).resolves.toEqual({
+      pending: 3,
+      confirmedToday: 4,
+      completedToday: 5,
+      cancelledToday: 1,
+    });
+  });
+
+  it("uses the Manila day, not the UTC day, just after Manila midnight", async () => {
+    const reader = createOverviewReader();
+    // 00:30 on 2026-11-04 in Manila, still 2026-11-03 in UTC.
+    await getOverviewCounts(reader, new Date("2026-11-03T16:30:00.000Z"));
+
+    const manilaNov4 = {
+      start: "2026-11-03T16:00:00.000Z",
+      end: "2026-11-04T16:00:00.000Z",
+    };
+    expect(reader.countConfirmedBetween).toHaveBeenCalledWith(manilaNov4);
+    expect(reader.countStatusChangedBetween).toHaveBeenCalledWith("completed", manilaNov4);
+    expect(reader.countStatusChangedBetween).toHaveBeenCalledWith("cancelled", manilaNov4);
+  });
+
+  it("uses the Manila day, not the UTC day, just before Manila midnight", async () => {
+    const reader = createOverviewReader();
+    // 23:59 on 2026-11-03 in Manila.
+    await getOverviewCounts(reader, new Date("2026-11-03T15:59:00.000Z"));
+
+    expect(reader.countConfirmedBetween).toHaveBeenCalledWith({
+      start: "2026-11-02T16:00:00.000Z",
+      end: "2026-11-03T16:00:00.000Z",
+    });
+  });
+});
+
+describe("getRecentActivity", () => {
+  it("reads the latest confirmed and the latest rejected or cancelled appointments", async () => {
+    const confirmed = [
+      {
+        id: APPOINTMENT_ID,
+        patientName: "Synthetic Patient A",
+        doctorName: "Dr. Synthetic Reyes",
+        scheduledAt: "2026-11-05T01:00:00.000Z",
+        status: "confirmed" as const,
+        changedAt: "2026-11-04T01:00:00.000Z",
+        reason: null,
+      },
+    ];
+    const reader = createOverviewReader({
+      listRecentConfirmed: vi.fn().mockResolvedValue(confirmed),
+    });
+
+    await expect(getRecentActivity(reader)).resolves.toEqual({
+      recentConfirmed: confirmed,
+      recentClosed: [],
+    });
+    expect(reader.listRecentConfirmed).toHaveBeenCalledWith(OVERVIEW_LIST_LIMIT);
+    expect(reader.listRecentClosed).toHaveBeenCalledWith(OVERVIEW_LIST_LIMIT);
+  });
+});
+
+describe("listPendingPreview", () => {
+  it("reads the soonest pending requests on any day, up to the overview limit", async () => {
+    const reader = createReader();
+    await listPendingPreview(reader);
+
+    expect(reader.listRequests).toHaveBeenCalledWith({
+      status: "requested",
+      start: null,
+      end: null,
+      doctorId: null,
+      specialtyId: null,
+      limit: OVERVIEW_LIST_LIMIT,
+    });
+  });
+});
+
+describe("searchAppointments", () => {
+  it("refuses a query shorter than two characters without reading", async () => {
+    const reader = createOverviewReader();
+    const result = await searchAppointments("a", reader);
+
+    expect(result.ok).toBe(false);
+    expect(reader.searchAppointments).not.toHaveBeenCalled();
+  });
+
+  it("searches by name and leaves the phone out for a text query", async () => {
+    const reader = createOverviewReader();
+    await expect(searchAppointments("  Synthetic  ", reader)).resolves.toEqual({
+      ok: true,
+      items: [],
+    });
+    expect(reader.searchAppointments).toHaveBeenCalledWith({
+      name: "Synthetic",
+      phone: null,
+      limit: APPOINTMENT_SEARCH_LIMIT,
+    });
+  });
+
+  it("also matches the normalized phone when the query looks like a number", async () => {
+    const reader = createOverviewReader();
+    await searchAppointments("0917 123-4567", reader);
+
+    expect(reader.searchAppointments).toHaveBeenCalledWith({
+      name: "0917 123-4567",
+      phone: "09171234567",
+      limit: APPOINTMENT_SEARCH_LIMIT,
+    });
   });
 });

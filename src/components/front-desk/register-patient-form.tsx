@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { registerPatientAction, type BookingFormState } from "@/server/front-desk/actions";
 
 const IDLE_STATE: BookingFormState = { status: "idle" };
@@ -9,8 +10,6 @@ const IDLE_STATE: BookingFormState = { status: "idle" };
 const FIELD_LABEL_CLASS = "text-sm font-medium text-ink";
 const CONTROL_CLASS =
   "mt-1 min-h-11 w-full rounded-lg border border-control-line bg-surface px-3 text-base text-ink focus-ring";
-const PRIMARY_BUTTON =
-  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none";
 
 /**
  * Registers a walk-in or phone-in patient as a record with no login
@@ -59,14 +58,13 @@ export function RegisterPatientForm() {
         </p>
       ) : null}
       <div>
-        <button
+        <Button
           type="submit"
           disabled={pending}
           aria-busy={pending || undefined}
-          className={PRIMARY_BUTTON}
         >
           {pending ? "Registering…" : "Register patient"}
-        </button>
+        </Button>
       </div>
     </form>
   );

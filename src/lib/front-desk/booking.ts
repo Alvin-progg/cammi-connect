@@ -21,11 +21,17 @@ export type PatientMatch = {
   hasAccount: boolean;
 };
 
+/** Shortest patient or appointment search; the ⌘K palette waits for it too. */
+export const PATIENT_SEARCH_MIN_LENGTH = 2;
+
 export const patientSearchSchema = z.object({
   q: z
     .string()
     .trim()
-    .min(2, "Enter at least 2 characters of the name or phone number.")
+    .min(
+      PATIENT_SEARCH_MIN_LENGTH,
+      `Enter at least ${PATIENT_SEARCH_MIN_LENGTH} characters of the name or phone number.`,
+    )
     .max(PATIENT_SEARCH_MAX_LENGTH, "Keep the search under 80 characters."),
 });
 

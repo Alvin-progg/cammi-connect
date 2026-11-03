@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
 
 vi.mock("@/server/auth/actions", () => ({ signOutAction: vi.fn() }));
+vi.mock("@/server/front-desk/actions", () => ({ searchAppointmentsQuickAction: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 describe("FrontDeskShell", () => {
   function renderOverview() {
@@ -109,6 +111,10 @@ describe("FrontDeskShell", () => {
 
     expect(screen.getByText("Synthetic Front Desk")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Search" })).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Meta+K Control+K",
+    );
     expect(screen.getByRole("heading", { level: 1, name: "Overview" })).toBeInTheDocument();
     expect(screen.getByText("Overview content")).toBeInTheDocument();
   });

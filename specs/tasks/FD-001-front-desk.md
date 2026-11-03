@@ -1,6 +1,6 @@
 # FD-001 — Front Desk Appointment Management
 
-- Status: In progress (PR 1 committed `8a2009f`; PR 2 committed `3085b61`; PR 3 committed `d63cb77`; PR 4 committed `9bfb7a4`; PR 5 committed `4c48037`; PR 6 committed `8e783f8`; PR 7 implemented 2026-11-03, awaiting review)
+- Status: In progress (PR 1 committed `8a2009f`; PR 2 committed `3085b61`; PR 3 committed `d63cb77`; PR 4 committed `9bfb7a4`; PR 5 committed `4c48037`; PR 6 committed `8e783f8`; PR 7 implemented 2026-11-03, awaiting review; PR 8 implemented 2026-11-03, awaiting review)
 - Type: Feature
 - Priority: High
 - Module: Front Desk Staff
@@ -43,6 +43,7 @@ Each PR uses TDD and stops for review.
 | 6 | Atomic reschedule and cancel with required reasons and previous/new values in the audit log | — |
 | 7 | Staff-assisted booking for walk-in and phone-in patients (`booking_source = front_desk`) | How staff register a patient with no account (ADR-0001) |
 | 8 | Dashboard overview: four Manila-day summary cards, pending first, recent activity, quick search | — |
+| 8a | UI pass: shared `Button` (cva), base-ui dialogs, table and nav polish, ⌘K quick search palette (approved 2026-11-03) | — |
 | 9 | Patient status view with reasons, and in-app patient notifications | Page or chat view; `patient_notifications` table |
 
 ## PR 1 — traceability
@@ -217,3 +218,65 @@ Decisions (2026-11-03):
 - Existing phone numbers entered before PR 7 are not normalized, so the duplicate check and phone search only match numbers stored in the new form.
 - The slot-grid SQL is now copied in three functions (0007, 0011, 0012).
 - Booking succeeds by navigating to the appointment details. There is no toast.
+
+## PR 8 — traceability
+
+Decisions (2026-11-03):
+- **"Today" cards count actions taken during today's Manila day**, not appointments
+  scheduled today:
+  - Pending counts every `requested` row, on any date.
+  - Confirmed today counts rows whose `confirmed_at` falls today, which covers Cami
+    requests confirmed by staff (0009) and staff bookings (0012).
+  - Completed today and Cancelled today count rows now `completed` or `cancelled`
+    whose `updated_at` falls today. Both statuses are terminal, so `updated_at` is
+    when the status was set.
+- **Quick search is by patient name or phone** and runs on the overview (`?q=`). It
+  lists up to 20 of the matching patients' appointments, newest first, each linking
+  to its details.
+- No migration and no new dependency. The overview only reads data PRs 1–7 write.
+
+| Requirement (SPEC-frontdesk) | Implementation | Verification |
+|---|---|---|
+| §4 summary cards: pending, confirmed, completed, cancelled today | `getOverviewCounts` and `supabaseFrontDeskOverviewRepository` (head count queries); `OverviewCards` | `tests/unit/front-desk/service.test.ts`, `tests/component/front-desk/overview-cards.test.tsx`; smoke step 22 |
+| PR 8 test: "today" uses the Asia/Manila day, not UTC | `getOverviewCounts` builds the range with `manilaDayRange(todayInManila(now))` | `service.test.ts` (00:30 and 23:59 Manila cases); smoke step 22 |
+| §4 pending requests, prioritised | `listPendingPreview` (reuses `listRequests`, soonest five); Pending is the first, emphasised card and the first section | `service.test.ts`, `tests/component/front-desk/overview-sections.test.tsx` |
+| §4 today's schedule | Reuses `listDailySchedule` for today; `TodayScheduleList` shows the first 8 and links the daily schedule | `overview-sections.test.tsx` |
+| §4 recently confirmed; recently rejected or cancelled | `getRecentActivity`; `listRecentConfirmed` (by `confirmed_at`), `listRecentClosed` (by `updated_at`); `RecentActivityList` shows the reason | `service.test.ts`, `overview-sections.test.tsx`; smoke step 22 |
+| §4 quick appointment search | `parseOverviewSearch` (`src/lib/front-desk/overview.ts`); `searchAppointments` (same validation and phone normalization as patient search); `AppointmentSearchResults` | `tests/unit/front-desk/overview.test.ts`, `service.test.ts`, `overview-sections.test.tsx`; smoke step 22 |
+| §3 server-side role authorization | The page calls `getFrontDeskSession` before any read; the search only matches `role = patient` profiles | smoke step 22 |
+
+**Refactor.** Behavior is unchanged:
+- The patient-search validation and phone normalization in the service moved into
+  `parsePatientQuery`, which `searchPatients` and `searchAppointments` share.
+- The `role = patient` profile query moved into `findPatientRows` in the repository,
+  shared by `searchPatients` and `searchAppointments`.
+
+**Limitations.**
+- Completed and Cancelled today rely on `updated_at`. That holds because both statuses
+  are terminal, but a later direct edit to such a row in SQL would move it to that day.
+- Doctor-confirmed appointments from before PR 4 have no `confirmed_at`, so they
+  appear in neither Confirmed today nor Recently confirmed.
+- Today's schedule reads the day's first 200 appointments (`SCHEDULE_LIMIT`), so
+  "View all N today" shows at most 200.
+- Search covers name and phone only, not email, and checks only the first 20
+  matching patients.
+- The page reloads to refresh. There is no live update.
+
+## PR 8a — UI pass (approved 2026-11-03)
+
+Approved dependencies: `class-variance-authority`, `clsx`, `@base-ui/react`, and `cmdk`.
+No migration. The new Server Action is read-only and reuses PR 8's search.
+
+| Requirement | Implementation | Verification |
+|---|---|---|
+| design.md §5.1 button variants in one place | `src/components/ui/button.tsx` (`Button`, `buttonVariants`); front desk forms, pages, and error boundary use it | `tests/component/ui/button.test.tsx` |
+| design.md §5.8 dialogs: safe action focused first, focus returns to the trigger, Escape closes | `request-decision.tsx` on base-ui `Dialog` (confirm) and `AlertDialog` (reject, cancel); no-show asks in an `AlertDialog`; shared classes in `dialog-styles.ts` | `request-decision.test.tsx`, `attendance-actions.test.tsx` |
+| design.md §5.7 tables: labelled focusable scroll region, caption, row hover, sticky header | `table-frame.tsx` used by the request queue, daily schedule, and overview search results | `table-frame.test.tsx`, `request-queue.test.tsx`, `daily-schedule.test.tsx`, `overview-sections.test.tsx` |
+| design.md §5.6 active nav item not marked by colour alone | 2px primary rule on the active sidebar item | Manual check |
+| ⌘K / Ctrl+K quick search from every front desk page | `command-palette.tsx` (cmdk inside a base-ui dialog); `searchAppointmentsQuickAction` checks `getFrontDeskSession`, then calls `searchAppointments` (same validation, limit, and `role = patient` scoping as the overview) | `command-palette.test.tsx`, `tests/unit/front-desk/actions.test.ts` |
+
+**Notes.**
+- The pending summary card is tinted only while requests are waiting.
+- Below `sm`, the header hides the staff name to make room for Search and Sign out.
+- The native `dialog-motion` utility stays, because the doctor and chat dialogs still
+  use it.

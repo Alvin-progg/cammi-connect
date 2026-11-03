@@ -10,6 +10,7 @@ import {
   RequestDecision,
 } from "@/components/front-desk/request-decision";
 import { RequestDetailsView } from "@/components/front-desk/request-details";
+import { buttonVariants } from "@/components/ui/button";
 import { todayInManila } from "@/lib/appointments/filters";
 import { formatManilaMediumDate, formatManilaTime } from "@/lib/appointments/format";
 import {
@@ -27,8 +28,7 @@ export const instant = false;
 
 export const metadata: Metadata = { title: "Appointment request" };
 
-const SECONDARY_BUTTON_CLASS =
-  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink pressable hover:bg-surface-muted";
+const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "secondary" });
 
 export default async function FrontDeskRequestPage({
   params,

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 
+import { Button } from "@/components/ui/button";
+
 export default function FrontDeskError({
   reset,
 }: {
@@ -29,13 +31,7 @@ export default function FrontDeskError({
             again in a moment.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={reset}
-              className="focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover motion-reduce:transition-none"
-            >
-              Try again
-            </button>
+            <Button onClick={reset}>Try again</Button>
             <Link
               href="/account"
               className="rounded-lg text-sm font-medium text-primary underline underline-offset-4 focus-ring hover:text-primary-hover"

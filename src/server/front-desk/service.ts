@@ -12,6 +12,13 @@ import {
 } from "@/lib/front-desk/booking";
 import type { SlotCheck } from "@/lib/front-desk/decisions";
 import {
+  APPOINTMENT_SEARCH_LIMIT,
+  OVERVIEW_LIST_LIMIT,
+  type AppointmentSearchItem,
+  type OverviewCounts,
+  type RecentAppointment,
+} from "@/lib/front-desk/overview";
+import {
   SCHEDULE_LIMIT,
   type AttendanceStatus,
   type ScheduleFilters,
@@ -475,18 +482,34 @@ export type FrontDeskBooker = {
   >;
 };
 
-export async function searchPatients(
+/**
+ * Validates a patient name-or-phone search. Phones are stored normalized, so
+ * a query with digits also matches the number however it was typed.
+ */
+function parsePatientQuery(
   query: string,
-  store: FrontDeskPatientsStore,
-): Promise<{ ok: true; patients: PatientMatch[] } | { ok: false; message: string }> {
+): { ok: true; name: string; phone: string | null } | { ok: false; message: string } {
   const parsed = patientSearchSchema.safeParse({ q: query });
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the search." };
   }
   const name = parsed.data.q;
-  // Phones are stored normalized, so a number typed with spaces still matches.
-  const phone = /\d/.test(name) ? normalizePhone(name) : null;
-  const patients = await store.searchPatients({ name, phone, limit: PATIENT_SEARCH_LIMIT });
+  return { ok: true, name, phone: /\d/.test(name) ? normalizePhone(name) : null };
+}
+
+export async function searchPatients(
+  query: string,
+  store: FrontDeskPatientsStore,
+): Promise<{ ok: true; patients: PatientMatch[] } | { ok: false; message: string }> {
+  const parsed = parsePatientQuery(query);
+  if (!parsed.ok) {
+    return parsed;
+  }
+  const patients = await store.searchPatients({
+    name: parsed.name,
+    phone: parsed.phone,
+    limit: PATIENT_SEARCH_LIMIT,
+  });
   return { ok: true, patients };
 }
 
@@ -580,4 +603,98 @@ export async function listBookingSlots(
     source,
   );
   return availability?.slots ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard overview (SPEC-frontdesk §4)
+// ---------------------------------------------------------------------------
+
+/** ISO bounds of a Manila day. */
+export type IsoRange = { start: string; end: string };
+
+/** Read model for the overview. Callers must have checked the front desk session first. */
+export type FrontDeskOverviewReader = {
+  /** Appointments still `requested`, on any date. */
+  countPending(): Promise<number>;
+  /** Appointments whose `confirmed_at` falls in the range. */
+  countConfirmedBetween(range: IsoRange): Promise<number>;
+  /**
+   * Appointments now in `status` whose `updated_at` falls in the range. Both
+   * statuses are terminal, so `updated_at` is when the status was set.
+   */
+  countStatusChangedBetween(
+    status: "completed" | "cancelled",
+    range: IsoRange,
+  ): Promise<number>;
+  /** Latest by `confirmed_at`, whatever the current status. */
+  listRecentConfirmed(limit: number): Promise<RecentAppointment[]>;
+  /** Latest `rejected` or `cancelled` by `updated_at`. */
+  listRecentClosed(limit: number): Promise<RecentAppointment[]>;
+  /** Appointments of patients whose name contains `name` or phone contains `phone`. */
+  searchAppointments(input: {
+    name: string;
+    phone: string | null;
+    limit: number;
+  }): Promise<AppointmentSearchItem[]>;
+};
+
+/**
+ * The four summary cards. "Today" is the Asia/Manila calendar day containing
+ * `now`, so an action at 00:30 Manila time counts on the new Manila day even
+ * though it is still the previous day in UTC.
+ */
+export async function getOverviewCounts(
+  reader: FrontDeskOverviewReader,
+  now: Date = new Date(),
+): Promise<OverviewCounts> {
+  const day = manilaDayRange(todayInManila(now));
+  const today = { start: day.start.toISOString(), end: day.end.toISOString() };
+  const [pending, confirmedToday, completedToday, cancelledToday] = await Promise.all([
+    reader.countPending(),
+    reader.countConfirmedBetween(today),
+    reader.countStatusChangedBetween("completed", today),
+    reader.countStatusChangedBetween("cancelled", today),
+  ]);
+  return { pending, confirmedToday, completedToday, cancelledToday };
+}
+
+export async function getRecentActivity(
+  reader: FrontDeskOverviewReader,
+): Promise<{ recentConfirmed: RecentAppointment[]; recentClosed: RecentAppointment[] }> {
+  const [recentConfirmed, recentClosed] = await Promise.all([
+    reader.listRecentConfirmed(OVERVIEW_LIST_LIMIT),
+    reader.listRecentClosed(OVERVIEW_LIST_LIMIT),
+  ]);
+  return { recentConfirmed, recentClosed };
+}
+
+/** The soonest pending Cami requests on any date, shown first on the overview. */
+export async function listPendingPreview(
+  reader: FrontDeskRequestsReader,
+): Promise<RequestQueueItem[]> {
+  return reader.listRequests({
+    status: "requested",
+    start: null,
+    end: null,
+    doctorId: null,
+    specialtyId: null,
+    limit: OVERVIEW_LIST_LIMIT,
+  });
+}
+
+/** Quick appointment search by patient name or phone. */
+export async function searchAppointments(
+  query: string,
+  reader: FrontDeskOverviewReader,
+): Promise<{ ok: true; items: AppointmentSearchItem[] } | { ok: false; message: string }> {
+  const parsed = parsePatientQuery(query);
+  if (!parsed.ok) {
+    return parsed;
+  }
+  const items = await reader.searchAppointments({
+    name: parsed.name,
+    phone: parsed.phone,
+    limit: APPOINTMENT_SEARCH_LIMIT,
+  });
+  return { ok: true, items };
 }

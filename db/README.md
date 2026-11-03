@@ -540,6 +540,29 @@ No real patient data is used.
       'confirmed', 'ai_chatbot')` still fails with `ai_requires_confirmation`.
     - As the doctor, the new appointment appears as Confirmed in `/doctor`.
 
+22. Check the dashboard overview (FD-001 PR 8). No migration is needed. Use synthetic data
+    only:
+    - As the front desk account, open **Overview** and note the four cards. Pending
+      equals the number of rows with `status = 'requested'`. Confirm one pending
+      request: Pending drops by one, Confirmed today rises by one, and the request tops
+      **Recently confirmed**. Book a walk-in appointment (step 21): Confirmed today rises
+      again.
+    - Cancel a confirmed appointment and reject a pending one: Cancelled today rises by
+      one (rejections are not counted there), and both top **Recently rejected or
+      cancelled** with their reasons. Mark a checked-in visit completed on the daily
+      schedule: Completed today rises by one.
+    - Manila day boundary: in SQL, `select count(*) from public.appointments where
+      confirmed_at >= (date_trunc('day', now() at time zone 'Asia/Manila') at time zone
+      'Asia/Manila') and confirmed_at < (date_trunc('day', now() at time zone
+      'Asia/Manila') at time zone 'Asia/Manila') + interval '1 day';` equals Confirmed
+      today. Between 00:00 and 08:00 Manila time (still the previous UTC day), an action
+      taken after Manila midnight counts and one from before it does not.
+    - **Today's schedule** lists today's appointments (first 8) and links to the daily
+      schedule. **Pending requests** lists the soonest five.
+    - Search "Test Walkin" and then `0900 000`: both list that patient's appointments,
+      newest first, each linking to its details. A one-character search shows a
+      validation message; a doctor's or staff member's name finds nothing.
+
 ## Troubleshooting
 
 ### Public registration fails with "Too many attempts"

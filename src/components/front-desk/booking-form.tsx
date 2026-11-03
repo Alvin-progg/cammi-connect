@@ -2,13 +2,12 @@
 
 import { useActionState, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { formatManilaTime } from "@/lib/appointments/format";
 import { bookForPatientAction, type BookingFormState } from "@/server/front-desk/actions";
 
 const IDLE_STATE: BookingFormState = { status: "idle" };
 
-const PRIMARY_BUTTON =
-  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-ink transition-colors hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none";
 
 /**
  * Picks a slot, reviews, and books a confirmed appointment for the patient
@@ -55,7 +54,7 @@ export function BookingForm({
           {slots.map((slot) => (
             <label
               key={slot.start}
-              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink hover:bg-surface-muted has-[:checked]:border-primary has-[:checked]:bg-primary-soft"
+              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink pressable hover:bg-surface-muted has-[:checked]:border-primary has-[:checked]:bg-primary-soft"
             >
               <input
                 type="radio"
@@ -110,14 +109,13 @@ export function BookingForm({
         </p>
       ) : null}
       <div className="mt-5">
-        <button
+        <Button
           type="submit"
           disabled={pending}
           aria-busy={pending || undefined}
-          className={PRIMARY_BUTTON}
         >
           {pending ? "Booking…" : "Book and confirm"}
-        </button>
+        </Button>
       </div>
     </form>
   );

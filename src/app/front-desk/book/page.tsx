@@ -6,6 +6,7 @@ import { AccessDenied } from "@/components/auth/access-denied";
 import { BookingForm } from "@/components/front-desk/booking-form";
 import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
 import { RegisterPatientForm } from "@/components/front-desk/register-patient-form";
+import { buttonVariants } from "@/components/ui/button";
 import { todayInManila } from "@/lib/appointments/filters";
 import { formatManilaMediumDate } from "@/lib/appointments/format";
 import {
@@ -28,8 +29,7 @@ const BOOK_PATH = "/front-desk/book";
 const FIELD_LABEL_CLASS = "text-xs font-medium text-ink-muted";
 const CONTROL_CLASS =
   "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
-const SECONDARY_BUTTON_CLASS =
-  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink pressable hover:bg-surface-muted";
+const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "secondary" });
 const LINK_CLASS =
   "focus-ring inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline";
 

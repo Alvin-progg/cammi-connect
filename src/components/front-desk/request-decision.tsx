@@ -1,5 +1,7 @@
 "use client";
 
+import { AlertDialog } from "@base-ui/react/alert-dialog";
+import { Dialog } from "@base-ui/react/dialog";
 import {
   useActionState,
   useCallback,
@@ -7,11 +9,14 @@ import {
   useRef,
   useState,
   type ComponentType,
+  type RefObject,
 } from "react";
 import { toast } from "sonner";
 
+import { DIALOG_BACKDROP_CLASS, DIALOG_POPUP_CLASS } from "./dialog-styles";
 import { ReasonFields } from "./reason-fields";
 
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   CANCELLATION_REASONS,
   CANCELLATION_REASON_LABELS,
@@ -27,13 +32,6 @@ import {
 
 const IDLE_STATE: RequestDecisionState = { status: "idle" };
 
-const BUTTON_BASE =
-  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border px-4 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none";
-const PRIMARY_BUTTON = `${BUTTON_BASE} border-primary bg-primary text-primary-ink hover:bg-primary-hover`;
-const DANGER_BUTTON = `${BUTTON_BASE} border-danger bg-danger text-danger-ink hover:bg-danger-hover`;
-const OUTLINE_DANGER_BUTTON = `${BUTTON_BASE} border-line-strong bg-surface text-danger hover:bg-danger-soft`;
-const QUIET_BUTTON = `${BUTTON_BASE} border-transparent bg-transparent text-ink hover:bg-surface-muted`;
-
 type Summary = {
   appointmentId: string;
   patientName: string;
@@ -41,61 +39,56 @@ type Summary = {
   whenLabel: string;
 };
 
+type DecisionFormProps = {
+  summary: Summary;
+  close: () => void;
+  /** The "Go back" button, which takes initial focus (design.md §5.8). */
+  safeActionRef: RefObject<HTMLButtonElement | null>;
+};
+
 /**
- * A native modal dialog that mounts its form only while open, so each
- * opening starts from a fresh form state.
+ * A modal decision dialog. Confirming uses a regular dialog; rejecting and
+ * cancelling are destructive, so they use an alert dialog that a backdrop
+ * click cannot dismiss. The popup unmounts when closed, so each opening
+ * starts from a fresh form state.
  */
 function DecisionDialog({
   summary,
-  kind,
+  destructive,
   title,
   triggerLabel,
-  triggerClassName,
+  triggerVariant,
   Form,
 }: {
   summary: Summary;
-  kind: "confirm" | "reject" | "cancel";
+  destructive: boolean;
   title: string;
   triggerLabel: string;
-  triggerClassName: string;
-  Form: ComponentType<{ summary: Summary; close: () => void }>;
+  triggerVariant: "primary" | "outlineDanger";
+  Form: ComponentType<DecisionFormProps>;
 }) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const close = useCallback(() => dialogRef.current?.close(), []);
-  const titleId = `${kind}-title-${summary.appointmentId}`;
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const safeActionRef = useRef<HTMLButtonElement>(null);
+  const Parts = destructive ? AlertDialog : Dialog;
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => {
-          setIsOpen(true);
-          dialogRef.current?.showModal();
-        }}
-        className={triggerClassName}
-      >
+    <Parts.Root open={open} onOpenChange={setOpen}>
+      <Parts.Trigger className={buttonVariants({ variant: triggerVariant })}>
         {triggerLabel}
-      </button>
-      <dialog
-        ref={dialogRef}
-        aria-labelledby={titleId}
-        className="dialog-motion m-auto w-full max-w-md rounded-2xl border border-line bg-surface p-6 text-ink shadow-overlay backdrop:bg-overlay"
-        onClose={() => setIsOpen(false)}
-        onClick={(event) => {
-          if (event.target === dialogRef.current) close();
-        }}
-      >
-        {isOpen ? (
-          <>
-            <h2 id={titleId} className="text-lg font-semibold text-ink">
-              {title}
-            </h2>
-            <Form summary={summary} close={close} />
-          </>
-        ) : null}
-      </dialog>
-    </>
+      </Parts.Trigger>
+      <Parts.Portal>
+        <Parts.Backdrop className={DIALOG_BACKDROP_CLASS} />
+        <Parts.Popup initialFocus={safeActionRef} className={DIALOG_POPUP_CLASS}>
+          <Parts.Title className="text-lg font-semibold text-ink">{title}</Parts.Title>
+          <Parts.Description render={<div />} className="mt-2 text-sm">
+            <p className="font-medium text-ink">{summary.patientName}</p>
+            <p className="text-ink-secondary">{`${summary.doctorName} · ${summary.whenLabel}`}</p>
+          </Parts.Description>
+          <Form summary={summary} close={close} safeActionRef={safeActionRef} />
+        </Parts.Popup>
+      </Parts.Portal>
+    </Parts.Root>
   );
 }
 
@@ -117,52 +110,41 @@ function useSuccess(state: RequestDecisionState, close: () => void) {
   }, [state, close]);
 }
 
-function SummaryLines({ summary }: { summary: Summary }) {
-  return (
-    <div className="mt-2 text-sm">
-      <p className="font-medium text-ink">{summary.patientName}</p>
-      <p className="text-ink-secondary">{`${summary.doctorName} · ${summary.whenLabel}`}</p>
-    </div>
-  );
-}
-
-function ConfirmForm({ summary, close }: { summary: Summary; close: () => void }) {
+function ConfirmForm({ summary, close, safeActionRef }: DecisionFormProps) {
   const [state, formAction, pending] = useActionState(confirmRequestAction, IDLE_STATE);
   useSuccess(state, close);
 
   return (
     <form action={formAction}>
       <input type="hidden" name="appointmentId" value={summary.appointmentId} />
-      <SummaryLines summary={summary} />
       <p className="mt-3 text-sm text-ink-muted">
         The doctor&apos;s schedule is checked again when you confirm.
       </p>
       <ErrorMessage state={state} />
       <div className="mt-5 flex flex-wrap justify-end gap-2">
-        <button type="button" onClick={close} className={QUIET_BUTTON}>
+        <Button ref={safeActionRef} variant="ghost" onClick={close}>
           Go back
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
+          variant="primary"
           disabled={pending}
           aria-busy={pending || undefined}
-          className={PRIMARY_BUTTON}
         >
           {pending ? "Confirming…" : "Confirm appointment"}
-        </button>
+        </Button>
       </div>
     </form>
   );
 }
 
-function RejectForm({ summary, close }: { summary: Summary; close: () => void }) {
+function RejectForm({ summary, close, safeActionRef }: DecisionFormProps) {
   const [state, formAction, pending] = useActionState(rejectRequestAction, IDLE_STATE);
   useSuccess(state, close);
 
   return (
     <form action={formAction}>
       <input type="hidden" name="appointmentId" value={summary.appointmentId} />
-      <SummaryLines summary={summary} />
       <ReasonFields
         idPrefix={`reject-${summary.appointmentId}`}
         reasons={REJECTION_REASONS}
@@ -171,30 +153,29 @@ function RejectForm({ summary, close }: { summary: Summary; close: () => void })
       />
       <ErrorMessage state={state} />
       <div className="mt-5 flex flex-wrap justify-end gap-2">
-        <button type="button" onClick={close} className={QUIET_BUTTON}>
+        <Button ref={safeActionRef} variant="ghost" onClick={close}>
           Go back
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
+          variant="danger"
           disabled={pending}
           aria-busy={pending || undefined}
-          className={DANGER_BUTTON}
         >
           {pending ? "Rejecting…" : "Reject request"}
-        </button>
+        </Button>
       </div>
     </form>
   );
 }
 
-function CancelForm({ summary, close }: { summary: Summary; close: () => void }) {
+function CancelForm({ summary, close, safeActionRef }: DecisionFormProps) {
   const [state, formAction, pending] = useActionState(cancelAppointmentAction, IDLE_STATE);
   useSuccess(state, close);
 
   return (
     <form action={formAction}>
       <input type="hidden" name="appointmentId" value={summary.appointmentId} />
-      <SummaryLines summary={summary} />
       <ReasonFields
         idPrefix={`cancel-${summary.appointmentId}`}
         reasons={CANCELLATION_REASONS}
@@ -203,17 +184,17 @@ function CancelForm({ summary, close }: { summary: Summary; close: () => void })
       />
       <ErrorMessage state={state} />
       <div className="mt-5 flex flex-wrap justify-end gap-2">
-        <button type="button" onClick={close} className={QUIET_BUTTON}>
+        <Button ref={safeActionRef} variant="ghost" onClick={close}>
           Go back
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
+          variant="danger"
           disabled={pending}
           aria-busy={pending || undefined}
-          className={DANGER_BUTTON}
         >
           {pending ? "Cancelling…" : "Cancel appointment"}
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -229,18 +210,18 @@ export function RequestDecision(summary: Summary) {
     <div className="flex flex-wrap gap-2">
       <DecisionDialog
         summary={summary}
-        kind="confirm"
+        destructive={false}
         title="Confirm this appointment?"
         triggerLabel="Confirm request"
-        triggerClassName={PRIMARY_BUTTON}
+        triggerVariant="primary"
         Form={ConfirmForm}
       />
       <DecisionDialog
         summary={summary}
-        kind="reject"
+        destructive
         title="Reject this request?"
         triggerLabel="Reject request"
-        triggerClassName={OUTLINE_DANGER_BUTTON}
+        triggerVariant="outlineDanger"
         Form={RejectForm}
       />
     </div>
@@ -256,10 +237,10 @@ export function CancelAppointment(summary: Summary) {
   return (
     <DecisionDialog
       summary={summary}
-      kind="cancel"
+      destructive
       title="Cancel this appointment?"
       triggerLabel="Cancel appointment"
-      triggerClassName={OUTLINE_DANGER_BUTTON}
+      triggerVariant="outlineDanger"
       Form={CancelForm}
     />
   );

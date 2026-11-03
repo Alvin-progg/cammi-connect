@@ -13,6 +13,7 @@ import {
   rejectRequestSchema,
   rescheduleAppointmentSchema,
 } from "@/lib/front-desk/decisions";
+import type { AppointmentSearchItem } from "@/lib/front-desk/overview";
 import {
   recordAttendanceSchema,
   type AttendanceStatus,
@@ -21,6 +22,7 @@ import { getFrontDeskSession } from "@/server/auth/dal";
 
 import {
   supabaseFrontDeskBooker,
+  supabaseFrontDeskOverviewRepository,
   supabaseFrontDeskPatientsRepository,
   supabaseFrontDeskRequestsWriter,
 } from "./repository";
@@ -32,6 +34,7 @@ import {
   registerPatient,
   rejectRequest,
   rescheduleAppointment,
+  searchAppointments,
   type DecisionResult,
 } from "./service";
 
@@ -290,4 +293,31 @@ export async function bookForPatientAction(
   revalidatePath(SCHEDULE_PATH);
   revalidatePath("/doctor");
   redirect(`${QUEUE_PATH}/${result.appointmentId}`);
+}
+
+export type QuickSearchState =
+  | { status: "error"; message: string }
+  | { status: "success"; items: AppointmentSearchItem[] };
+
+/**
+ * Patient name-or-phone appointment search for the ⌘K palette. Read-only:
+ * the same session check, validation, and query as the overview's `?q=`
+ * search, so it never reveals more than that page does.
+ */
+export async function searchAppointmentsQuickAction(
+  query: string,
+): Promise<QuickSearchState> {
+  const session = await getFrontDeskSession("/front-desk");
+  if (!session) {
+    return { status: "error", message: "You are not authorized to search appointments." };
+  }
+  // Server Action arguments are untrusted; the service schema expects text.
+  if (typeof query !== "string") {
+    return { status: "error", message: "Check the search." };
+  }
+
+  const result = await searchAppointments(query, supabaseFrontDeskOverviewRepository);
+  return result.ok
+    ? { status: "success", items: result.items }
+    : { status: "error", message: result.message };
 }

@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   CancelAppointment,
@@ -18,17 +18,6 @@ vi.mock("@/server/front-desk/actions", () => ({
   rejectRequestAction: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
-
-// jsdom does not implement modal dialogs; mimic the open/close contract.
-beforeAll(() => {
-  HTMLDialogElement.prototype.showModal = function showModal() {
-    this.setAttribute("open", "");
-  };
-  HTMLDialogElement.prototype.close = function close() {
-    this.removeAttribute("open");
-    this.dispatchEvent(new Event("close"));
-  };
-});
 
 const APPOINTMENT_ID = "00000000-0000-4000-8000-000000000202";
 
@@ -93,13 +82,74 @@ describe("RequestDecision", () => {
     );
   });
 
+  it("describes the dialog with the appointment it decides on", async () => {
+    const user = userEvent.setup();
+    renderDecision();
+
+    await user.click(screen.getByRole("button", { name: "Confirm request" }));
+
+    expect(
+      screen.getByRole("dialog", { name: "Confirm this appointment?" }),
+    ).toHaveAccessibleDescription(/Synthetic Patient B.*Dr\. Synthetic Reyes · Nov 4, 2026, 10:30 AM/);
+  });
+
+  it("puts initial focus on the safe action when rejecting", async () => {
+    const user = userEvent.setup();
+    renderDecision();
+
+    await user.click(screen.getByRole("button", { name: "Reject request" }));
+
+    const dialog = screen.getByRole("alertdialog", { name: "Reject this request?" });
+    await waitFor(() =>
+      expect(within(dialog).getByRole("button", { name: "Go back" })).toHaveFocus(),
+    );
+  });
+
+  it("closes on Escape and returns focus to the trigger", async () => {
+    const user = userEvent.setup();
+    renderDecision();
+    const trigger = screen.getByRole("button", { name: "Reject request" });
+
+    await user.click(trigger);
+    await screen.findByRole("alertdialog", { name: "Reject this request?" });
+    await user.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog", { name: "Reject this request?" })).toBeNull(),
+    );
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it("starts each opening from a fresh form", async () => {
+    vi.mocked(confirmRequestAction).mockResolvedValue({
+      status: "error",
+      message: "This request is no longer pending.",
+    });
+    const user = userEvent.setup();
+    renderDecision();
+
+    await user.click(screen.getByRole("button", { name: "Confirm request" }));
+    const dialog = screen.getByRole("dialog", { name: "Confirm this appointment?" });
+    await user.click(within(dialog).getByRole("button", { name: "Confirm appointment" }));
+    await within(dialog).findByRole("alert");
+
+    await user.click(within(dialog).getByRole("button", { name: "Go back" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Confirm this appointment?" })).toBeNull(),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Confirm request" }));
+    const reopened = screen.getByRole("dialog", { name: "Confirm this appointment?" });
+    expect(within(reopened).queryByRole("alert")).toBeNull();
+  });
+
   it("requires a rejection reason, and details for other reasons", async () => {
     const user = userEvent.setup();
     renderDecision();
 
     await user.click(screen.getByRole("button", { name: "Reject request" }));
 
-    const dialog = screen.getByRole("dialog", { name: "Reject this request?" });
+    const dialog = screen.getByRole("alertdialog", { name: "Reject this request?" });
     const reasons = within(dialog).getByRole("radiogroup", { name: "Reason" });
     expect(within(reasons).getAllByRole("radio")).toHaveLength(5);
     expect(within(reasons).getByRole("radio", { name: "Doctor unavailable" })).toBeRequired();
@@ -122,7 +172,7 @@ describe("RequestDecision", () => {
     renderDecision();
 
     await user.click(screen.getByRole("button", { name: "Reject request" }));
-    const dialog = screen.getByRole("dialog", { name: "Reject this request?" });
+    const dialog = screen.getByRole("alertdialog", { name: "Reject this request?" });
     await user.click(within(dialog).getByRole("radio", { name: "Doctor unavailable" }));
     await user.type(
       within(dialog).getByRole("textbox", { name: /Details/ }),
@@ -160,7 +210,7 @@ describe("CancelAppointment", () => {
 
     await user.click(screen.getByRole("button", { name: "Cancel appointment" }));
 
-    const dialog = screen.getByRole("dialog", { name: "Cancel this appointment?" });
+    const dialog = screen.getByRole("alertdialog", { name: "Cancel this appointment?" });
     expect(within(dialog).getByText("Synthetic Patient B")).toBeInTheDocument();
     await user.click(within(dialog).getByRole("radio", { name: "Patient request" }));
     await user.type(
@@ -175,7 +225,7 @@ describe("CancelAppointment", () => {
     expect(submitted.get("reason")).toBe("patient_request");
     expect(submitted.get("details")).toBe("Called to cancel.");
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Cancel this appointment?" })).toBeNull(),
+      expect(screen.queryByRole("alertdialog", { name: "Cancel this appointment?" })).toBeNull(),
     );
   });
 
@@ -184,7 +234,7 @@ describe("CancelAppointment", () => {
     renderCancel();
 
     await user.click(screen.getByRole("button", { name: "Cancel appointment" }));
-    const dialog = screen.getByRole("dialog", { name: "Cancel this appointment?" });
+    const dialog = screen.getByRole("alertdialog", { name: "Cancel this appointment?" });
     await user.click(
       within(dialog).getByRole("radio", { name: "Other hospital-approved reason" }),
     );
@@ -202,13 +252,13 @@ describe("CancelAppointment", () => {
     renderCancel();
 
     await user.click(screen.getByRole("button", { name: "Cancel appointment" }));
-    const dialog = screen.getByRole("dialog", { name: "Cancel this appointment?" });
+    const dialog = screen.getByRole("alertdialog", { name: "Cancel this appointment?" });
     await user.click(within(dialog).getByRole("radio", { name: "Doctor unavailable" }));
     await user.click(within(dialog).getByRole("button", { name: "Cancel appointment" }));
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
       "Only pending or confirmed appointments can be cancelled.",
     );
-    expect(screen.getByRole("dialog", { name: "Cancel this appointment?" })).toBeInTheDocument();
+    expect(screen.getByRole("alertdialog", { name: "Cancel this appointment?" })).toBeInTheDocument();
   });
 });
