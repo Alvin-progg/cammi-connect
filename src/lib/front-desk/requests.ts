@@ -69,6 +69,8 @@ export type RequestAuditEntry = {
   actorRole: UserRole | null;
   reason: string | null;
   scheduledAt: string | null;
+  /** The time before a reschedule, from `previous_values`; null otherwise. */
+  previousScheduledAt: string | null;
   createdAt: string;
 };
 

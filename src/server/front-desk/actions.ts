@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 
 import {
+  cancelAppointmentSchema,
   confirmRequestSchema,
   rejectRequestSchema,
+  rescheduleAppointmentSchema,
 } from "@/lib/front-desk/decisions";
 import {
   recordAttendanceSchema,
@@ -14,9 +16,11 @@ import { getFrontDeskSession } from "@/server/auth/dal";
 
 import { supabaseFrontDeskRequestsWriter } from "./repository";
 import {
+  cancelAppointment,
   confirmRequest,
   recordAttendance,
   rejectRequest,
+  rescheduleAppointment,
   type DecisionResult,
 } from "./service";
 
@@ -137,5 +141,64 @@ export async function recordAttendanceAction(
         supabaseFrontDeskRequestsWriter,
       ),
     ATTENDANCE_SUCCESS_MESSAGES[status],
+  );
+}
+
+/** Moves an appointment to another slot with the same doctor (SPEC-frontdesk §9). */
+export async function rescheduleAppointmentAction(
+  _previous: RequestDecisionState,
+  formData: FormData,
+): Promise<RequestDecisionState> {
+  const parsed = rescheduleAppointmentSchema.safeParse({
+    appointmentId: formData.get("appointmentId"),
+    scheduledAt: formData.get("scheduledAt"),
+    reason: formData.get("reason"),
+    details: formData.get("details"),
+  });
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.error.issues[0]?.message ?? "Check the new time and reason.",
+    };
+  }
+  const { appointmentId, scheduledAt, rescheduleReason } = parsed.data;
+
+  return runDecision(
+    appointmentId,
+    (staffId) =>
+      rescheduleAppointment(
+        { appointmentId, staffId, scheduledAt, rescheduleReason },
+        supabaseFrontDeskRequestsWriter,
+      ),
+    "Appointment rescheduled.",
+  );
+}
+
+/** Cancels an appointment with a required reason (SPEC-frontdesk §9). */
+export async function cancelAppointmentAction(
+  _previous: RequestDecisionState,
+  formData: FormData,
+): Promise<RequestDecisionState> {
+  const parsed = cancelAppointmentSchema.safeParse({
+    appointmentId: formData.get("appointmentId"),
+    reason: formData.get("reason"),
+    details: formData.get("details"),
+  });
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.error.issues[0]?.message ?? "Check the cancellation reason.",
+    };
+  }
+  const { appointmentId, cancellationReason } = parsed.data;
+
+  return runDecision(
+    appointmentId,
+    (staffId) =>
+      cancelAppointment(
+        { appointmentId, staffId, cancellationReason },
+        supabaseFrontDeskRequestsWriter,
+      ),
+    "Appointment cancelled.",
   );
 }

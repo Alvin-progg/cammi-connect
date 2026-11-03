@@ -2,13 +2,18 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RequestDecision } from "@/components/front-desk/request-decision";
 import {
+  CancelAppointment,
+  RequestDecision,
+} from "@/components/front-desk/request-decision";
+import {
+  cancelAppointmentAction,
   confirmRequestAction,
   rejectRequestAction,
 } from "@/server/front-desk/actions";
 
 vi.mock("@/server/front-desk/actions", () => ({
+  cancelAppointmentAction: vi.fn(),
   confirmRequestAction: vi.fn(),
   rejectRequestAction: vi.fn(),
 }));
@@ -41,6 +46,7 @@ function renderDecision() {
 beforeEach(() => {
   vi.mocked(confirmRequestAction).mockReset();
   vi.mocked(rejectRequestAction).mockReset();
+  vi.mocked(cancelAppointmentAction).mockReset();
 });
 
 describe("RequestDecision", () => {
@@ -129,5 +135,80 @@ describe("RequestDecision", () => {
     expect(submitted.get("appointmentId")).toBe(APPOINTMENT_ID);
     expect(submitted.get("reason")).toBe("doctor_unavailable");
     expect(submitted.get("details")).toBe("On leave that week.");
+  });
+});
+
+describe("CancelAppointment", () => {
+  function renderCancel() {
+    return render(
+      <CancelAppointment
+        appointmentId={APPOINTMENT_ID}
+        patientName="Synthetic Patient B"
+        doctorName="Dr. Synthetic Reyes"
+        whenLabel="Nov 4, 2026, 10:30 AM"
+      />,
+    );
+  }
+
+  it("cancels with a chosen reason and details after a summary", async () => {
+    vi.mocked(cancelAppointmentAction).mockResolvedValue({
+      status: "success",
+      message: "Appointment cancelled.",
+    });
+    const user = userEvent.setup();
+    renderCancel();
+
+    await user.click(screen.getByRole("button", { name: "Cancel appointment" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Cancel this appointment?" });
+    expect(within(dialog).getByText("Synthetic Patient B")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("radio", { name: "Patient request" }));
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "Details (optional)" }),
+      "Called to cancel.",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Cancel appointment" }));
+
+    await waitFor(() => expect(cancelAppointmentAction).toHaveBeenCalledTimes(1));
+    const submitted = vi.mocked(cancelAppointmentAction).mock.calls[0][1];
+    expect(submitted.get("appointmentId")).toBe(APPOINTMENT_ID);
+    expect(submitted.get("reason")).toBe("patient_request");
+    expect(submitted.get("details")).toBe("Called to cancel.");
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Cancel this appointment?" })).toBeNull(),
+    );
+  });
+
+  it("makes details required for an other reason", async () => {
+    const user = userEvent.setup();
+    renderCancel();
+
+    await user.click(screen.getByRole("button", { name: "Cancel appointment" }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel this appointment?" });
+    await user.click(
+      within(dialog).getByRole("radio", { name: "Other hospital-approved reason" }),
+    );
+
+    expect(within(dialog).getByRole("textbox", { name: "Details (required)" })).toBeRequired();
+  });
+
+  it("shows why a cancellation failed and keeps the dialog open", async () => {
+    vi.mocked(cancelAppointmentAction).mockResolvedValue({
+      status: "error",
+      message:
+        "Only pending or confirmed appointments can be cancelled. Refresh to see its current status.",
+    });
+    const user = userEvent.setup();
+    renderCancel();
+
+    await user.click(screen.getByRole("button", { name: "Cancel appointment" }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel this appointment?" });
+    await user.click(within(dialog).getByRole("radio", { name: "Doctor unavailable" }));
+    await user.click(within(dialog).getByRole("button", { name: "Cancel appointment" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Only pending or confirmed appointments can be cancelled.",
+    );
+    expect(screen.getByRole("dialog", { name: "Cancel this appointment?" })).toBeInTheDocument();
   });
 });

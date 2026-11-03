@@ -519,6 +519,19 @@ export type Database = {
         };
         Returns: undefined;
       };
+      cammi_connect_reschedule_appointment: {
+        Args: {
+          p_appointment_id: string;
+          p_staff_id: string;
+          p_scheduled_at: string;
+          p_reason: string;
+        };
+        Returns: undefined;
+      };
+      cammi_connect_cancel_appointment: {
+        Args: { p_appointment_id: string; p_staff_id: string; p_reason: string };
+        Returns: undefined;
+      };
       cammi_connect_match_knowledge_chunks: {
         Args: {
           /** pgvector text form, e.g. "[0.1,0.2,...]". */

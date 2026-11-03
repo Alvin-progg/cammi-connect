@@ -30,6 +30,7 @@ const REQUEST: RequestDetails = {
       actorRole: "patient",
       reason: null,
       scheduledAt: "2026-11-04T02:30:00.000Z",
+      previousScheduledAt: null,
       createdAt: "2026-11-03T01:15:00.000Z",
     },
     {
@@ -41,6 +42,7 @@ const REQUEST: RequestDetails = {
       actorRole: null,
       reason: "Patient asked to move to next week",
       scheduledAt: null,
+      previousScheduledAt: null,
       createdAt: "2026-11-03T03:00:00.000Z",
     },
   ],
@@ -126,5 +128,36 @@ describe("RequestDetailsView", () => {
     expect(
       within(entries[1]).getByText("Reason: Patient asked to move to next week"),
     ).toBeInTheDocument();
+  });
+
+  it("shows the previous and new time of a reschedule", () => {
+    render(
+      <RequestDetailsView
+        request={{
+          ...REQUEST,
+          status: "confirmed",
+          history: [
+            {
+              id: "00000000-0000-4000-8000-000000000903",
+              action: "rescheduled",
+              previousStatus: "confirmed",
+              newStatus: "confirmed",
+              actorName: "Synthetic Front Desk",
+              actorRole: "front_desk",
+              reason: "Patient request",
+              scheduledAt: "2026-11-05T01:30:00.000Z",
+              previousScheduledAt: "2026-11-04T02:30:00.000Z",
+              createdAt: "2026-11-03T05:00:00.000Z",
+            },
+          ],
+        }}
+      />,
+    );
+
+    const history = screen.getByRole("region", { name: "Status history" });
+    expect(
+      within(history).getByText("Moved from Nov 4, 10:30 AM to Nov 5, 9:30 AM"),
+    ).toBeInTheDocument();
+    expect(within(history).getByText("Reason: Patient request")).toBeInTheDocument();
   });
 });

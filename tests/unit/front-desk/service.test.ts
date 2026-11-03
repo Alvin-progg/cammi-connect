@@ -10,8 +10,11 @@ import {
   getRequestDetails,
   listDailySchedule,
   listRequestQueue,
+  cancelAppointment,
+  listRescheduleSlots,
   recordAttendance,
   rejectRequest,
+  rescheduleAppointment,
   type FrontDeskRequestsReader,
   type FrontDeskRequestsWriter,
   type FrontDeskScheduleReader,
@@ -155,6 +158,8 @@ function createWriter(
     confirm: vi.fn().mockResolvedValue({ ok: true }),
     reject: vi.fn().mockResolvedValue({ ok: true }),
     recordAttendance: vi.fn().mockResolvedValue({ ok: true }),
+    reschedule: vi.fn().mockResolvedValue({ ok: true }),
+    cancel: vi.fn().mockResolvedValue({ ok: true }),
     ...overrides,
   };
 }
@@ -452,5 +457,209 @@ describe("recordAttendance", () => {
       ok: false,
       message: "The appointment could not be updated. Try again in a moment.",
     });
+  });
+});
+
+describe("rescheduleAppointment", () => {
+  const NEW_TIME = "2026-11-05T01:30:00.000Z";
+
+  function reschedule(writer: FrontDeskRequestsWriter, rescheduleReason = "Patient request") {
+    return rescheduleAppointment(
+      {
+        appointmentId: APPOINTMENT_ID,
+        staffId: STAFF_ID,
+        scheduledAt: NEW_TIME,
+        rescheduleReason,
+      },
+      writer,
+    );
+  }
+
+  it("moves the appointment through the writer as the signed-in staff member", async () => {
+    const writer = createWriter();
+
+    await expect(reschedule(writer, "  Patient request  ")).resolves.toEqual({ ok: true });
+    expect(writer.reschedule).toHaveBeenCalledWith({
+      appointmentId: APPOINTMENT_ID,
+      staffId: STAFF_ID,
+      scheduledAt: NEW_TIME,
+      reason: "Patient request",
+    });
+  });
+
+  it("refuses a blank reason without writing", async () => {
+    const writer = createWriter();
+
+    await expect(reschedule(writer, " ")).resolves.toEqual({
+      ok: false,
+      message: "A reason is required to reschedule.",
+    });
+    expect(writer.reschedule).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["reason_required", "A reason is required to reschedule."],
+    ["not_found", "This appointment no longer exists."],
+    [
+      "not_reschedulable",
+      "Only pending or confirmed appointments can be rescheduled. Refresh to see its current status.",
+    ],
+    ["unchanged", "Choose a time different from the current one."],
+    ["inactive_doctor", "This doctor is no longer accepting appointments."],
+    ["past", "Choose a future time."],
+    ["outside_hours", "That time is not one of the doctor's consultation slots."],
+    ["blocked", "The doctor is unavailable at that time."],
+  ])("explains a %s refusal", async (code, message) => {
+    await expect(reschedule(createWriter({ reschedule: failingWith(code) }))).resolves.toEqual({
+      ok: false,
+      message,
+    });
+  });
+
+  it("explains a slot that another appointment just took", async () => {
+    const writer = createWriter({
+      reschedule: failingWith(
+        'conflicting key value violates exclusion constraint "appointments_no_active_overlap"',
+        "23P01",
+      ),
+    });
+
+    await expect(reschedule(writer)).resolves.toEqual({
+      ok: false,
+      message: "That slot was just taken. Choose another time.",
+    });
+  });
+
+  it("hides unexpected database errors", async () => {
+    const writer = createWriter({ reschedule: failingWith("function does not exist", "42883") });
+
+    await expect(reschedule(writer)).resolves.toEqual({
+      ok: false,
+      message: "The appointment could not be updated. Try again in a moment.",
+    });
+  });
+});
+
+describe("cancelAppointment", () => {
+  function cancel(writer: FrontDeskRequestsWriter, cancellationReason = "Patient request") {
+    return cancelAppointment(
+      { appointmentId: APPOINTMENT_ID, staffId: STAFF_ID, cancellationReason },
+      writer,
+    );
+  }
+
+  it("cancels through the writer with the reason and staff member", async () => {
+    const writer = createWriter();
+
+    await expect(cancel(writer)).resolves.toEqual({ ok: true });
+    expect(writer.cancel).toHaveBeenCalledWith({
+      appointmentId: APPOINTMENT_ID,
+      staffId: STAFF_ID,
+      reason: "Patient request",
+    });
+  });
+
+  it("refuses a blank reason without writing", async () => {
+    const writer = createWriter();
+
+    await expect(cancel(writer, "")).resolves.toEqual({
+      ok: false,
+      message: "A reason is required to cancel.",
+    });
+    expect(writer.cancel).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["reason_required", "A reason is required to cancel."],
+    ["not_found", "This appointment no longer exists."],
+    [
+      "not_cancellable",
+      "Only pending or confirmed appointments can be cancelled. Refresh to see its current status.",
+    ],
+  ])("explains a %s refusal", async (code, message) => {
+    await expect(cancel(createWriter({ cancel: failingWith(code) }))).resolves.toEqual({
+      ok: false,
+      message,
+    });
+  });
+
+  it("hides unexpected database errors", async () => {
+    const writer = createWriter({ cancel: failingWith("permission denied", "42501") });
+
+    await expect(cancel(writer)).resolves.toEqual({
+      ok: false,
+      message: "The appointment could not be updated. Try again in a moment.",
+    });
+  });
+});
+
+describe("listRescheduleSlots", () => {
+  // 2026-11-04 is a Wednesday in Manila; 08:00–10:00 PHT is 00:00Z–02:00Z.
+  const NOW = new Date("2026-11-03T04:00:00.000Z");
+  const CURRENT = "2026-11-04T00:30:00.000Z";
+  const WEDNESDAY_EARLY = {
+    id: "00000000-0000-4000-8000-000000000914",
+    doctorId: DOCTOR_ID,
+    dayOfWeek: 3,
+    startTime: "08:00",
+    endTime: "10:00",
+    slotDurationMinutes: 30,
+    effectiveFrom: "2026-01-01",
+    effectiveUntil: null,
+    isActive: true,
+  };
+
+  function source(intervals: { start: string; end: string }[] = []) {
+    return {
+      listSchedulesForDoctor: vi.fn().mockResolvedValue([WEDNESDAY_EARLY]),
+      listExceptionsForDoctor: vi.fn().mockResolvedValue([]),
+      listActiveIntervals: vi.fn().mockResolvedValue(intervals),
+    };
+  }
+
+  it("offers the doctor's free slots on the date except the current time", async () => {
+    const reader = source([
+      { start: "2026-11-04T01:00:00.000Z", end: "2026-11-04T01:30:00.000Z" },
+    ]);
+
+    await expect(
+      listRescheduleSlots(
+        {
+          appointmentId: APPOINTMENT_ID,
+          doctorId: DOCTOR_ID,
+          currentScheduledAt: CURRENT,
+          date: "2026-11-04",
+        },
+        reader,
+        NOW,
+      ),
+    ).resolves.toEqual([
+      { start: "2026-11-04T00:00:00.000Z", end: "2026-11-04T00:30:00.000Z" },
+      { start: "2026-11-04T01:30:00.000Z", end: "2026-11-04T02:00:00.000Z" },
+    ]);
+    expect(reader.listSchedulesForDoctor).toHaveBeenCalledWith(DOCTOR_ID);
+    const day = { start: "2026-11-03T16:00:00.000Z", end: "2026-11-04T16:00:00.000Z" };
+    expect(reader.listExceptionsForDoctor).toHaveBeenCalledWith({ doctorId: DOCTOR_ID, ...day });
+    // The appointment's own interval must not block the slots around it.
+    expect(reader.listActiveIntervals).toHaveBeenCalledWith({
+      doctorId: DOCTOR_ID,
+      ...day,
+      excludeId: APPOINTMENT_ID,
+    });
+  });
+
+  it("offers nothing on a day the doctor does not work", async () => {
+    await expect(
+      listRescheduleSlots(
+        {
+          appointmentId: APPOINTMENT_ID,
+          doctorId: DOCTOR_ID,
+          currentScheduledAt: CURRENT,
+          date: "2026-11-05",
+        },
+        source(),
+        NOW,
+      ),
+    ).resolves.toEqual([]);
   });
 });

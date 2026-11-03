@@ -10,12 +10,16 @@ import {
 } from "react";
 import { toast } from "sonner";
 
+import { ReasonFields } from "./reason-fields";
+
 import {
+  CANCELLATION_REASONS,
+  CANCELLATION_REASON_LABELS,
   REJECTION_REASONS,
   REJECTION_REASON_LABELS,
-  type RejectionReason,
 } from "@/lib/front-desk/decisions";
 import {
+  cancelAppointmentAction,
   confirmRequestAction,
   rejectRequestAction,
   type RequestDecisionState,
@@ -50,7 +54,7 @@ function DecisionDialog({
   Form,
 }: {
   summary: Summary;
-  kind: "confirm" | "reject";
+  kind: "confirm" | "reject" | "cancel";
   title: string;
   triggerLabel: string;
   triggerClassName: string;
@@ -153,54 +157,18 @@ function ConfirmForm({ summary, close }: { summary: Summary; close: () => void }
 
 function RejectForm({ summary, close }: { summary: Summary; close: () => void }) {
   const [state, formAction, pending] = useActionState(rejectRequestAction, IDLE_STATE);
-  const [reason, setReason] = useState<RejectionReason | null>(null);
   useSuccess(state, close);
-
-  const detailsId = `reject-details-${summary.appointmentId}`;
-  const reasonLabelId = `reject-reason-${summary.appointmentId}`;
 
   return (
     <form action={formAction}>
       <input type="hidden" name="appointmentId" value={summary.appointmentId} />
       <SummaryLines summary={summary} />
-      <fieldset className="mt-4">
-        <legend id={reasonLabelId} className="text-sm font-medium text-ink">
-          Reason
-        </legend>
-        <div role="radiogroup" aria-labelledby={reasonLabelId} className="mt-2 flex flex-col gap-1">
-          {REJECTION_REASONS.map((value) => (
-            <label
-              key={value}
-              className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-ink hover:bg-surface-muted"
-            >
-              <input
-                type="radio"
-                name="reason"
-                value={value}
-                required
-                checked={reason === value}
-                onChange={() => setReason(value)}
-                className="size-4 accent-primary"
-              />
-              {REJECTION_REASON_LABELS[value]}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      <label htmlFor={detailsId} className="mt-4 block text-sm font-medium text-ink">
-        {reason === "other" ? "Details (required)" : "Details (optional)"}
-      </label>
-      <textarea
-        id={detailsId}
-        name="details"
-        rows={3}
-        maxLength={500}
-        required={reason === "other"}
-        className="mt-1 w-full rounded-lg border border-control-line bg-surface px-3 py-2 text-base text-ink focus-ring"
+      <ReasonFields
+        idPrefix={`reject-${summary.appointmentId}`}
+        reasons={REJECTION_REASONS}
+        labels={REJECTION_REASON_LABELS}
+        note="The request stays on record with this reason."
       />
-      <p className="mt-2 text-sm text-ink-muted">
-        The request stays on record with this reason.
-      </p>
       <ErrorMessage state={state} />
       <div className="mt-5 flex flex-wrap justify-end gap-2">
         <button type="button" onClick={close} className={QUIET_BUTTON}>
@@ -213,6 +181,38 @@ function RejectForm({ summary, close }: { summary: Summary; close: () => void })
           className={DANGER_BUTTON}
         >
           {pending ? "Rejecting…" : "Reject request"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function CancelForm({ summary, close }: { summary: Summary; close: () => void }) {
+  const [state, formAction, pending] = useActionState(cancelAppointmentAction, IDLE_STATE);
+  useSuccess(state, close);
+
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="appointmentId" value={summary.appointmentId} />
+      <SummaryLines summary={summary} />
+      <ReasonFields
+        idPrefix={`cancel-${summary.appointmentId}`}
+        reasons={CANCELLATION_REASONS}
+        labels={CANCELLATION_REASON_LABELS}
+        note="The appointment stays on record with this reason, and the slot is freed."
+      />
+      <ErrorMessage state={state} />
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <button type="button" onClick={close} className={QUIET_BUTTON}>
+          Go back
+        </button>
+        <button
+          type="submit"
+          disabled={pending}
+          aria-busy={pending || undefined}
+          className={DANGER_BUTTON}
+        >
+          {pending ? "Cancelling…" : "Cancel appointment"}
         </button>
       </div>
     </form>
@@ -244,5 +244,23 @@ export function RequestDecision(summary: Summary) {
         Form={RejectForm}
       />
     </div>
+  );
+}
+
+/**
+ * Cancel control for a pending or confirmed appointment (SPEC-frontdesk §9).
+ * A reason is required; the server re-checks the staff role and the status,
+ * and success is shown only after it commits.
+ */
+export function CancelAppointment(summary: Summary) {
+  return (
+    <DecisionDialog
+      summary={summary}
+      kind="cancel"
+      title="Cancel this appointment?"
+      triggerLabel="Cancel appointment"
+      triggerClassName={OUTLINE_DANGER_BUTTON}
+      Form={CancelForm}
+    />
   );
 }

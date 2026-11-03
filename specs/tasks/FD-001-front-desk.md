@@ -1,6 +1,6 @@
 # FD-001 — Front Desk Appointment Management
 
-- Status: In progress (PR 1 committed `8a2009f`; PR 2 committed `3085b61`; PR 3 committed `d63cb77`; PR 4 committed `9bfb7a4`; PR 5 implemented 2026-11-03, awaiting review)
+- Status: In progress (PR 1 committed `8a2009f`; PR 2 committed `3085b61`; PR 3 committed `d63cb77`; PR 4 committed `9bfb7a4`; PR 5 committed `4c48037`; PR 6 implemented 2026-11-03, awaiting review)
 - Type: Feature
 - Priority: High
 - Module: Front Desk Staff
@@ -152,3 +152,33 @@ Decisions (2026-11-03):
 - The patient search runs over the day's first 200 appointments. A notice shows when the limit is reached.
 - The details page still labels its ID field "Request ID" for every booking source.
 - Doctor completion of a checked-in visit uses the existing doctor write path: a guarded update, then a separate audit insert. It is not the atomic function.
+
+## PR 6 — traceability
+
+Decisions (2026-11-03):
+- **Same doctor only.** A reschedule picks another free slot from the current
+  doctor's availability. A change of doctor means cancelling and booking again (PR 7).
+- **Reasons are presets plus details**, like reject. "Other" requires details. Both
+  reschedule and cancel require a reason.
+- Both writes are atomic database functions (`0011`), like PRs 4 and 5.
+- Both apply to `requested` and `confirmed`. A reschedule keeps the status (§11), so a
+  pending request still needs confirmation.
+
+| Requirement (SPEC-frontdesk) | Implementation | Verification |
+|---|---|---|
+| §9 rescheduling steps 1–2: open the appointment, retrieve alternative schedules | "Reschedule" on the details page; `/front-desk/requests/[id]/reschedule` with a date picker; `listRescheduleSlots` (uses `generateAvailableSlots` and leaves the appointment's own interval out of the overlap check) | `tests/unit/front-desk/service.test.ts`; smoke step 20 |
+| §9 rescheduling steps 3–8: select, review, confirm, update, record staff, visible to patient | `RescheduleForm`; `rescheduleAppointmentSchema`; `rescheduleAppointmentAction`; `cammi_connect_reschedule_appointment` (0011) re-checks the slot and writes the audit row with `previous_values`/`new_values` | `tests/unit/front-desk/decisions.test.ts`, `actions.test.ts`, `tests/component/front-desk/reschedule-form.test.tsx`; smoke step 20 |
+| Rescheduling into a taken slot fails | `appointments_no_active_overlap` (23P01) rolls the function back; the service shows "That slot was just taken" | `service.test.ts`, `actions.test.ts`; smoke step 20 (two tabs) |
+| §9 cancellation: action, required reason, confirm, update status, staff and timestamp | `CancelAppointment` dialog; `cancelAppointmentSchema`; `cancelAppointmentAction`; `cammi_connect_cancel_appointment` (0011) sets `cancellation_reason` and `cancelled_by_role` and writes the audit row (`new_values.cancelled_at`) | `decisions.test.ts`, `service.test.ts`, `actions.test.ts`, `tests/component/front-desk/request-decision.test.tsx`; smoke step 20 |
+| Cancelling a completed appointment fails | `canFrontDeskCancel` (uses `canTransition`) hides the control; the function raises `not_cancellable` | `decisions.test.ts`, `actions.test.ts`; smoke step 20 |
+| §9 every change in the audit history | History shows "Moved from … to …" from `previous_values` and `new_values` | `tests/component/front-desk/request-details.test.tsx` |
+| §3 server-side role authorization | Both actions and the reschedule page call `getFrontDeskSession`; no write happens without it; the staff ID comes from the session, never the form | `actions.test.ts` |
+
+**Refactor.** The reject reason radios and details moved into a shared `ReasonFields` component (`src/components/front-desk/reason-fields.tsx`). The reject preset-plus-details schema logic is now shared with cancel and reschedule. No reject test changed.
+
+**Limitations.**
+- The SQL functions have no automated test (ADR-0003: no local database). Smoke step 20 covers them.
+- The reschedule page shows one day at a time and does not check that the doctor is still active before listing slots. The function refuses an inactive doctor on submit.
+- The doctor-side reschedule and cancel (`/doctor`) still use the older non-atomic path (a guarded update, then a separate audit insert).
+- Patients see the new time or the cancellation in their appointments. Notifications come in PR 9.
+

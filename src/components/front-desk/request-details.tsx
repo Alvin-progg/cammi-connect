@@ -163,7 +163,9 @@ export function RequestDetailsView({
                 </time>
                 {entry.action === "rescheduled" && entry.scheduledAt ? (
                   <span className="text-xs text-ink-secondary">
-                    {`New time: ${formatManilaDateTime(entry.scheduledAt)}`}
+                    {entry.previousScheduledAt
+                      ? `Moved from ${formatManilaDateTime(entry.previousScheduledAt)} to ${formatManilaDateTime(entry.scheduledAt)}`
+                      : `New time: ${formatManilaDateTime(entry.scheduledAt)}`}
                   </span>
                 ) : null}
                 {entry.reason ? (

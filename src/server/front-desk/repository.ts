@@ -191,7 +191,7 @@ async function loadHistory(appointmentId: string): Promise<RequestAuditEntry[]> 
   const { data, error } = await getSupabaseAdminClient()
     .from("appointment_audit_logs")
     .select(
-      "id, actor_profile_id, action, previous_status, new_status, new_values, reason, created_at",
+      "id, actor_profile_id, action, previous_status, new_status, previous_values, new_values, reason, created_at",
     )
     .eq("appointment_id", appointmentId)
     .order("created_at", { ascending: true })
@@ -216,6 +216,7 @@ async function loadHistory(appointmentId: string): Promise<RequestAuditEntry[]> 
       actorRole: actor?.role ?? null,
       reason: row.reason?.trim() || null,
       scheduledAt: scheduledAtFromAuditValues(row.new_values),
+      previousScheduledAt: scheduledAtFromAuditValues(row.previous_values),
       createdAt: row.created_at,
     } satisfies RequestAuditEntry;
   });
@@ -307,7 +308,7 @@ export const supabaseFrontDeskRequestsRepository: FrontDeskRequestsReader = {
 };
 
 /**
- * Calls the migration 0009 functions. Each runs in one transaction: it locks
+ * Calls the migration 0009, 0010, and 0011 functions. Each runs in one transaction: it locks
  * the appointment, re-checks the pending status (and, for confirm, the
  * doctor's availability), updates the row, and writes the audit entry.
  */
@@ -336,6 +337,31 @@ export const supabaseFrontDeskRequestsWriter: FrontDeskRequestsWriter = {
     const { error } = await getSupabaseAdminClient().rpc(
       "cammi_connect_record_attendance",
       { p_appointment_id: appointmentId, p_staff_id: staffId, p_status: status },
+    );
+    return error
+      ? { ok: false, error: { code: error.code, message: error.message } }
+      : { ok: true };
+  },
+
+  async reschedule({ appointmentId, staffId, scheduledAt, reason }) {
+    const { error } = await getSupabaseAdminClient().rpc(
+      "cammi_connect_reschedule_appointment",
+      {
+        p_appointment_id: appointmentId,
+        p_staff_id: staffId,
+        p_scheduled_at: scheduledAt,
+        p_reason: reason,
+      },
+    );
+    return error
+      ? { ok: false, error: { code: error.code, message: error.message } }
+      : { ok: true };
+  },
+
+  async cancel({ appointmentId, staffId, reason }) {
+    const { error } = await getSupabaseAdminClient().rpc(
+      "cammi_connect_cancel_appointment",
+      { p_appointment_id: appointmentId, p_staff_id: staffId, p_reason: reason },
     );
     return error
       ? { ok: false, error: { code: error.code, message: error.message } }
