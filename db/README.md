@@ -78,9 +78,13 @@ Then run `db/migrations/0009_front_desk_confirm_reject.sql` once, then
 `db/migrations/0011_front_desk_reschedule_cancel.sql` once, then
 `db/migrations/0012_front_desk_booking.sql` once, then
 `db/migrations/0013_admin_foundation.sql` once, then
-`db/migrations/0014_admin_user_management.sql` once. After 0014, re-run
+`db/migrations/0014_admin_user_management.sql` once, then
+`db/migrations/0015_admin_departments.sql` once, then
+`db/migrations/0016_admin_specialties.sql` once. After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
-`cammi_connect_bootstrap_staff_role`.
+`cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
+department names differ only by case, and 0016 likewise for specialty names;
+rename one first.
 
 `0001_profiles_appointments.sql`:
 
@@ -262,6 +266,34 @@ now fail.
   token columns are selected);
 - adds `cammi_connect_bootstrap_staff_role`, used only by the seed script to create the
   first admin and the seed staff accounts;
+- every function is executable by `service_role` only.
+
+`0015_admin_departments.sql` (ADM-02):
+
+- adds `departments.updated_at` (with the shared updated-at trigger) and a
+  case-insensitive unique index on the department name;
+- adds `cammi_connect_admin_save_department` (create or update; `duplicate` on a name
+  or code clash) and `cammi_connect_admin_set_department_active`. Deactivation raises
+  `has_future_appointments` while any of the department's doctors has a future
+  `requested` or `confirmed` appointment. Both re-check that the actor is an active
+  admin (`cammi_connect_require_admin_actor`) and write `department.*` audit rows in
+  the same transaction. Departments are never deleted, and `doctors.department_id`
+  is never cleared;
+- adds the read functions `cammi_connect_department_appointment_stats(from, to)`
+  (counts per department and status, by the doctor's current department) and
+  `cammi_connect_department_future_conflicts(department)` (the blocking appointments,
+  with no patient data);
+- every function is executable by `service_role` only.
+
+`0016_admin_specialties.sql` (ADM-03):
+
+- adds `specialties.updated_at` (with the shared updated-at trigger) and a
+  case-insensitive unique index on the specialty name;
+- adds `cammi_connect_admin_save_specialty` (create or update; `duplicate` on a name
+  clash) and `cammi_connect_admin_set_specialty_active`. Both re-check that the actor
+  is an active admin and write `specialty.*` audit rows in the same transaction.
+  Deactivation is never blocked and leaves `doctor_specialties` and
+  `appointments.specialty_id` alone: it only hides the specialty from patients;
 - every function is executable by `service_role` only.
 
 #### Supabase Auth email templates (ADM-01, manual)
@@ -652,6 +684,33 @@ No real patient data is used.
       password**, and the activity shows "Password reset email sent".
     - Link a patient account as a doctor from **Doctors** (existing flow): it still
       works, because `cammi_connect_save_doctor` sets the role-change flag.
+
+25. Check department management (ADM-02), after applying 0015. Use synthetic data only:
+    - As the admin, open **Departments**: each department shows its code, status,
+      doctor count, and appointments from the last 30 days.
+    - **New department** "Test Ward" with code `tw`: you land on its page with code
+      `TW`. Creating "test ward" again is refused as a duplicate. Edit its description:
+      it saves. In SQL, `audit_logs` has `department.create` and `department.update`.
+    - Open Internal Medicine (the seed doctor's department, which has future
+      appointments) and **Deactivate department**: it is refused and lists the upcoming
+      requested and confirmed appointments with their doctor; nothing changes.
+    - Deactivate "Test Ward" (no appointments): it shows Inactive, `department.deactivate`
+      is logged, and Cami's department list in `/chat` no longer offers it. Doctors in
+      it keep their `department_id`. Activate it again.
+    - In SQL, calling `cammi_connect_admin_set_department_active` with a non-admin actor
+      fails with `not_admin`.
+
+26. Check specialty management (ADM-03), after applying 0016. Use synthetic data only:
+    - As the admin, open **Specialties**: each specialty shows its status and doctor
+      count. Open Internal Medicine: the seed doctors who have it are listed.
+    - **New specialty** "Test Specialty": you land on its page. Creating "test specialty"
+      again is refused as a duplicate. Edit its description: it saves. In SQL,
+      `audit_logs` has `specialty.create` and `specialty.update`.
+    - Deactivate a specialty a seed doctor has: it shows Inactive and
+      `specialty.deactivate` is logged; Cami no longer offers it in `/chat`, and the
+      doctor still lists it under Doctors. Activate it again.
+    - In SQL, calling `cammi_connect_admin_set_specialty_active` with a non-admin actor
+      fails with `not_admin`.
 
 ## Troubleshooting
 

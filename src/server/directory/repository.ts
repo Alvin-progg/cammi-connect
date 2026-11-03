@@ -7,23 +7,7 @@ import type {
 } from "@/lib/directory/types";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
-import type { DirectoryStore, SaveOutcome } from "./service";
-
-const UNIQUE_VIOLATION = "23505";
-
-function toOutcome(
-  error: { code?: string } | null,
-  affectedRows: number,
-  failureMessage: string,
-): SaveOutcome {
-  if (error?.code === UNIQUE_VIOLATION) {
-    return "duplicate";
-  }
-  if (error) {
-    throw new Error(failureMessage);
-  }
-  return affectedRows > 0 ? "saved" : "not_found";
-}
+import type { DirectoryStore } from "./service";
 
 /** Specialty names per doctor id, for directory and profile displays. */
 export async function loadDoctorSpecialties(
@@ -91,16 +75,6 @@ export const supabaseDirectoryRepository: DirectoryStore = {
     );
   },
 
-  async saveDepartment({ id, name, code, description, isActive }) {
-    const supabase = getSupabaseAdminClient();
-    const values = { name, code, description, is_active: isActive };
-    const { data, error } = id
-      ? await supabase.from("departments").update(values).eq("id", id).select("id")
-      : await supabase.from("departments").insert(values).select("id");
-
-    return toOutcome(error, (data ?? []).length, "Unable to save the department.");
-  },
-
   async listSpecialties() {
     const supabase = getSupabaseAdminClient();
     const { data, error } = await supabase
@@ -119,16 +93,6 @@ export const supabaseDirectoryRepository: DirectoryStore = {
         isActive: row.is_active,
       }),
     );
-  },
-
-  async saveSpecialty({ id, name, description, isActive }) {
-    const supabase = getSupabaseAdminClient();
-    const values = { name, description, is_active: isActive };
-    const { data, error } = id
-      ? await supabase.from("specialties").update(values).eq("id", id).select("id")
-      : await supabase.from("specialties").insert(values).select("id");
-
-    return toOutcome(error, (data ?? []).length, "Unable to save the specialty.");
   },
 
   async listDoctors({ departmentId, specialtyId, activeOnly }) {

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 
+import { FIELD_CLASS, Field, FormFooter } from "@/components/admin/form-parts";
+import { useAdminForm } from "@/components/admin/use-admin-form";
 import { USER_ROLE_LABELS, USER_ROLES } from "@/lib/auth/roles";
 import type { AdminUserDetail } from "@/lib/users/types";
 import {
@@ -9,10 +11,10 @@ import {
   sendPasswordResetAction,
   setUserActiveAction,
   updateUserProfileAction,
+  type UserAdminActionState,
 } from "@/server/users/actions";
 
-import { FIELD_CLASS, Field, FormFooter } from "./form-parts";
-import { useUserAdminForm } from "./use-user-admin-form";
+const IDLE_STATE: UserAdminActionState = { status: "idle" };
 
 const NOTE_CLASS = "text-sm text-ink-secondary";
 
@@ -25,7 +27,7 @@ function ReasonField({ id }: { id: string }) {
 }
 
 export function UserProfileForm({ user }: { user: AdminUserDetail }) {
-  const { state, formAction, pending } = useUserAdminForm(updateUserProfileAction);
+  const { state, formAction, pending } = useAdminForm(updateUserProfileAction, IDLE_STATE);
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -53,7 +55,7 @@ export function UserProfileForm({ user }: { user: AdminUserDetail }) {
 }
 
 export function UserRoleForm({ user, isSelf }: { user: AdminUserDetail; isSelf: boolean }) {
-  const { state, formAction, pending } = useUserAdminForm(changeUserRoleAction);
+  const { state, formAction, pending } = useAdminForm(changeUserRoleAction, IDLE_STATE);
 
   if (isSelf) {
     return (
@@ -96,7 +98,7 @@ export function UserRoleForm({ user, isSelf }: { user: AdminUserDetail; isSelf: 
 }
 
 export function UserStatusForm({ user, isSelf }: { user: AdminUserDetail; isSelf: boolean }) {
-  const { state, formAction, pending } = useUserAdminForm(setUserActiveAction);
+  const { state, formAction, pending } = useAdminForm(setUserActiveAction, IDLE_STATE);
 
   if (isSelf) {
     return (
@@ -128,7 +130,7 @@ export function UserStatusForm({ user, isSelf }: { user: AdminUserDetail; isSelf
 }
 
 export function PasswordResetForm({ user }: { user: AdminUserDetail }) {
-  const { state, formAction, pending } = useUserAdminForm(sendPasswordResetAction);
+  const { state, formAction, pending } = useAdminForm(sendPasswordResetAction, IDLE_STATE);
 
   return (
     <form action={formAction} className="flex flex-col gap-4">

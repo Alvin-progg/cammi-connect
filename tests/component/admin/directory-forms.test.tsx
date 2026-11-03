@@ -1,12 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { DepartmentForm, DoctorForm } from "@/components/admin/directory-forms";
+import { DoctorForm } from "@/components/admin/directory-forms";
 import type { Department, DoctorSummary, Specialty } from "@/lib/directory/types";
 
 vi.mock("@/server/directory/actions", () => ({
-  saveDepartmentAction: vi.fn(),
-  saveSpecialtyAction: vi.fn(),
   saveDoctorAction: vi.fn(),
 }));
 
@@ -79,24 +77,5 @@ describe("DoctorForm", () => {
 
     expect(screen.getByRole("option", { name: "Closed Ward (inactive)" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Retired Specialty (inactive)" })).toBeChecked();
-  });
-});
-
-describe("DepartmentForm", () => {
-  it("edits an existing department", () => {
-    render(<DepartmentForm department={CARDIOLOGY} />);
-
-    const form = screen.getByRole("form", { name: "Edit Cardiology" });
-    expect(within(form).getByLabelText("Name")).toHaveValue("Cardiology");
-    expect(within(form).getByLabelText("Code")).toHaveValue("CARD");
-    expect(within(form).getByRole("checkbox", { name: "Active" })).toBeChecked();
-    expect(form.querySelector('input[name="departmentId"]')).toHaveValue(CARDIOLOGY.id);
-  });
-
-  it("adds a new department", () => {
-    render(<DepartmentForm />);
-
-    expect(screen.getByRole("form", { name: "Add department" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add department" })).toBeInTheDocument();
   });
 });

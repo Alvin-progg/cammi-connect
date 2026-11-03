@@ -1,18 +1,19 @@
 "use client";
 
+import { FIELD_CLASS, Field, FormFooter } from "@/components/admin/form-parts";
+import { useAdminForm } from "@/components/admin/use-admin-form";
 import { USER_ROLE_LABELS } from "@/lib/auth/roles";
 import { STAFF_ROLES } from "@/lib/users/types";
-import { inviteStaffAction } from "@/server/users/actions";
+import { inviteStaffAction, type UserAdminActionState } from "@/server/users/actions";
 
-import { FIELD_CLASS, Field, FormFooter } from "./form-parts";
-import { useUserAdminForm } from "./use-user-admin-form";
+const IDLE_STATE: UserAdminActionState = { status: "idle" };
 
 /**
  * Invites a staff member by email. Supabase sends the invitation and the
  * person sets their own password; the admin never sees it.
  */
 export function InviteStaffForm() {
-  const { state, formAction, pending } = useUserAdminForm(inviteStaffAction);
+  const { state, formAction, pending } = useAdminForm(inviteStaffAction, IDLE_STATE);
 
   return (
     <form action={formAction} className="flex max-w-xl flex-col gap-4">

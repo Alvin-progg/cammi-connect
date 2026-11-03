@@ -35,6 +35,7 @@ export type Database = {
           description: string | null;
           is_active: boolean;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -43,12 +44,14 @@ export type Database = {
           description?: string | null;
           is_active?: boolean;
           created_at?: string;
+          updated_at?: string;
         };
         Update: {
           name?: string;
           code?: string;
           description?: string | null;
           is_active?: boolean;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -59,6 +62,7 @@ export type Database = {
           description: string | null;
           is_active: boolean;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
@@ -66,11 +70,13 @@ export type Database = {
           description?: string | null;
           is_active?: boolean;
           created_at?: string;
+          updated_at?: string;
         };
         Update: {
           name?: string;
           description?: string | null;
           is_active?: boolean;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -574,6 +580,63 @@ export type Database = {
           p_phone: string | null;
         };
         Returns: string;
+      };
+      /**
+       * Migration 0015 (admin departments). The mutating functions raise P0001
+       * not_admin, duplicate, not_found, unchanged, or has_future_appointments.
+       */
+      cammi_connect_admin_save_department: {
+        Args: {
+          p_actor_profile_id: string;
+          p_department_id: string | null;
+          p_name: string;
+          p_code: string;
+          p_description: string | null;
+        };
+        Returns: string;
+      };
+      cammi_connect_admin_set_department_active: {
+        Args: {
+          p_actor_profile_id: string;
+          p_department_id: string;
+          p_is_active: boolean;
+        };
+        Returns: undefined;
+      };
+      cammi_connect_department_appointment_stats: {
+        Args: { p_from: string; p_to: string };
+        Returns: {
+          department_id: string;
+          status: AppointmentStatus;
+          appointment_count: number;
+        }[];
+      };
+      cammi_connect_department_future_conflicts: {
+        Args: { p_department_id: string };
+        Returns: {
+          appointment_id: string;
+          scheduled_at: string;
+          status: AppointmentStatus;
+          doctor_name: string;
+        }[];
+      };
+      /** Migration 0016 (admin specialties). Raise P0001 not_admin, duplicate, not_found, or unchanged. */
+      cammi_connect_admin_save_specialty: {
+        Args: {
+          p_actor_profile_id: string;
+          p_specialty_id: string | null;
+          p_name: string;
+          p_description: string | null;
+        };
+        Returns: string;
+      };
+      cammi_connect_admin_set_specialty_active: {
+        Args: {
+          p_actor_profile_id: string;
+          p_specialty_id: string;
+          p_is_active: boolean;
+        };
+        Returns: undefined;
       };
       /** Seed script only (scripts/seed.mjs). */
       cammi_connect_bootstrap_staff_role: {
