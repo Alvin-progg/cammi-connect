@@ -1,19 +1,29 @@
 // @vitest-environment node
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getFrontDeskSession } from "@/server/auth/dal";
 import {
+  bookForPatientAction,
   cancelAppointmentAction,
   confirmRequestAction,
   recordAttendanceAction,
+  registerPatientAction,
   rejectRequestAction,
   rescheduleAppointmentAction,
+  searchAppointmentsQuickAction,
 } from "@/server/front-desk/actions";
-import { supabaseFrontDeskRequestsWriter } from "@/server/front-desk/repository";
+import {
+  supabaseFrontDeskBooker,
+  supabaseFrontDeskOverviewRepository,
+  supabaseFrontDeskPatientsRepository,
+  supabaseFrontDeskRequestsWriter,
+} from "@/server/front-desk/repository";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/server/auth/dal", () => ({ getFrontDeskSession: vi.fn() }));
 vi.mock("@/server/front-desk/repository", () => ({
   supabaseFrontDeskRequestsRepository: {},
@@ -24,11 +34,24 @@ vi.mock("@/server/front-desk/repository", () => ({
     reschedule: vi.fn(),
     cancel: vi.fn(),
   },
+  supabaseFrontDeskPatientsRepository: {
+    searchPatients: vi.fn(),
+    getPatient: vi.fn(),
+    findPatientsByPhone: vi.fn(),
+    insertPatient: vi.fn(),
+  },
+  supabaseFrontDeskBooker: { bookForPatient: vi.fn() },
+  supabaseFrontDeskOverviewRepository: { searchAppointments: vi.fn() },
 }));
 
 const IDLE = { status: "idle" } as const;
 const APPOINTMENT_ID = "00000000-0000-4000-8000-000000000202";
 const writer = vi.mocked(supabaseFrontDeskRequestsWriter);
+const patients = vi.mocked(supabaseFrontDeskPatientsRepository);
+const booker = vi.mocked(supabaseFrontDeskBooker);
+const overview = vi.mocked(supabaseFrontDeskOverviewRepository);
+const PATIENT_ID = "00000000-0000-4000-8000-000000000401";
+const DOCTOR_ID = "00000000-0000-4000-8000-000000000101";
 
 const STAFF_SESSION = {
   user: { id: "auth-front-desk", email: "frontdesk@example.test" },
@@ -50,6 +73,9 @@ beforeEach(() => {
   writer.recordAttendance.mockResolvedValue({ ok: true });
   writer.reschedule.mockResolvedValue({ ok: true });
   writer.cancel.mockResolvedValue({ ok: true });
+  patients.findPatientsByPhone.mockResolvedValue([]);
+  patients.insertPatient.mockResolvedValue({ id: PATIENT_ID });
+  booker.bookForPatient.mockResolvedValue({ ok: true, appointmentId: APPOINTMENT_ID });
   vi.mocked(getFrontDeskSession).mockResolvedValue(STAFF_SESSION);
 });
 
@@ -373,5 +399,167 @@ describe("cancelAppointmentAction", () => {
       message:
         "Only pending or confirmed appointments can be cancelled. Refresh to see its current status.",
     });
+  });
+});
+
+describe("registerPatientAction", () => {
+  it("registers a walk-in record and moves on to booking for that patient", async () => {
+    await registerPatientAction(
+      IDLE,
+      formData({ fullName: " Test Walkin ", phone: "0900 000 0000" }),
+    );
+
+    expect(patients.insertPatient).toHaveBeenCalledWith({
+      fullName: "Test Walkin",
+      phone: "09000000000",
+    });
+    expect(redirect).toHaveBeenCalledWith(`/front-desk/book?patient=${PATIENT_ID}`);
+  });
+
+  it("refuses without a front desk session and writes nothing", async () => {
+    vi.mocked(getFrontDeskSession).mockResolvedValue(null);
+
+    await expect(
+      registerPatientAction(IDLE, formData({ fullName: "Test Walkin", phone: "09000000000" })),
+    ).resolves.toEqual({
+      status: "error",
+      message: "You are not authorized to register patients.",
+    });
+    expect(patients.insertPatient).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("returns the first validation message", async () => {
+    await expect(
+      registerPatientAction(IDLE, formData({ fullName: "Test Walkin", phone: "abc" })),
+    ).resolves.toEqual({
+      status: "error",
+      message: "Enter a valid phone number (digits, spaces, and + ( ) - only).",
+    });
+    expect(patients.insertPatient).not.toHaveBeenCalled();
+  });
+
+  it("refuses a duplicate phone number", async () => {
+    patients.findPatientsByPhone.mockResolvedValue([
+      { id: PATIENT_ID, fullName: "Test Walkin", phone: "09000000000", hasAccount: false },
+    ]);
+
+    await expect(
+      registerPatientAction(IDLE, formData({ fullName: "Other", phone: "09000000000" })),
+    ).resolves.toMatchObject({ status: "error" });
+    expect(patients.insertPatient).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+});
+
+describe("bookForPatientAction", () => {
+  const scheduledAt = "2026-11-05T01:30:00.000Z";
+  const fields = {
+    patientId: PATIENT_ID,
+    doctorId: DOCTOR_ID,
+    specialtyId: "",
+    scheduledAt,
+    reason: "Walk-in follow-up",
+  };
+
+  it("books for the patient as the signed-in staff member, ignoring any posted staff id", async () => {
+    await bookForPatientAction(
+      IDLE,
+      formData({ ...fields, staffId: "00000000-0000-4000-8000-000000000999" }),
+    );
+
+    expect(booker.bookForPatient).toHaveBeenCalledWith({
+      patientId: PATIENT_ID,
+      doctorId: DOCTOR_ID,
+      specialtyId: null,
+      scheduledAt,
+      reason: "Walk-in follow-up",
+      staffId: STAFF_SESSION.staff.id,
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/front-desk/requests");
+    expect(revalidatePath).toHaveBeenCalledWith("/front-desk/schedule");
+    expect(revalidatePath).toHaveBeenCalledWith("/doctor");
+    expect(redirect).toHaveBeenCalledWith(`/front-desk/requests/${APPOINTMENT_ID}`);
+  });
+
+  it("refuses without a front desk session and books nothing", async () => {
+    vi.mocked(getFrontDeskSession).mockResolvedValue(null);
+
+    await expect(bookForPatientAction(IDLE, formData(fields))).resolves.toEqual({
+      status: "error",
+      message: "You are not authorized to book appointments.",
+    });
+    expect(booker.bookForPatient).not.toHaveBeenCalled();
+  });
+
+  it("asks for a time when none was chosen", async () => {
+    await expect(
+      bookForPatientAction(IDLE, formData({ ...fields, scheduledAt: "" })),
+    ).resolves.toEqual({ status: "error", message: "Choose a time." });
+    expect(booker.bookForPatient).not.toHaveBeenCalled();
+  });
+
+  it("reports a taken slot without refreshing or leaving the page", async () => {
+    booker.bookForPatient.mockResolvedValue({
+      ok: false,
+      error: { code: "23P01", message: "conflicting key value" },
+    });
+
+    await expect(bookForPatientAction(IDLE, formData(fields))).resolves.toEqual({
+      status: "error",
+      message: "That slot was just taken. Choose another time.",
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+});
+
+describe("searchAppointmentsQuickAction", () => {
+  const RESULT = {
+    id: APPOINTMENT_ID,
+    patientName: "Synthetic Patient A",
+    patientPhone: "09171234567",
+    doctorName: "Dr. Synthetic Reyes",
+    scheduledAt: "2026-11-05T01:30:00.000Z",
+    status: "confirmed" as const,
+    bookingSource: "front_desk" as const,
+  };
+
+  it("refuses anyone who is not front desk staff and reads nothing", async () => {
+    vi.mocked(getFrontDeskSession).mockResolvedValue(null);
+
+    await expect(searchAppointmentsQuickAction("Synthetic")).resolves.toEqual({
+      status: "error",
+      message: "You are not authorized to search appointments.",
+    });
+    expect(overview.searchAppointments).not.toHaveBeenCalled();
+  });
+
+  it("rejects a query that is too short without reading", async () => {
+    await expect(searchAppointmentsQuickAction(" S ")).resolves.toEqual({
+      status: "error",
+      message: "Enter at least 2 characters of the name or phone number.",
+    });
+    expect(overview.searchAppointments).not.toHaveBeenCalled();
+  });
+
+  it("rejects input that is not text", async () => {
+    await expect(
+      searchAppointmentsQuickAction(42 as unknown as string),
+    ).resolves.toMatchObject({ status: "error" });
+    expect(overview.searchAppointments).not.toHaveBeenCalled();
+  });
+
+  it("searches by name, and by phone when the query has digits, without refreshing views", async () => {
+    overview.searchAppointments.mockResolvedValue([RESULT]);
+
+    await expect(searchAppointmentsQuickAction("  0917 123 ")).resolves.toEqual({
+      status: "success",
+      items: [RESULT],
+    });
+    expect(overview.searchAppointments).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "0917 123", phone: expect.stringContaining("0917123") }),
+    );
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

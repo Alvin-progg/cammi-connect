@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { revalidatePath } from "next/cache";
 
 import { getAdminSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
@@ -72,6 +73,8 @@ describe("directory actions", () => {
       description: null,
       isActive: true,
     });
+    // The admin sections are separate routes, so the whole /admin tree refreshes.
+    expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");
   });
 
   it("lets an admin save a doctor with several specialty checkboxes", async () => {

@@ -8,6 +8,8 @@ export type Profile = {
   id: string;
   role: UserRole;
   fullName: string;
+  /** False once an admin deactivates the account; every session guard denies it. */
+  isActive: boolean;
 };
 
 export type DoctorProfileDetails = {
@@ -31,7 +33,7 @@ export async function getProfileForAuthUser(
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, role, full_name")
+    .select("id, role, full_name, is_active")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
 
@@ -46,6 +48,7 @@ export async function getProfileForAuthUser(
     id: data.id,
     role: data.role,
     fullName: data.full_name,
+    isActive: data.is_active,
   };
 }
 

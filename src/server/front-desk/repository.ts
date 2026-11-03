@@ -6,6 +6,14 @@ import type {
   BookingSource,
 } from "@/lib/appointments/status";
 import type { UserRole } from "@/lib/auth/roles";
+import {
+  PATIENT_SEARCH_LIMIT,
+  type PatientMatch,
+} from "@/lib/front-desk/booking";
+import type {
+  AppointmentSearchItem,
+  RecentAppointment,
+} from "@/lib/front-desk/overview";
 import type { ScheduleItem } from "@/lib/front-desk/schedule";
 import type {
   RequestAuditEntry,
@@ -15,6 +23,9 @@ import type {
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
 import type {
+  FrontDeskBooker,
+  FrontDeskOverviewReader,
+  FrontDeskPatientsStore,
   FrontDeskRequestsReader,
   FrontDeskRequestsWriter,
   FrontDeskScheduleReader,
@@ -421,6 +432,282 @@ export const supabaseFrontDeskScheduleRepository: FrontDeskScheduleReader = {
         status: row.status,
         bookingSource: row.booking_source,
       } satisfies ScheduleItem;
+    });
+  },
+};
+
+const PATIENT_SELECT = "id, auth_user_id, full_name, phone";
+
+type PatientRow = {
+  id: string;
+  auth_user_id: string | null;
+  full_name: string;
+  phone: string | null;
+};
+
+function toPatientMatch(row: PatientRow): PatientMatch {
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    phone: row.phone?.trim() || null,
+    hasAccount: row.auth_user_id !== null,
+  };
+}
+
+/**
+ * Keeps letters, digits, spaces, and . ' - + only. This removes the LIKE
+ * wildcards and every character PostgREST treats as syntax inside `.or()`
+ * (commas, parentheses, quotes, backslashes), so a search cannot change the
+ * filter.
+ */
+function toSearchTerm(value: string): string {
+  return value.replace(/[^\p{L}\p{N}\s.'+-]/gu, "").trim();
+}
+
+/**
+ * Patient lookup for staff-assisted booking (SPEC-frontdesk §7). Every query
+ * is limited to role = patient, so staff never reach doctor, admin, or staff
+ * profiles through it.
+ */
+/** Patient profiles whose name contains `name` or phone contains `phone`. */
+async function findPatientRows({
+  name,
+  phone,
+  limit,
+}: {
+  name: string;
+  phone: string | null;
+  limit: number;
+}): Promise<PatientRow[]> {
+  const nameTerm = toSearchTerm(name);
+  const phoneTerm = phone ? toSearchTerm(phone) : "";
+  if (!nameTerm && !phoneTerm) {
+    return [];
+  }
+  const filters = [
+    nameTerm && `full_name.ilike.%${nameTerm}%`,
+    phoneTerm && `phone.ilike.%${phoneTerm}%`,
+  ].filter(Boolean);
+
+  const { data, error } = await getSupabaseAdminClient()
+    .from("profiles")
+    .select(PATIENT_SELECT)
+    .eq("role", "patient")
+    .or(filters.join(","))
+    .order("full_name", { ascending: true })
+    .limit(limit);
+  if (error) {
+    throw new Error("Unable to search patients.");
+  }
+  return data ?? [];
+}
+
+export const supabaseFrontDeskPatientsRepository: FrontDeskPatientsStore = {
+  async searchPatients(input) {
+    return (await findPatientRows(input)).map(toPatientMatch);
+  },
+
+  async getPatient(patientId) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from("profiles")
+      .select(PATIENT_SELECT)
+      .eq("role", "patient")
+      .eq("id", patientId)
+      .maybeSingle();
+    if (error) {
+      throw new Error("Unable to load the patient.");
+    }
+    return data ? toPatientMatch(data) : null;
+  },
+
+  async findPatientsByPhone(phone) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from("profiles")
+      .select(PATIENT_SELECT)
+      .eq("role", "patient")
+      .eq("phone", phone)
+      .limit(1);
+    if (error) {
+      throw new Error("Unable to check the phone number.");
+    }
+    return (data ?? []).map(toPatientMatch);
+  },
+
+  async insertPatient({ fullName, phone }) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from("profiles")
+      .insert({ role: "patient", auth_user_id: null, full_name: fullName, phone })
+      .select("id")
+      .single();
+    if (error || !data) {
+      throw new Error("Unable to register the patient.");
+    }
+    return { id: data.id };
+  },
+};
+
+/** Calls the migration 0012 function, which books and confirms in one transaction. */
+export const supabaseFrontDeskBooker: FrontDeskBooker = {
+  async bookForPatient({ patientId, doctorId, specialtyId, scheduledAt, reason, staffId }) {
+    const { data, error } = await getSupabaseAdminClient().rpc(
+      "cammi_connect_front_desk_book_appointment",
+      {
+        p_patient_id: patientId,
+        p_doctor_id: doctorId,
+        p_specialty_id: specialtyId,
+        p_scheduled_at: scheduledAt,
+        p_reason: reason,
+        p_staff_id: staffId,
+      },
+    );
+    if (error) {
+      return { ok: false, error: { code: error.code, message: error.message } };
+    }
+    return { ok: true, appointmentId: data };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Dashboard overview (SPEC-frontdesk §4)
+// ---------------------------------------------------------------------------
+
+const RECENT_SELECT =
+  "id, patient_id, doctor_id, scheduled_at, status, confirmed_at, updated_at, rejection_reason, cancellation_reason";
+
+type RecentRow = {
+  id: string;
+  patient_id: string;
+  doctor_id: string;
+  scheduled_at: string;
+  status: AppointmentStatus;
+  confirmed_at: string | null;
+  updated_at: string;
+  rejection_reason: string | null;
+  cancellation_reason: string | null;
+};
+
+function countOrThrow(result: { count: number | null; error: unknown }): number {
+  if (result.error) {
+    throw new Error("Unable to load the overview counts.");
+  }
+  return result.count ?? 0;
+}
+
+async function toRecentAppointments(
+  rows: RecentRow[],
+  changedAt: (row: RecentRow) => string,
+): Promise<RecentAppointment[]> {
+  const profiles = await loadProfiles(
+    unique(rows.flatMap((row) => [row.patient_id, row.doctor_id])),
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    patientName: profiles.get(row.patient_id)?.full_name.trim() || "Patient",
+    doctorName: profiles.get(row.doctor_id)?.full_name.trim() || "Doctor",
+    scheduledAt: row.scheduled_at,
+    status: row.status,
+    changedAt: changedAt(row),
+    reason:
+      (row.status === "rejected"
+        ? row.rejection_reason
+        : row.status === "cancelled"
+          ? row.cancellation_reason
+          : null
+      )?.trim() || null,
+  }));
+}
+
+/**
+ * Overview read model. Counts use head requests, so no rows are transferred;
+ * lists select names only, never patient email.
+ */
+export const supabaseFrontDeskOverviewRepository: FrontDeskOverviewReader = {
+  async countPending() {
+    return countOrThrow(
+      await getSupabaseAdminClient()
+        .from("appointments")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "requested"),
+    );
+  },
+
+  async countConfirmedBetween({ start, end }) {
+    return countOrThrow(
+      await getSupabaseAdminClient()
+        .from("appointments")
+        .select("id", { count: "exact", head: true })
+        .gte("confirmed_at", start)
+        .lt("confirmed_at", end),
+    );
+  },
+
+  async countStatusChangedBetween(status, { start, end }) {
+    return countOrThrow(
+      await getSupabaseAdminClient()
+        .from("appointments")
+        .select("id", { count: "exact", head: true })
+        .eq("status", status)
+        .gte("updated_at", start)
+        .lt("updated_at", end),
+    );
+  },
+
+  async listRecentConfirmed(limit) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from("appointments")
+      .select(RECENT_SELECT)
+      .not("confirmed_at", "is", null)
+      .order("confirmed_at", { ascending: false })
+      .limit(limit);
+    if (error) {
+      throw new Error("Unable to load recently confirmed appointments.");
+    }
+    return toRecentAppointments(data ?? [], (row) => row.confirmed_at ?? row.updated_at);
+  },
+
+  async listRecentClosed(limit) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from("appointments")
+      .select(RECENT_SELECT)
+      .in("status", ["rejected", "cancelled"])
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+    if (error) {
+      throw new Error("Unable to load recently rejected or cancelled appointments.");
+    }
+    return toRecentAppointments(data ?? [], (row) => row.updated_at);
+  },
+
+  async searchAppointments({ name, phone, limit }) {
+    const patients = await findPatientRows({ name, phone, limit: PATIENT_SEARCH_LIMIT });
+    if (patients.length === 0) {
+      return [];
+    }
+    const patientsById = new Map(patients.map((patient) => [patient.id, patient]));
+
+    const { data, error } = await getSupabaseAdminClient()
+      .from("appointments")
+      .select("id, patient_id, doctor_id, scheduled_at, status, booking_source")
+      .in("patient_id", [...patientsById.keys()])
+      .order("scheduled_at", { ascending: false })
+      .limit(limit);
+    if (error) {
+      throw new Error("Unable to search appointments.");
+    }
+
+    const rows = data ?? [];
+    const doctors = await loadProfiles(unique(rows.map((row) => row.doctor_id)));
+    return rows.map((row) => {
+      const patient = patientsById.get(row.patient_id);
+      return {
+        id: row.id,
+        patientName: patient?.full_name.trim() || "Patient",
+        patientPhone: patient?.phone?.trim() || null,
+        doctorName: doctors.get(row.doctor_id)?.full_name.trim() || "Doctor",
+        scheduledAt: row.scheduled_at,
+        status: row.status,
+        bookingSource: row.booking_source,
+      } satisfies AppointmentSearchItem;
     });
   },
 };

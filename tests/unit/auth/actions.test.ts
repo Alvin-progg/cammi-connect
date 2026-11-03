@@ -2,8 +2,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { redirect } from "next/navigation";
 import { getProfileForAuthUser } from "@/server/profiles/service";
-import { signIn, signOut, signUpPatient } from "@/server/auth/service";
-import { loginAction, registerAction, signOutAction } from "@/server/auth/actions";
+import {
+  getUser,
+  signIn,
+  signOut,
+  signUpPatient,
+  updatePassword,
+} from "@/server/auth/service";
+import {
+  loginAction,
+  registerAction,
+  signOutAction,
+  updatePasswordAction,
+} from "@/server/auth/actions";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
@@ -11,6 +22,8 @@ vi.mock("@/server/auth/service", () => ({
   signIn: vi.fn(),
   signUpPatient: vi.fn(),
   signOut: vi.fn(),
+  getUser: vi.fn(),
+  updatePassword: vi.fn(),
 }));
 vi.mock("@/server/profiles/service", () => ({
   getProfileForAuthUser: vi.fn(),
@@ -48,6 +61,7 @@ beforeEach(() => {
     id: "patient-profile-1",
     role: "patient",
     fullName: "Pat Doe",
+    isActive: true,
   });
 });
 
@@ -62,6 +76,7 @@ describe("loginAction", () => {
       id: "doctor-profile-1",
       role: "doctor",
       fullName: "Dr. Maya Santos",
+      isActive: true,
     });
 
     await loginAction({}, loginFormData());
@@ -73,21 +88,23 @@ describe("loginAction", () => {
       id: "front-desk-profile-1",
       role: "front_desk",
       fullName: "Synthetic Front Desk",
+      isActive: true,
     });
 
     await loginAction({}, loginFormData());
     expect(redirect).toHaveBeenCalledWith("/front-desk?auth_notice=signed-in");
   });
 
-  it("redirects an admin to /account until an admin dashboard exists", async () => {
+  it("redirects an admin to the admin dashboard", async () => {
     vi.mocked(getProfileForAuthUser).mockResolvedValue({
       id: "admin-profile-1",
       role: "admin",
       fullName: "Synthetic Admin",
+      isActive: true,
     });
 
     await loginAction({}, loginFormData());
-    expect(redirect).toHaveBeenCalledWith("/account?auth_notice=signed-in");
+    expect(redirect).toHaveBeenCalledWith("/admin?auth_notice=signed-in");
   });
 
   it("prefers an explicit next path over the role landing path", async () => {
@@ -95,6 +112,7 @@ describe("loginAction", () => {
       id: "doctor-profile-1",
       role: "doctor",
       fullName: "Dr. Maya Santos",
+      isActive: true,
     });
 
     await loginAction({}, loginFormData({ next: "/appointments" }));
@@ -208,5 +226,61 @@ describe("signOutAction", () => {
     await signOutAction();
     expect(signOut).toHaveBeenCalledOnce();
     expect(redirect).toHaveBeenCalledWith("/login");
+  });
+});
+
+function passwordFormData(password = "new-secret", confirmPassword = password): FormData {
+  const formData = new FormData();
+  formData.set("password", password);
+  formData.set("confirmPassword", confirmPassword);
+  return formData;
+}
+
+describe("updatePasswordAction", () => {
+  beforeEach(() => {
+    vi.mocked(getUser).mockResolvedValue({ id: "auth-user-1", email: "desk@example.test" });
+    vi.mocked(updatePassword).mockResolvedValue({ ok: true });
+    vi.mocked(getProfileForAuthUser).mockResolvedValue({
+      id: "front-desk-profile-1",
+      role: "front_desk",
+      fullName: "Synthetic Front Desk",
+      isActive: true,
+    });
+  });
+
+  it("sets the password and sends the user to their dashboard", async () => {
+    await updatePasswordAction({}, passwordFormData());
+
+    expect(updatePassword).toHaveBeenCalledWith("new-secret");
+    expect(redirect).toHaveBeenCalledWith("/front-desk");
+  });
+
+  it("returns field errors for a short or mismatched password", async () => {
+    await expect(updatePasswordAction({}, passwordFormData("abc"))).resolves.toMatchObject({
+      fieldErrors: { password: [expect.any(String)] },
+    });
+    await expect(
+      updatePasswordAction({}, passwordFormData("new-secret", "other-secret")),
+    ).resolves.toMatchObject({ fieldErrors: { confirmPassword: ["Passwords do not match."] } });
+    expect(updatePassword).not.toHaveBeenCalled();
+  });
+
+  it("sends a signed-out visitor to sign in", async () => {
+    vi.mocked(getUser).mockResolvedValue(null);
+    vi.mocked(redirect).mockImplementation(() => {
+      throw new Error("NEXT_REDIRECT");
+    });
+
+    await expect(updatePasswordAction({}, passwordFormData())).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirect).toHaveBeenCalledWith("/login?next=%2Faccount%2Fpassword");
+    expect(updatePassword).not.toHaveBeenCalled();
+  });
+
+  it("shows the provider's refusal", async () => {
+    vi.mocked(updatePassword).mockResolvedValue({ ok: false, code: "same_password" });
+
+    await expect(updatePasswordAction({}, passwordFormData())).resolves.toEqual({
+      formError: "Choose a password you have not used before.",
+    });
   });
 });

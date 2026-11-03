@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AccessDenied } from "@/components/auth/access-denied";
 import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
 import { RequestQueue } from "@/components/front-desk/request-queue";
+import { buttonVariants } from "@/components/ui/button";
 import {
   REQUEST_STATUS_FILTERS,
   REQUEST_STATUS_FILTER_LABELS,
@@ -21,8 +22,7 @@ export const metadata: Metadata = { title: "Appointment requests" };
 const FIELD_LABEL_CLASS = "text-xs font-medium text-ink-muted";
 const CONTROL_CLASS =
   "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
-const SECONDARY_BUTTON_CLASS =
-  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink pressable hover:bg-surface-muted";
+const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "secondary" });
 
 export default async function FrontDeskRequestsPage({
   searchParams,

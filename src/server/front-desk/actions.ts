@@ -1,26 +1,40 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
+import {
+  frontDeskBookingSchema,
+  registerPatientSchema,
+} from "@/lib/front-desk/booking";
 import {
   cancelAppointmentSchema,
   confirmRequestSchema,
   rejectRequestSchema,
   rescheduleAppointmentSchema,
 } from "@/lib/front-desk/decisions";
+import type { AppointmentSearchItem } from "@/lib/front-desk/overview";
 import {
   recordAttendanceSchema,
   type AttendanceStatus,
 } from "@/lib/front-desk/schedule";
 import { getFrontDeskSession } from "@/server/auth/dal";
 
-import { supabaseFrontDeskRequestsWriter } from "./repository";
 import {
+  supabaseFrontDeskBooker,
+  supabaseFrontDeskOverviewRepository,
+  supabaseFrontDeskPatientsRepository,
+  supabaseFrontDeskRequestsWriter,
+} from "./repository";
+import {
+  bookForPatient,
   cancelAppointment,
   confirmRequest,
   recordAttendance,
+  registerPatient,
   rejectRequest,
   rescheduleAppointment,
+  searchAppointments,
   type DecisionResult,
 } from "./service";
 
@@ -201,4 +215,109 @@ export async function cancelAppointmentAction(
       ),
     "Appointment cancelled.",
   );
+}
+
+/** Errors only: a successful booking step navigates away. */
+export type BookingFormState = { status: "idle" } | { status: "error"; message: string };
+
+const BOOK_PATH = "/front-desk/book";
+
+/**
+ * Registers a walk-in or phone-in patient as a record with no login
+ * (SPEC-frontdesk §7 step 2), then continues booking for them.
+ */
+export async function registerPatientAction(
+  _previous: BookingFormState,
+  formData: FormData,
+): Promise<BookingFormState> {
+  const session = await getFrontDeskSession(BOOK_PATH);
+  if (!session) {
+    return { status: "error", message: "You are not authorized to register patients." };
+  }
+
+  const parsed = registerPatientSchema.safeParse({
+    fullName: formData.get("fullName"),
+    phone: formData.get("phone"),
+  });
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.error.issues[0]?.message ?? "Check the patient's details.",
+    };
+  }
+
+  const result = await registerPatient(parsed.data, supabaseFrontDeskPatientsRepository);
+  if (!result.ok) {
+    return { status: "error", message: result.message };
+  }
+  redirect(`${BOOK_PATH}?patient=${result.patientId}`);
+}
+
+/**
+ * Books a confirmed appointment for a walk-in or phone-in patient
+ * (SPEC-frontdesk §7 step 8). The staff ID always comes from the session;
+ * the patient ID comes from the form and the database re-checks it.
+ */
+export async function bookForPatientAction(
+  _previous: BookingFormState,
+  formData: FormData,
+): Promise<BookingFormState> {
+  const session = await getFrontDeskSession(BOOK_PATH);
+  if (!session) {
+    return { status: "error", message: "You are not authorized to book appointments." };
+  }
+
+  const parsed = frontDeskBookingSchema.safeParse({
+    patientId: formData.get("patientId"),
+    doctorId: formData.get("doctorId"),
+    specialtyId: formData.get("specialtyId"),
+    scheduledAt: formData.get("scheduledAt"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.error.issues[0]?.message ?? "Check the appointment details.",
+    };
+  }
+
+  const result = await bookForPatient(
+    { ...parsed.data, staffId: session.staff.id },
+    supabaseFrontDeskBooker,
+  );
+  if (!result.ok) {
+    return { status: "error", message: result.message };
+  }
+
+  revalidatePath(QUEUE_PATH);
+  revalidatePath(SCHEDULE_PATH);
+  revalidatePath("/doctor");
+  redirect(`${QUEUE_PATH}/${result.appointmentId}`);
+}
+
+export type QuickSearchState =
+  | { status: "error"; message: string }
+  | { status: "success"; items: AppointmentSearchItem[] };
+
+/**
+ * Patient name-or-phone appointment search for the ⌘K palette. Read-only:
+ * the same session check, validation, and query as the overview's `?q=`
+ * search, so it never reveals more than that page does.
+ */
+export async function searchAppointmentsQuickAction(
+  query: string,
+): Promise<QuickSearchState> {
+  const session = await getFrontDeskSession("/front-desk");
+  if (!session) {
+    return { status: "error", message: "You are not authorized to search appointments." };
+  }
+  // Server Action arguments are untrusted; the service schema expects text.
+  if (typeof query !== "string") {
+    return { status: "error", message: "Check the search." };
+  }
+
+  const result = await searchAppointments(query, supabaseFrontDeskOverviewRepository);
+  return result.ok
+    ? { status: "success", items: result.items }
+    : { status: "error", message: result.message };
 }

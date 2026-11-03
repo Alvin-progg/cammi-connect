@@ -130,41 +130,43 @@ async function ensureAuthUser(supabase, { email, password, fullName, label, pass
   return data.user;
 }
 
-async function upsertDoctorProfile(supabase, authUserId, fullName) {
-  const { data, error } = await supabase
-    .from("profiles")
-    .upsert(
-      {
-        auth_user_id: authUserId,
-        role: "doctor",
-        full_name: fullName,
-        department_id: DEPARTMENT_INTERNAL_MEDICINE_ID,
-        phone: "+63 43 555 0100",
-        clinic_note: "Room 204, Outpatient Department",
-      },
-      { onConflict: "auth_user_id" },
-    )
-    .select("id")
-    .single();
-
+/**
+ * Gives an auth user a staff profile. Roles can only change through approved
+ * database functions (migration 0014), so the seed uses the seed-only
+ * bootstrap function instead of a plain upsert.
+ */
+async function bootstrapStaffProfile(supabase, { authUserId, role, fullName }) {
+  const { data, error } = await supabase.rpc("cammi_connect_bootstrap_staff_role", {
+    p_auth_user_id: authUserId,
+    p_role: role,
+    p_full_name: fullName,
+  });
   if (error || !data) {
-    throw new Error(`Unable to upsert the seed doctor profile: ${error?.message}`);
+    throw new Error(`Unable to set up the seed ${role} profile: ${error?.message}`);
   }
-
-  return data.id;
+  return data;
 }
 
-/** Links an auth user to an admin or front desk profile. */
-async function upsertStaffProfile(supabase, { authUserId, role, fullName }) {
+async function upsertDoctorProfile(supabase, authUserId, fullName) {
+  const profileId = await bootstrapStaffProfile(supabase, {
+    authUserId,
+    role: "doctor",
+    fullName,
+  });
+
   const { error } = await supabase
     .from("profiles")
-    .upsert(
-      { auth_user_id: authUserId, role, full_name: fullName },
-      { onConflict: "auth_user_id" },
-    );
+    .update({
+      department_id: DEPARTMENT_INTERNAL_MEDICINE_ID,
+      phone: "+63 43 555 0100",
+      clinic_note: "Room 204, Outpatient Department",
+    })
+    .eq("id", profileId);
   if (error) {
-    throw new Error(`Unable to upsert the seed ${role} profile: ${error.message}`);
+    throw new Error(`Unable to update the seed doctor profile: ${error.message}`);
   }
+
+  return profileId;
 }
 
 async function main() {
@@ -339,7 +341,7 @@ async function main() {
       label: "admin",
       passwordEnv: "SEED_ADMIN_PASSWORD",
     });
-    await upsertStaffProfile(supabase, {
+    await bootstrapStaffProfile(supabase, {
       authUserId: adminUser.id,
       role: "admin",
       fullName: adminName,
@@ -359,7 +361,7 @@ async function main() {
       label: "front desk",
       passwordEnv: "SEED_FRONT_DESK_PASSWORD",
     });
-    await upsertStaffProfile(supabase, {
+    await bootstrapStaffProfile(supabase, {
       authUserId: frontDeskUser.id,
       role: "front_desk",
       fullName: frontDeskName,

@@ -52,7 +52,7 @@ async function resolveScheduleDoctorId(
     return session ? { doctorId: session.doctor.id } : { denied: NOT_AUTHORIZED };
   }
 
-  const session = await getAdminSession("/admin");
+  const session = await getAdminSession("/admin/schedules");
   if (!session) {
     return { denied: NOT_AUTHORIZED };
   }
@@ -72,7 +72,7 @@ function toActionState(result: ScheduleResult): ScheduleActionState {
     return { status: "error", message: result.message };
   }
   revalidatePath("/doctor");
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   return { status: "success", message: result.message };
 }
 

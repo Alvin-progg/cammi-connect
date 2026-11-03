@@ -1,17 +1,15 @@
+import clsx from "clsx";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
 
+import { CommandPalette } from "./command-palette";
+import { FRONT_DESK_NAV_ITEMS, type FrontDeskSection } from "./nav-items";
+
+export type { FrontDeskSection };
+
 const SECTION_LABEL = "Front desk";
-
-const NAV_ITEMS = [
-  { key: "overview", href: "/front-desk", label: "Overview" },
-  { key: "requests", href: "/front-desk/requests", label: "Requests" },
-  { key: "schedule", href: "/front-desk/schedule", label: "Daily schedule" },
-] as const;
-
-export type FrontDeskSection = (typeof NAV_ITEMS)[number]["key"];
 
 /** A breadcrumb step after "Front desk". The last one is the current page. */
 export type FrontDeskCrumb = { label: string; href?: string };
@@ -48,19 +46,23 @@ export function FrontDeskShell({
           </Link>
         </div>
         <nav aria-label={SECTION_LABEL} className="px-2 pb-2 lg:flex-1 lg:py-2">
-          <ul className="flex gap-1 lg:flex-col">
-            {NAV_ITEMS.map((item) => {
+          <ul className="flex flex-wrap gap-1 lg:flex-col">
+            {FRONT_DESK_NAV_ITEMS.map((item) => {
               const current = item.key === active;
               return (
                 <li key={item.key}>
                   <Link
                     href={item.href}
                     aria-current={current ? "page" : undefined}
-                    className={`focus-ring flex min-h-11 items-center rounded-lg px-3 text-sm font-medium transition-colors duration-150 ease-snappy motion-reduce:transition-none ${
+                    className={clsx(
+                      "focus-ring flex min-h-11 items-center rounded-lg px-3 text-sm font-medium transition-colors duration-150 ease-snappy motion-reduce:transition-none",
                       current
-                        ? "bg-primary-soft text-primary"
-                        : "text-ink-secondary hover:bg-surface-muted hover:text-ink"
-                    }`}
+                        ? // design.md §5.6: a 2px rule as well as the tint, so the
+                          // active item is not marked by colour alone. It sits under
+                          // the item in the stacked layout and to its left at `lg`.
+                          "bg-primary-soft text-primary shadow-[inset_0_-2px_0_var(--color-primary)] lg:shadow-[inset_2px_0_0_var(--color-primary)]"
+                        : "text-ink-secondary hover:bg-surface-muted hover:text-ink",
+                    )}
                   >
                     {item.label}
                   </Link>
@@ -103,7 +105,10 @@ export function FrontDeskShell({
             </ol>
           </nav>
           <div className="flex min-w-0 items-center gap-3">
-            <span className="truncate text-sm text-ink-secondary">{staffName}</span>
+            <CommandPalette />
+            <span className="hidden truncate text-sm text-ink-secondary sm:inline">
+              {staffName}
+            </span>
             <SignOutButton />
           </div>
         </header>

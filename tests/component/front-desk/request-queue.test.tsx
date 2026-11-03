@@ -33,7 +33,9 @@ describe("RequestQueue", () => {
       <RequestQueue items={[PENDING_REQUEST, CANCELLED_REQUEST]} limitReached={false} />,
     );
 
-    const table = screen.getByRole("table", { name: "Appointment requests" });
+    const region = screen.getByRole("region", { name: "Appointment requests" });
+    expect(region).toHaveAttribute("tabindex", "0");
+    const table = within(region).getByRole("table", { name: "Appointment requests" });
     const rows = within(table).getAllByRole("row");
     // Header row plus two requests.
     expect(rows).toHaveLength(3);
@@ -74,5 +76,15 @@ describe("RequestQueue", () => {
     expect(
       screen.getByText("Showing the first 100 requests. Narrow the filters to see more."),
     ).toBeInTheDocument();
+  });
+
+  it("states how many rows matched", () => {
+    const { rerender } = render(
+      <RequestQueue items={[PENDING_REQUEST]} limitReached={false} />,
+    );
+    expect(screen.getByText("1 request")).toBeInTheDocument();
+
+    rerender(<RequestQueue items={[PENDING_REQUEST, CANCELLED_REQUEST]} limitReached={false} />);
+    expect(screen.getByText("2 requests")).toBeInTheDocument();
   });
 });

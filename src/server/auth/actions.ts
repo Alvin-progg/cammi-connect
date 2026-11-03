@@ -11,17 +11,27 @@ import {
 } from "@/lib/auth/notice";
 import { sanitizeReturnPath } from "@/lib/auth/return-path";
 import type { UserRole } from "@/lib/auth/roles";
-import { loginSchema, registerSchema } from "@/lib/auth/schemas";
+import {
+  loginSchema,
+  registerSchema,
+  setPasswordSchema,
+} from "@/lib/auth/schemas";
 import { getProfileForAuthUser } from "@/server/profiles/service";
 
-import { signIn, signOut, signUpPatient } from "./service";
+import {
+  getUser,
+  signIn,
+  signOut,
+  signUpPatient,
+  updatePassword,
+} from "./service";
 
 const DEFAULT_AUTH_REDIRECT = "/account";
 const PATIENT_LANDING_PATH = "/chat";
 
 const ROLE_LANDING_PATHS: Record<UserRole, string> = {
   doctor: "/doctor",
-  admin: DEFAULT_AUTH_REDIRECT, // No admin dashboard route yet.
+  admin: "/admin",
   patient: PATIENT_LANDING_PATH,
   front_desk: "/front-desk",
 };
@@ -117,6 +127,36 @@ export async function registerAction(
   return {
     success: "If an account can be created for this email, check your inbox.",
   };
+}
+
+const SET_PASSWORD_PATH = "/account/password";
+
+/**
+ * Sets a new password for the signed-in user. They arrive here from an
+ * invite or reset link, which /auth/confirm already turned into a session.
+ */
+export async function updatePasswordAction(
+  _previous: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const parsed = setPasswordSchema.safeParse({
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success) {
+    return { fieldErrors: toFieldErrors(z.flattenError(parsed.error)) };
+  }
+
+  const user = await getUser();
+  if (!user) {
+    redirect(`/login?next=${encodeURIComponent(SET_PASSWORD_PATH)}`);
+  }
+
+  const result = await updatePassword(parsed.data.password);
+  if (!result.ok) {
+    return { formError: messageForAuthError(result.code) };
+  }
+  redirect(await defaultLandingPath(user.id));
 }
 
 export async function signOutAction(): Promise<void> {

@@ -45,7 +45,9 @@ describe("DailySchedule", () => {
       <DailySchedule items={[CONFIRMED, CHECKED_IN, PENDING]} limitReached={false} now={NOW} />,
     );
 
-    const table = screen.getByRole("table", { name: "Daily schedule" });
+    const region = screen.getByRole("region", { name: "Daily schedule" });
+    expect(region).toHaveAttribute("tabindex", "0");
+    const table = within(region).getByRole("table", { name: "Daily schedule" });
     const rows = within(table).getAllByRole("row");
     expect(rows).toHaveLength(4);
 
@@ -108,5 +110,15 @@ describe("DailySchedule", () => {
     expect(
       screen.getByText("Showing the first 200 appointments. Narrow the filters to see more."),
     ).toBeInTheDocument();
+  });
+
+  it("states how many rows matched", () => {
+    const { rerender } = render(
+      <DailySchedule items={[CONFIRMED]} limitReached={false} now={NOW} />,
+    );
+    expect(screen.getByText("1 appointment")).toBeInTheDocument();
+
+    rerender(<DailySchedule items={[CONFIRMED, CHECKED_IN]} limitReached={false} now={NOW} />);
+    expect(screen.getByText("2 appointments")).toBeInTheDocument();
   });
 });

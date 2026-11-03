@@ -75,7 +75,12 @@ Then run `db/migrations/0008_front_desk_role.sql` **on its own**.
 PostgreSQL cannot use a new enum value in the transaction that added it.
 Then run `db/migrations/0009_front_desk_confirm_reject.sql` once, then
 `db/migrations/0010_front_desk_attendance.sql` once, then
-`db/migrations/0011_front_desk_reschedule_cancel.sql` once.
+`db/migrations/0011_front_desk_reschedule_cancel.sql` once, then
+`db/migrations/0012_front_desk_booking.sql` once, then
+`db/migrations/0013_admin_foundation.sql` once, then
+`db/migrations/0014_admin_user_management.sql` once. After 0014, re-run
+`npm run db:seed`: the seed now sets staff roles through
+`cammi_connect_bootstrap_staff_role`.
 
 `0001_profiles_appointments.sql`:
 
@@ -212,6 +217,68 @@ now fail.
   `not_reschedulable`, `unchanged`, `inactive_doctor`, `past`, `outside_hours`,
   `blocked`, `not_cancellable`) and are executable by `service_role` only.
 
+`0012_front_desk_booking.sql` (FD-001 PR 7):
+
+- adds `cammi_connect_front_desk_book_appointment(patient, doctor, specialty,
+  scheduled_at, reason, staff)`. In one transaction it requires a `role = 'patient'`
+  profile, locks the active doctor, checks the optional specialty against
+  `doctor_specialties`, then checks that the time is in the future, on one of the
+  doctor's slots (same grid check as booking), and clear of schedule exceptions. It
+  inserts the appointment already `confirmed` with `booking_source = 'front_desk'`,
+  `created_by_profile_id` and `confirmed_by_profile_id` set to the staff member,
+  `confirmed_at`, and `specialty_id`, and writes one `created` audit row
+  (`previous_status` null, `new_status` `confirmed`). A slot already held fails on
+  `appointments_no_active_overlap` (`23P01`) and nothing is written;
+- raises `P0001` with `invalid_patient`, `inactive_doctor`, `specialty_mismatch`,
+  `past`, `outside_hours`, or `blocked`, and is executable by `service_role` only;
+- walk-in patients need no function: the server inserts a `profiles` row with
+  `role = 'patient'`, `auth_user_id = null`, a name, and a normalized phone.
+
+`0013_admin_foundation.sql` (ADM-00):
+
+- adds `profiles.is_active` (default `true`). The server's session guards deny an
+  inactive profile for every role; nothing is deleted;
+- creates `audit_logs` (actor profile, dotted `action`, `target_type`, `target_id`,
+  `previous_values`, `new_values`, `reason`), append-only through the same
+  `audit_log_immutable` triggers as `appointment_audit_logs`, with RLS on, no
+  policies, and `select, insert` for `service_role` only. The server strips
+  credential-like keys from the payloads before insert.
+
+`0014_admin_user_management.sql` (ADM-01):
+
+- adds the `profiles_guard_role_change` trigger: a plain `update` that changes
+  `profiles.role` fails with `role_change_forbidden`. Roles change only inside the
+  functions below and `cammi_connect_save_doctor` (recreated with the same body plus
+  the flag), which set the transaction-local `cammi_connect.role_change` flag;
+- adds `cammi_connect_admin_set_user_role`, `cammi_connect_admin_set_user_active`,
+  `cammi_connect_admin_update_user_profile`, and `cammi_connect_admin_provision_staff`.
+  Each locks the actor and target rows, checks that the actor is an active admin,
+  refuses self-changes and role changes on accounts with a `doctors` row, and writes
+  its `audit_logs` row in the same transaction. They raise `P0001` with `not_admin`,
+  `reason_required`, `not_found`, `unchanged`, `self_change`, `doctor_record`,
+  `invalid_role`, `already_provisioned`, or `full_name_required`;
+- adds `cammi_connect_admin_list_users` and `cammi_connect_admin_get_user`
+  (`security definer`, to join `auth.users` for email and last sign-in; no password or
+  token columns are selected);
+- adds `cammi_connect_bootstrap_staff_role`, used only by the seed script to create the
+  first admin and the seed staff accounts;
+- every function is executable by `service_role` only.
+
+#### Supabase Auth email templates (ADM-01, manual)
+
+Admin-sent invites and password resets land on `/auth/confirm`, which verifies the
+token on the server. In Supabase → Authentication:
+
+1. **URL Configuration:** set **Site URL** to the app's origin (for example
+   `http://localhost:3000` in development).
+2. **Email Templates → Invite user:** set the link to
+   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite`.
+3. **Email Templates → Reset password:** set the link to
+   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`.
+
+The default Supabase SMTP sends only a few emails per hour; configure custom SMTP
+before inviting more than a handful of staff (see Troubleshooting).
+
 ### Knowledge base ingestion (ADR-0004)
 
 The synthetic corpus lives in `db/knowledge/*.md` (one document per file; the file
@@ -284,7 +351,8 @@ The seed:
   each, split consultation periods (including 60-minute slots), one blocked period and
   one whole-day leave exception, and three doctor notifications;
 - deactivates (never deletes) other active schedule periods of the seed doctors;
-- promotes the `SEED_ADMIN_EMAIL` account to admin when set;
+- promotes the `SEED_ADMIN_EMAIL` account to admin when set (through
+  `cammi_connect_bootstrap_staff_role`, migration 0014);
 - sets the `SEED_FRONT_DESK_EMAIL` account to front desk when set;
 - upserts today/tomorrow/upcoming/past appointments in `Asia/Manila`, including every
   approved status and cross-doctor appointments at the same time;
@@ -496,6 +564,94 @@ No real patient data is used.
       **Reschedule** nor **Cancel appointment**.
     - As the doctor, the rescheduled appointment shows its new time in `/doctor`, and
       the cancelled one shows Cancelled.
+
+21. Check staff-assisted booking (FD-001 PR 7), after applying 0012. Use synthetic data
+    only:
+    - As the front desk account, open **New appointment** and search for "Test Walkin".
+      No match is found. Register "Test Walkin" with phone `0900 000 0000`. You land on
+      step 2 with the patient shown as a walk-in record. In SQL, the new `profiles` row
+      has `role = 'patient'`, `auth_user_id` null, and `phone = '09000000000'`.
+      Registering another patient with `0900-000-0000` is refused as a duplicate, and
+      searching `0900 000` finds Test Walkin.
+    - Choose a specialty, a doctor, and a date the doctor works, then **Show slots**.
+      Pick a slot, check the review, and **Book and confirm**. You land on the
+      appointment details: status Confirmed, booking source Front desk, and one history
+      entry with your name. In SQL, the row has `patient_id` = Test Walkin,
+      `created_by_profile_id` = `confirmed_by_profile_id` = your staff profile (not the
+      patient), `confirmed_at` set, and `specialty_id` set; there is exactly one
+      `created` audit row with `new_status = 'confirmed'`.
+    - The booked slot no longer appears for that doctor and date. Open the slot list in
+      two tabs, book a slot in the first, then book the same slot in the second: it fails
+      with "That slot was just taken" and no second row or audit row is written.
+    - In SQL, calling the function with a doctor's profile id as the patient fails with
+      `invalid_patient`; a specialty the doctor lacks fails with `specialty_mismatch`;
+      a time off the slot grid fails with `outside_hours`.
+    - `insert into public.appointments (..., status, booking_source) values (...,
+      'confirmed', 'ai_chatbot')` still fails with `ai_requires_confirmation`.
+    - As the doctor, the new appointment appears as Confirmed in `/doctor`.
+
+22. Check the dashboard overview (FD-001 PR 8). No migration is needed. Use synthetic data
+    only:
+    - As the front desk account, open **Overview** and note the four cards. Pending
+      equals the number of rows with `status = 'requested'`. Confirm one pending
+      request: Pending drops by one, Confirmed today rises by one, and the request tops
+      **Recently confirmed**. Book a walk-in appointment (step 21): Confirmed today rises
+      again.
+    - Cancel a confirmed appointment and reject a pending one: Cancelled today rises by
+      one (rejections are not counted there), and both top **Recently rejected or
+      cancelled** with their reasons. Mark a checked-in visit completed on the daily
+      schedule: Completed today rises by one.
+    - Manila day boundary: in SQL, `select count(*) from public.appointments where
+      confirmed_at >= (date_trunc('day', now() at time zone 'Asia/Manila') at time zone
+      'Asia/Manila') and confirmed_at < (date_trunc('day', now() at time zone
+      'Asia/Manila') at time zone 'Asia/Manila') + interval '1 day';` equals Confirmed
+      today. Between 00:00 and 08:00 Manila time (still the previous UTC day), an action
+      taken after Manila midnight counts and one from before it does not.
+    - **Today's schedule** lists today's appointments (first 8) and links to the daily
+      schedule. **Pending requests** lists the soonest five.
+    - Search "Test Walkin" and then `0900 000`: both list that patient's appointments,
+      newest first, each linking to its details. A one-character search shows a
+      validation message; a doctor's or staff member's name finds nothing.
+
+23. Check the admin foundation (ADM-00), after applying 0013. Use synthetic data only:
+    - As the admin account, open `/admin`: the sidebar lists 13 sections and each one
+      loads. Doctors, Departments, Specialties, and Schedules still save; the rest show
+      "Not built yet".
+    - As a patient, open `/admin/users`: access is denied. Signed out, you are sent to
+      `/login?next=%2Fadmin%2Fusers`.
+    - In SQL, set `is_active = false` on a synthetic doctor profile that has a login.
+      Signed in as that doctor, `/doctor` shows access denied. Set it back to `true`.
+    - In SQL, insert one `audit_logs` row for the admin profile, then try `update` and
+      `delete` on it: both fail with `audit_log_immutable`. (The test row stays; it is
+      synthetic.)
+
+24. Check user and role management (ADM-01), after applying 0014, updating the email
+    templates, and re-running `npm run db:seed`. Use synthetic data and a mailbox you
+    control only:
+    - As the admin, open **Users**: the seed accounts are listed with email, role,
+      status, and last sign-in. Search by part of a name and of an email; filter by role
+      and by status.
+    - **Invite staff** with a synthetic front desk email. You land on the new account:
+      role Front desk, Active, activity "Account created". Open the email link: it goes
+      through `/auth/confirm` to **Set your password**; after saving you land on
+      `/front-desk`.
+    - Change that account's role to Patient with a reason: activity shows "Role changed"
+      and the reason. In SQL, the `audit_logs` row has `action = 'user.role_change'` and
+      the previous and new role.
+    - On your own account, the role and status forms are not offered. In SQL, calling
+      `cammi_connect_admin_set_user_role` with your profile as both actor and target
+      fails with `self_change`; with a non-admin actor it fails with `not_admin`.
+    - On the seed doctor, the role form points to Doctors; in SQL the function fails
+      with `doctor_record`.
+    - In SQL, `update public.profiles set role = 'admin' where id = '<any id>'` fails
+      with `role_change_forbidden`.
+    - Deactivate the invited account with a reason while it is signed in elsewhere: its
+      next page load shows access denied, and signing in again fails. Activate it again:
+      sign-in works.
+    - **Send password reset email**: the email arrives, its link opens **Set your
+      password**, and the activity shows "Password reset email sent".
+    - Link a patient account as a doctor from **Doctors** (existing flow): it still
+      works, because `cammi_connect_save_doctor` sets the role-change flag.
 
 ## Troubleshooting
 

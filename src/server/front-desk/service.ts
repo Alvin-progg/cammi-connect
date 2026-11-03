@@ -4,7 +4,20 @@ import { z } from "zod";
 
 import { manilaDayRange, todayInManila } from "@/lib/appointments/filters";
 import type { AppointmentStatus } from "@/lib/appointments/status";
+import {
+  PATIENT_SEARCH_LIMIT,
+  normalizePhone,
+  patientSearchSchema,
+  type PatientMatch,
+} from "@/lib/front-desk/booking";
 import type { SlotCheck } from "@/lib/front-desk/decisions";
+import {
+  APPOINTMENT_SEARCH_LIMIT,
+  OVERVIEW_LIST_LIMIT,
+  type AppointmentSearchItem,
+  type OverviewCounts,
+  type RecentAppointment,
+} from "@/lib/front-desk/overview";
 import {
   SCHEDULE_LIMIT,
   type AttendanceStatus,
@@ -23,6 +36,10 @@ import type {
   DoctorAppointmentsReader,
   DoctorAvailabilityReader,
 } from "@/server/appointments/service";
+import {
+  getAvailableSlots,
+  type AvailabilitySource,
+} from "@/server/availability/service";
 
 export const QUEUE_LIMIT = REQUEST_QUEUE_LIMIT;
 
@@ -185,14 +202,24 @@ function toDecisionResult(
   if (outcome.ok) {
     return { ok: true };
   }
-  const { code } = outcome.error;
-  const message =
-    code === RAISED_EXCEPTION
-      ? refusalMessages[outcome.error.message]
-      : code === EXCLUSION_VIOLATION
-        ? refusalMessages[EXCLUSION_VIOLATION]
-        : undefined;
-  return { ok: false, message: message ?? genericMessage };
+  return {
+    ok: false,
+    message: refusalMessage(outcome.error, refusalMessages) ?? genericMessage,
+  };
+}
+
+/** The staff-facing text for a coded refusal or a taken slot, if any. */
+function refusalMessage(
+  error: { code: string; message: string },
+  refusalMessages: Record<string, string>,
+): string | undefined {
+  if (error.code === RAISED_EXCEPTION) {
+    return refusalMessages[error.message];
+  }
+  if (error.code === EXCLUSION_VIOLATION) {
+    return refusalMessages[EXCLUSION_VIOLATION];
+  }
+  return undefined;
 }
 
 /**
@@ -420,4 +447,254 @@ export async function listRescheduleSlots(
   })
     .filter((slot) => slot.start.getTime() !== currentStart)
     .map((slot) => ({ start: slot.start.toISOString(), end: slot.end.toISOString() }));
+}
+
+// ---------------------------------------------------------------------------
+// Staff-assisted booking (SPEC-frontdesk §7)
+// ---------------------------------------------------------------------------
+
+/** Patient lookup and walk-in registration. Only role = patient profiles. */
+export type FrontDeskPatientsStore = {
+  /** Name contains `name`, or phone contains `phone` when given. */
+  searchPatients(input: {
+    name: string;
+    phone: string | null;
+    limit: number;
+  }): Promise<PatientMatch[]>;
+  getPatient(patientId: string): Promise<PatientMatch | null>;
+  findPatientsByPhone(phone: string): Promise<PatientMatch[]>;
+  /** Inserts a patient profile with no login (auth_user_id null). */
+  insertPatient(input: { fullName: string; phone: string }): Promise<{ id: string }>;
+};
+
+/** cammi_connect_front_desk_book_appointment (migration 0012). */
+export type FrontDeskBooker = {
+  bookForPatient(input: {
+    patientId: string;
+    doctorId: string;
+    specialtyId: string | null;
+    scheduledAt: string;
+    reason: string | null;
+    staffId: string;
+  }): Promise<
+    | { ok: true; appointmentId: string }
+    | { ok: false; error: { code: string; message: string } }
+  >;
+};
+
+/**
+ * Validates a patient name-or-phone search. Phones are stored normalized, so
+ * a query with digits also matches the number however it was typed.
+ */
+function parsePatientQuery(
+  query: string,
+): { ok: true; name: string; phone: string | null } | { ok: false; message: string } {
+  const parsed = patientSearchSchema.safeParse({ q: query });
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the search." };
+  }
+  const name = parsed.data.q;
+  return { ok: true, name, phone: /\d/.test(name) ? normalizePhone(name) : null };
+}
+
+export async function searchPatients(
+  query: string,
+  store: FrontDeskPatientsStore,
+): Promise<{ ok: true; patients: PatientMatch[] } | { ok: false; message: string }> {
+  const parsed = parsePatientQuery(query);
+  if (!parsed.ok) {
+    return parsed;
+  }
+  const patients = await store.searchPatients({
+    name: parsed.name,
+    phone: parsed.phone,
+    limit: PATIENT_SEARCH_LIMIT,
+  });
+  return { ok: true, patients };
+}
+
+const DUPLICATE_PHONE_MESSAGE =
+  "A patient with this phone number is already registered. Search for them instead.";
+
+/**
+ * Registers a walk-in or phone-in patient as a record with no login
+ * (decision 2026-11-03). A number already on file is refused so staff pick
+ * the existing record instead of creating a duplicate.
+ */
+export async function registerPatient(
+  input: { fullName: string; phone: string },
+  store: FrontDeskPatientsStore,
+): Promise<{ ok: true; patientId: string } | { ok: false; message: string }> {
+  const phone = normalizePhone(input.phone);
+  const existing = await store.findPatientsByPhone(phone);
+  if (existing.length > 0) {
+    return { ok: false, message: DUPLICATE_PHONE_MESSAGE };
+  }
+  const { id } = await store.insertPatient({ fullName: input.fullName, phone });
+  return { ok: true, patientId: id };
+}
+
+/** Staff-facing text for the coded refusals raised by the 0012 function. */
+const BOOKING_REFUSAL_MESSAGES: Record<string, string> = {
+  invalid_patient: "This patient record can't be booked. Search for the patient again.",
+  inactive_doctor: "This doctor is no longer accepting appointments.",
+  specialty_mismatch: "This doctor doesn't offer the chosen specialty.",
+  past: "Choose a future time.",
+  outside_hours: "That time is not one of the doctor's consultation slots.",
+  blocked: "The doctor is unavailable at that time.",
+  // appointments_no_active_overlap: another appointment holds the slot.
+  [EXCLUSION_VIOLATION]: "That slot was just taken. Choose another time.",
+};
+
+const GENERIC_BOOKING_ERROR = "The appointment could not be booked. Try again in a moment.";
+
+/**
+ * Books a confirmed appointment for a patient (SPEC-frontdesk §7). The
+ * patient owns it; the staff member, from the session, is recorded as its
+ * creator and confirmer. The database function re-checks the patient, the
+ * doctor, and the slot, and writes the audit entry in the same transaction.
+ */
+export async function bookForPatient(
+  input: {
+    patientId: string;
+    doctorId: string;
+    specialtyId: string | null;
+    scheduledAt: string;
+    reason: string | null;
+    staffId: string;
+  },
+  booker: FrontDeskBooker,
+): Promise<{ ok: true; appointmentId: string } | { ok: false; message: string }> {
+  const outcome = await booker.bookForPatient({
+    patientId: input.patientId,
+    doctorId: input.doctorId,
+    specialtyId: input.specialtyId,
+    scheduledAt: input.scheduledAt,
+    reason: input.reason,
+    staffId: input.staffId,
+  });
+  if (outcome.ok) {
+    return outcome;
+  }
+  return {
+    ok: false,
+    message: refusalMessage(outcome.error, BOOKING_REFUSAL_MESSAGES) ?? GENERIC_BOOKING_ERROR,
+  };
+}
+
+/**
+ * The doctor's free slots on one Manila date (SPEC-frontdesk §7 steps 5–6),
+ * from the same authoritative source the chatbot uses. Empty when the doctor
+ * is inactive or lacks the chosen specialty.
+ */
+export async function listBookingSlots(
+  query: { doctorId: string; specialtyId: string | null; date: string },
+  source: AvailabilitySource,
+  now: Date = new Date(),
+): Promise<{ start: string; end: string }[]> {
+  const [availability] = await getAvailableSlots(
+    {
+      doctorId: query.doctorId,
+      specialtyId: query.specialtyId ?? undefined,
+      fromDate: query.date,
+      days: 1,
+      now,
+    },
+    source,
+  );
+  return availability?.slots ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard overview (SPEC-frontdesk §4)
+// ---------------------------------------------------------------------------
+
+/** ISO bounds of a Manila day. */
+export type IsoRange = { start: string; end: string };
+
+/** Read model for the overview. Callers must have checked the front desk session first. */
+export type FrontDeskOverviewReader = {
+  /** Appointments still `requested`, on any date. */
+  countPending(): Promise<number>;
+  /** Appointments whose `confirmed_at` falls in the range. */
+  countConfirmedBetween(range: IsoRange): Promise<number>;
+  /**
+   * Appointments now in `status` whose `updated_at` falls in the range. Both
+   * statuses are terminal, so `updated_at` is when the status was set.
+   */
+  countStatusChangedBetween(
+    status: "completed" | "cancelled",
+    range: IsoRange,
+  ): Promise<number>;
+  /** Latest by `confirmed_at`, whatever the current status. */
+  listRecentConfirmed(limit: number): Promise<RecentAppointment[]>;
+  /** Latest `rejected` or `cancelled` by `updated_at`. */
+  listRecentClosed(limit: number): Promise<RecentAppointment[]>;
+  /** Appointments of patients whose name contains `name` or phone contains `phone`. */
+  searchAppointments(input: {
+    name: string;
+    phone: string | null;
+    limit: number;
+  }): Promise<AppointmentSearchItem[]>;
+};
+
+/**
+ * The four summary cards. "Today" is the Asia/Manila calendar day containing
+ * `now`, so an action at 00:30 Manila time counts on the new Manila day even
+ * though it is still the previous day in UTC.
+ */
+export async function getOverviewCounts(
+  reader: FrontDeskOverviewReader,
+  now: Date = new Date(),
+): Promise<OverviewCounts> {
+  const day = manilaDayRange(todayInManila(now));
+  const today = { start: day.start.toISOString(), end: day.end.toISOString() };
+  const [pending, confirmedToday, completedToday, cancelledToday] = await Promise.all([
+    reader.countPending(),
+    reader.countConfirmedBetween(today),
+    reader.countStatusChangedBetween("completed", today),
+    reader.countStatusChangedBetween("cancelled", today),
+  ]);
+  return { pending, confirmedToday, completedToday, cancelledToday };
+}
+
+export async function getRecentActivity(
+  reader: FrontDeskOverviewReader,
+): Promise<{ recentConfirmed: RecentAppointment[]; recentClosed: RecentAppointment[] }> {
+  const [recentConfirmed, recentClosed] = await Promise.all([
+    reader.listRecentConfirmed(OVERVIEW_LIST_LIMIT),
+    reader.listRecentClosed(OVERVIEW_LIST_LIMIT),
+  ]);
+  return { recentConfirmed, recentClosed };
+}
+
+/** The soonest pending Cami requests on any date, shown first on the overview. */
+export async function listPendingPreview(
+  reader: FrontDeskRequestsReader,
+): Promise<RequestQueueItem[]> {
+  return reader.listRequests({
+    status: "requested",
+    start: null,
+    end: null,
+    doctorId: null,
+    specialtyId: null,
+    limit: OVERVIEW_LIST_LIMIT,
+  });
+}
+
+/** Quick appointment search by patient name or phone. */
+export async function searchAppointments(
+  query: string,
+  reader: FrontDeskOverviewReader,
+): Promise<{ ok: true; items: AppointmentSearchItem[] } | { ok: false; message: string }> {
+  const parsed = parsePatientQuery(query);
+  if (!parsed.ok) {
+    return parsed;
+  }
+  const items = await reader.searchAppointments({
+    name: parsed.name,
+    phone: parsed.phone,
+    limit: APPOINTMENT_SEARCH_LIMIT,
+  });
+  return { ok: true, items };
 }

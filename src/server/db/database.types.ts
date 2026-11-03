@@ -124,6 +124,7 @@ export type Database = {
           specialty: string | null;
           phone: string | null;
           clinic_note: string | null;
+          is_active: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -136,6 +137,7 @@ export type Database = {
           specialty?: string | null;
           phone?: string | null;
           clinic_note?: string | null;
+          is_active?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -147,6 +149,7 @@ export type Database = {
           specialty?: string | null;
           phone?: string | null;
           clinic_note?: string | null;
+          is_active?: boolean;
           updated_at?: string;
         };
         Relationships: [];
@@ -234,6 +237,33 @@ export type Database = {
           action: AppointmentAuditAction;
           previous_status?: AppointmentStatus | null;
           new_status: AppointmentStatus;
+          previous_values?: Json | null;
+          new_values?: Json | null;
+          reason?: string | null;
+          created_at?: string;
+        };
+        Update: { [_ in never]: never };
+        Relationships: [];
+      };
+      /** Append-only log of admin changes (0013). Rows cannot be updated or deleted. */
+      audit_logs: {
+        Row: {
+          id: string;
+          actor_profile_id: string;
+          action: string;
+          target_type: string;
+          target_id: string;
+          previous_values: Json | null;
+          new_values: Json | null;
+          reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          actor_profile_id: string;
+          action: string;
+          target_type: string;
+          target_id: string;
           previous_values?: Json | null;
           new_values?: Json | null;
           reason?: string | null;
@@ -469,6 +499,91 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      /**
+       * Migration 0014 (admin user management). The mutating functions raise
+       * P0001 not_admin, reason_required, not_found, unchanged, self_change,
+       * doctor_record, invalid_role, already_provisioned, or full_name_required.
+       */
+      cammi_connect_admin_list_users: {
+        Args: {
+          p_search: string | null;
+          p_role: UserRole | null;
+          p_is_active: boolean | null;
+          p_limit: number;
+          p_offset: number;
+        };
+        Returns: {
+          id: string;
+          full_name: string;
+          email: string | null;
+          role: UserRole;
+          is_active: boolean;
+          created_at: string;
+          last_sign_in_at: string | null;
+          total_count: number;
+        }[];
+      };
+      cammi_connect_admin_get_user: {
+        Args: { p_profile_id: string };
+        Returns: {
+          id: string;
+          auth_user_id: string;
+          full_name: string;
+          email: string | null;
+          phone: string | null;
+          role: UserRole;
+          is_active: boolean;
+          created_at: string;
+          last_sign_in_at: string | null;
+          has_doctor_record: boolean;
+        }[];
+      };
+      cammi_connect_admin_set_user_role: {
+        Args: {
+          p_actor_profile_id: string;
+          p_target_profile_id: string;
+          p_new_role: UserRole;
+          p_reason: string;
+        };
+        Returns: undefined;
+      };
+      cammi_connect_admin_set_user_active: {
+        Args: {
+          p_actor_profile_id: string;
+          p_target_profile_id: string;
+          p_is_active: boolean;
+          p_reason: string;
+        };
+        Returns: undefined;
+      };
+      cammi_connect_admin_update_user_profile: {
+        Args: {
+          p_actor_profile_id: string;
+          p_target_profile_id: string;
+          p_full_name: string;
+          p_phone: string | null;
+        };
+        Returns: undefined;
+      };
+      cammi_connect_admin_provision_staff: {
+        Args: {
+          p_actor_profile_id: string;
+          p_auth_user_id: string;
+          p_role: UserRole;
+          p_full_name: string;
+          p_phone: string | null;
+        };
+        Returns: string;
+      };
+      /** Seed script only (scripts/seed.mjs). */
+      cammi_connect_bootstrap_staff_role: {
+        Args: {
+          p_auth_user_id: string;
+          p_role: UserRole;
+          p_full_name: string;
+        };
+        Returns: string;
+      };
       cammi_connect_save_doctor: {
         Args: {
           p_doctor_id: string | null;
@@ -531,6 +646,17 @@ export type Database = {
       cammi_connect_cancel_appointment: {
         Args: { p_appointment_id: string; p_staff_id: string; p_reason: string };
         Returns: undefined;
+      };
+      cammi_connect_front_desk_book_appointment: {
+        Args: {
+          p_patient_id: string;
+          p_doctor_id: string;
+          p_specialty_id: string | null;
+          p_scheduled_at: string;
+          p_reason: string | null;
+          p_staff_id: string;
+        };
+        Returns: string;
       };
       cammi_connect_match_knowledge_chunks: {
         Args: {

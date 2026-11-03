@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -88,16 +88,56 @@ describe("AttendanceActions", () => {
     await user.click(screen.getByRole("button", { name: "Mark no-show" }));
     expect(recordAttendanceAction).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "Go back" }));
-    expect(screen.queryByRole("button", { name: "Confirm no-show" })).not.toBeInTheDocument();
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Mark Synthetic Patient B as a no-show?",
+    });
+    expect(dialog).toHaveAccessibleDescription(/can't be undone/);
+    const goBack = within(dialog).getByRole("button", { name: "Go back" });
+    await waitFor(() => expect(goBack).toHaveFocus());
+
+    await user.click(goBack);
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(recordAttendanceAction).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Mark no-show" }));
-    await user.click(screen.getByRole("button", { name: "Confirm no-show" }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Confirm no-show" }),
+    );
 
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith("Appointment marked as no-show."),
     );
     expect(submittedFields()).toEqual({ appointmentId: APPOINTMENT_ID, status: "no_show" });
+  });
+
+  it("names the action in progress on the pressed button and holds every button", async () => {
+    // Held open while asserting, then settled so the shared transition queue
+    // doesn't block the next test's action.
+    let settle: (state: { status: "error"; message: string }) => void = () => {};
+    vi.mocked(recordAttendanceAction).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    render(
+      <AttendanceActions
+        appointmentId={APPOINTMENT_ID}
+        patientName="Synthetic Patient B"
+        actions={["checked_in", "completed", "no_show"]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Check in" }));
+
+    try {
+      expect(await screen.findByRole("button", { name: "Checking in…" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Mark completed" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Mark no-show" })).toBeDisabled();
+    } finally {
+      settle({ status: "error", message: "Settled." });
+    }
+    expect(await screen.findByRole("button", { name: "Check in" })).toBeEnabled();
   });
 
   it("shows the server's refusal", async () => {

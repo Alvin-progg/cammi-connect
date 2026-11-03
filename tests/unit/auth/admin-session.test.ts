@@ -15,12 +15,16 @@ vi.mock("@/server/profiles/service", () => ({
 
 const USER = { id: "auth-user-1", email: "person@example.test" };
 
-function signedInAs(role: "patient" | "doctor" | "admin" | "front_desk") {
+function signedInAs(
+  role: "patient" | "doctor" | "admin" | "front_desk",
+  { isActive = true }: { isActive?: boolean } = {},
+) {
   vi.mocked(getUser).mockResolvedValue(USER);
   vi.mocked(getProfileForAuthUser).mockResolvedValue({
     id: `${role}-profile-1`,
     role,
     fullName: `Synthetic ${role}`,
+    isActive,
   });
 }
 
@@ -51,6 +55,12 @@ describe("getAdminSession", () => {
     await expect(getAdminSession("/admin")).resolves.toBeNull();
   });
 
+  it("denies a deactivated admin account", async () => {
+    signedInAs("admin", { isActive: false });
+
+    await expect(getAdminSession("/admin")).resolves.toBeNull();
+  });
+
   it("redirects an anonymous visitor to sign in with a return path", async () => {
     vi.mocked(getUser).mockResolvedValue(null);
     vi.mocked(redirect).mockImplementation(() => {
@@ -74,6 +84,12 @@ describe("getPatientSession", () => {
 
   it.each(["doctor", "admin", "front_desk"] as const)("denies a %s account", async (role) => {
     signedInAs(role);
+
+    await expect(getPatientSession("/account")).resolves.toBeNull();
+  });
+
+  it("denies a deactivated patient account", async () => {
+    signedInAs("patient", { isActive: false });
 
     await expect(getPatientSession("/account")).resolves.toBeNull();
   });
