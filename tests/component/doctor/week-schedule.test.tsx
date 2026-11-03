@@ -7,7 +7,6 @@ import type { DoctorAppointment } from "@/lib/appointments/types";
 import { buildWeekLayout } from "@/lib/appointments/week";
 
 vi.mock("@/server/appointments/actions", () => ({
-  confirmAppointmentAction: vi.fn(),
   completeAppointmentAction: vi.fn(),
   markNoShowAppointmentAction: vi.fn(),
   cancelAppointmentAction: vi.fn(),
@@ -83,8 +82,15 @@ describe("WeekSchedule", () => {
     expect(within(popover).getByText("Routine consultation")).toBeInTheDocument();
     expect(within(popover).getByText("Pending confirmation")).toBeInTheDocument();
     expect(within(popover).getByText("30 min")).toBeInTheDocument();
+    // Front desk staff confirm requests (FD-001 PR 4); doctors cannot.
     expect(
-      within(popover).getByRole("button", { name: "Confirm" }),
+      within(popover).queryByRole("button", { name: /^Confirm/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(popover).getByText("Awaiting front desk confirmation"),
+    ).toBeInTheDocument();
+    expect(
+      within(popover).getByRole("button", { name: "Manage" }),
     ).toBeInTheDocument();
 
     await user.keyboard("{Escape}");

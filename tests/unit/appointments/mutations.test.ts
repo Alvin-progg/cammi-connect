@@ -10,6 +10,15 @@ import {
 
 vi.mock("server-only", () => ({}));
 
+const CONFIRMED: DoctorAppointment = {
+  id: "22222222-2222-4222-8222-222222222222",
+  patientName: "Synthetic Patient B",
+  reason: "Follow-up check-up",
+  scheduledAt: "2026-10-26T02:00:00.000Z",
+  durationMinutes: 30,
+  status: "confirmed",
+};
+
 const REQUESTED: DoctorAppointment = {
   id: "11111111-1111-4111-8111-111111111111",
   patientName: "Synthetic Patient A",
@@ -57,30 +66,32 @@ beforeEach(() => {
 });
 
 describe("transitionDoctorAppointment", () => {
-  it("confirms a requested appointment and writes history", async () => {
-    const reader = createReader();
+  it("completes a confirmed appointment and writes history", async () => {
+    const reader = createReader({
+      getForDoctor: vi.fn().mockResolvedValue(CONFIRMED),
+    });
 
     const result = await transitionDoctorAppointment(
       {
         doctorId: "doctor-1",
-        appointmentId: REQUESTED.id,
-        action: "confirm",
+        appointmentId: CONFIRMED.id,
+        action: "complete",
       },
       reader,
     );
 
     expect(result).toEqual({ ok: true });
     expect(reader.applyTransition).toHaveBeenCalledWith({
-      appointmentId: REQUESTED.id,
-      from: ["requested"],
-      to: "confirmed",
+      appointmentId: CONFIRMED.id,
+      from: ["confirmed"],
+      to: "completed",
       cancellationReason: null,
     });
     expect(reader.insertHistory).toHaveBeenCalledWith(
       expect.objectContaining({
-        appointmentId: REQUESTED.id,
-        fromStatus: "requested",
-        toStatus: "confirmed",
+        appointmentId: CONFIRMED.id,
+        fromStatus: "confirmed",
+        toStatus: "completed",
         changedByProfileId: "doctor-1",
       }),
     );
@@ -135,7 +146,7 @@ describe("transitionDoctorAppointment", () => {
       {
         doctorId: "doctor-1",
         appointmentId: REQUESTED.id,
-        action: "confirm",
+        action: "complete",
       },
       reader,
     );
@@ -153,7 +164,7 @@ describe("transitionDoctorAppointment", () => {
       {
         doctorId: "doctor-1",
         appointmentId: REQUESTED.id,
-        action: "confirm",
+        action: "complete",
       },
       reader,
     );
@@ -163,6 +174,7 @@ describe("transitionDoctorAppointment", () => {
 
   it("reports a concurrent status change from the guarded write", async () => {
     const reader = createReader({
+      getForDoctor: vi.fn().mockResolvedValue(CONFIRMED),
       applyTransition: vi.fn().mockResolvedValue(false),
     });
 
@@ -170,7 +182,7 @@ describe("transitionDoctorAppointment", () => {
       {
         doctorId: "doctor-1",
         appointmentId: REQUESTED.id,
-        action: "confirm",
+        action: "complete",
       },
       reader,
     );

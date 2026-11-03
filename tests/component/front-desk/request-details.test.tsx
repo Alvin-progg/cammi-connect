@@ -6,6 +6,7 @@ import type { RequestDetails } from "@/lib/front-desk/requests";
 
 const REQUEST: RequestDetails = {
   id: "ab12cd34-0000-4000-8000-000000000202",
+  doctorId: "00000000-0000-4000-8000-000000000101",
   patientName: "Synthetic Patient B",
   patientEmail: "patient.b@example.test",
   patientPhone: null,
@@ -69,6 +70,26 @@ describe("RequestDetailsView", () => {
     expect(
       within(appointment).getByText("Patient asked to move to next week"),
     ).toBeInTheDocument();
+  });
+
+  it("shows the schedule check for a pending request", () => {
+    render(
+      <RequestDetailsView
+        request={{ ...REQUEST, status: "requested", cancellationReason: null }}
+        slotCheck="outside_hours"
+      />,
+    );
+
+    const appointment = screen.getByRole("region", { name: "Appointment" });
+    expect(
+      within(appointment).getByText("Outside the doctor's current hours"),
+    ).toBeInTheDocument();
+  });
+
+  it("omits the schedule check once the request is decided", () => {
+    render(<RequestDetailsView request={REQUEST} slotCheck={null} />);
+
+    expect(screen.queryByText("Schedule check")).not.toBeInTheDocument();
   });
 
   it("shows what the patient told Cami and that transcripts are not shared", () => {

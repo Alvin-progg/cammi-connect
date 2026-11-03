@@ -1,6 +1,6 @@
 # FD-001 — Front Desk Appointment Management
 
-- Status: In progress (PR 1 committed `8a2009f`; PR 2 committed `3085b61`; PR 3 implemented 2026-11-03, awaiting review)
+- Status: In progress (PR 1 committed `8a2009f`; PR 2 committed `3085b61`; PR 3 committed `d63cb77`; PR 4 implemented 2026-11-03, awaiting review)
 - Type: Feature
 - Priority: High
 - Module: Front Desk Staff
@@ -98,3 +98,28 @@ Limitations:
 - **No "relevant appointment requirements".** §5 lists them, but no data source exists, so they are not shown.
 - **No chat context.** By decision, staff see no AI conversation context.
 - **No pagination.** The queue shows the first 100 matches, ordered by appointment time.
+
+## PR 4 — traceability
+
+| Requirement (SPEC-frontdesk) | Implementation | Verification |
+|---|---|---|
+| §6 confirm through a controlled backend operation: still pending, availability re-checked, staff and timestamp recorded, success only after commit | `cammi_connect_confirm_appointment` (0009); `confirmRequest` and `confirmRequestAction`; `RequestDecision` confirm dialog | `tests/unit/front-desk/service.test.ts`, `actions.test.ts`, `tests/component/front-desk/request-decision.test.tsx`; smoke step 18 |
+| §6 reject with a required reason; staff recorded; never deleted | `cammi_connect_reject_appointment` (0009); `rejectRequestSchema` (SPEC §6 presets, details required for "Other"); reject dialog | `tests/unit/front-desk/decisions.test.ts`, `service.test.ts`, `actions.test.ts`, `request-decision.test.tsx`; smoke step 18 |
+| §14 staff can verify doctor and schedule availability | `checkRequestSlot` (reuses `validateAppointmentSlot`); "Schedule check" field | `service.test.ts`, `request-details.test.tsx` |
+| §14 concurrent confirmation cannot double-book | Row lock plus the `not_pending` check; the pending row already holds its slot under `appointments_no_active_overlap` | smoke step 18 (two tabs) |
+| §14 rejected requests retain their history; every action audited | Audit row written inside each function | smoke step 18 |
+| §3 server-side role authorization | Both actions call `getFrontDeskSession` and never write without it; the staff ID comes from the session | `actions.test.ts` |
+| §13 the AI cannot confirm | Only front desk actions call the confirm function; the chat tools have no confirm; the 0007 AI insert guard still applies | `tests/unit/chat/tools.test.ts` (existing) |
+| ADR-0007 "Who confirms" | `confirm` removed from `DOCTOR_APPOINTMENT_ACTIONS`, `confirmAppointmentAction` and the doctor UI | `tests/unit/appointments/transitions.test.ts`, `mutations.test.ts`, `tests/component/doctor/week-schedule.test.tsx` |
+
+**Changed doctor tests.** Removing doctor confirm is an approved behavior change. Each change is listed here so it can be reviewed:
+- **`transitions.test.ts`:**
+  - "allows confirm and cancel from requested" now asserts that requested allows only `cancel`.
+  - `canDoctorPerform("confirmed", "confirm") === false` became an exact `allowedDoctorActions("confirmed")` list.
+  - The `targetStatusForAction("confirm")` and `sourceStatusesForAction("confirm")` checks were removed (`sourceStatusesForAction("complete")` replaces the second), and `isDoctorAppointmentAction("confirm")` now expects false, in a new test.
+- **`mutations.test.ts`:** the success, illegal-transition, scope and race cases use `complete` instead of `confirm`, with the same assertions.
+- **`week-schedule.test.tsx`:** the popover asserts there is no Confirm button and shows "Awaiting front desk confirmation".
+
+**Limitations.**
+- There is no automated test of the SQL functions (ADR-0003: no local database). They are covered by smoke step 18.
+- Patients learn the outcome only by viewing their appointments. Notifications and showing the rejection reason come in PR 9.

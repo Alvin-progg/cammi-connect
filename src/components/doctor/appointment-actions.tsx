@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import {
   cancelAppointmentAction,
   completeAppointmentAction,
-  confirmAppointmentAction,
   markNoShowAppointmentAction,
   rescheduleAppointmentAction,
   type AppointmentActionState,
@@ -285,21 +284,20 @@ export function AppointmentActions({
   };
   const closeDialog = () => dialogRef.current?.close();
 
-  const canConfirm = canDoctorPerform(status, "confirm");
+  // Front desk staff confirm requests (FD-001 PR 4); doctors only see that
+  // the request is waiting.
+  const awaitingConfirmation = status === "requested";
   const canComplete = canDoctorPerform(status, "complete");
   const canNoShow = canDoctorPerform(status, "no_show");
   const canCancel = canDoctorPerform(status, "cancel");
-  const hasActions = canConfirm || canComplete || canNoShow || canCancel;
+  const hasActions = canComplete || canNoShow || canCancel;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {canConfirm ? (
-        <PrimaryActionForm
-          action={confirmAppointmentAction}
-          appointmentId={appointmentId}
-          label="Confirm"
-          pendingLabel="Confirming…"
-        />
+      {awaitingConfirmation ? (
+        <span className="text-sm text-ink-secondary">
+          Awaiting front desk confirmation
+        </span>
       ) : null}
       {canComplete ? (
         <PrimaryActionForm
@@ -355,15 +353,6 @@ export function AppointmentActions({
 
             {hasActions ? (
               <div className="mt-5 flex flex-col gap-5">
-                {canConfirm ? (
-                  <PrimaryActionForm
-                    action={confirmAppointmentAction}
-                    appointmentId={appointmentId}
-                    label="Confirm request"
-                    pendingLabel="Confirming…"
-                    onSuccess={closeDialog}
-                  />
-                ) : null}
                 {canComplete || canNoShow ? (
                   <div className="grid gap-2 sm:grid-cols-2">
                     {canComplete ? (

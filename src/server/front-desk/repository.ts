@@ -13,7 +13,7 @@ import type {
 } from "@/lib/front-desk/requests";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
-import type { FrontDeskRequestsReader } from "./service";
+import type { FrontDeskRequestsReader, FrontDeskRequestsWriter } from "./service";
 
 const REQUEST_SELECT =
   "id, patient_id, doctor_id, specialty_id, scheduled_at, duration_minutes, created_at, status, booking_source, reason, rejection_reason, cancellation_reason";
@@ -290,11 +290,39 @@ export const supabaseFrontDeskRequestsRepository: FrontDeskRequestsReader = {
     }
     return {
       ...item,
+      doctorId: row.doctor_id,
       bookingSource: row.booking_source,
       reason: row.reason?.trim() || null,
       rejectionReason: row.rejection_reason?.trim() || null,
       cancellationReason: row.cancellation_reason?.trim() || null,
       history,
     } satisfies RequestDetails;
+  },
+};
+
+/**
+ * Calls the migration 0009 functions. Each runs in one transaction: it locks
+ * the appointment, re-checks the pending status (and, for confirm, the
+ * doctor's availability), updates the row, and writes the audit entry.
+ */
+export const supabaseFrontDeskRequestsWriter: FrontDeskRequestsWriter = {
+  async confirm({ appointmentId, staffId }) {
+    const { error } = await getSupabaseAdminClient().rpc(
+      "cammi_connect_confirm_appointment",
+      { p_appointment_id: appointmentId, p_staff_id: staffId },
+    );
+    return error
+      ? { ok: false, error: { code: error.code, message: error.message } }
+      : { ok: true };
+  },
+
+  async reject({ appointmentId, staffId, reason }) {
+    const { error } = await getSupabaseAdminClient().rpc(
+      "cammi_connect_reject_appointment",
+      { p_appointment_id: appointmentId, p_staff_id: staffId, p_reason: reason },
+    );
+    return error
+      ? { ok: false, error: { code: error.code, message: error.message } }
+      : { ok: true };
   },
 };

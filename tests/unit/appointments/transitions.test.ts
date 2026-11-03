@@ -15,8 +15,8 @@ import {
 } from "@/lib/appointments/transitions";
 
 describe("doctor appointment transition matrix (ADR-0007, amended)", () => {
-  it("allows confirm and cancel from requested", () => {
-    expect(canDoctorPerform("requested", "confirm")).toBe(true);
+  it("allows only cancel from requested; front desk staff confirm (FD-001 PR 4)", () => {
+    expect(allowedDoctorActions("requested")).toEqual(["cancel"]);
     expect(canDoctorPerform("requested", "cancel")).toBe(true);
     expect(canDoctorPerform("requested", "complete")).toBe(false);
     expect(canDoctorPerform("requested", "no_show")).toBe(false);
@@ -26,7 +26,7 @@ describe("doctor appointment transition matrix (ADR-0007, amended)", () => {
     expect(canDoctorPerform("confirmed", "complete")).toBe(true);
     expect(canDoctorPerform("confirmed", "no_show")).toBe(true);
     expect(canDoctorPerform("confirmed", "cancel")).toBe(true);
-    expect(canDoctorPerform("confirmed", "confirm")).toBe(false);
+    expect(allowedDoctorActions("confirmed")).toEqual(["complete", "no_show", "cancel"]);
   });
 
   it("allows no actions from terminal statuses", () => {
@@ -36,14 +36,13 @@ describe("doctor appointment transition matrix (ADR-0007, amended)", () => {
   });
 
   it("maps actions to their target statuses", () => {
-    expect(targetStatusForAction("confirm")).toBe("confirmed");
     expect(targetStatusForAction("complete")).toBe("completed");
     expect(targetStatusForAction("no_show")).toBe("no_show");
     expect(targetStatusForAction("cancel")).toBe("cancelled");
   });
 
   it("exposes the source statuses used for guarded writes", () => {
-    expect(sourceStatusesForAction("confirm")).toEqual(["requested"]);
+    expect(sourceStatusesForAction("complete")).toEqual(["confirmed"]);
     expect(sourceStatusesForAction("cancel")).toEqual([
       "requested",
       "confirmed",
@@ -51,8 +50,13 @@ describe("doctor appointment transition matrix (ADR-0007, amended)", () => {
   });
 
   it("validates action names", () => {
-    expect(isDoctorAppointmentAction("confirm")).toBe(true);
+    expect(isDoctorAppointmentAction("complete")).toBe(true);
     expect(isDoctorAppointmentAction("delete")).toBe(false);
+  });
+
+  it("does not offer confirm to doctors (FD-001 PR 4)", () => {
+    expect(isDoctorAppointmentAction("confirm")).toBe(false);
+    expect(DOCTOR_APPOINTMENT_ACTIONS).not.toContain("confirm");
   });
 });
 

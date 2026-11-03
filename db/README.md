@@ -73,6 +73,7 @@ Then run `db/migrations/0006_appointment_status_values.sql` **on its own**, and 
 after it has finished, run `db/migrations/0007_appointment_lifecycle_audit.sql`.
 Then run `db/migrations/0008_front_desk_role.sql` **on its own**.
 PostgreSQL cannot use a new enum value in the transaction that added it.
+Then run `db/migrations/0009_front_desk_confirm_reject.sql` once.
 
 `0001_profiles_appointments.sql`:
 
@@ -164,6 +165,20 @@ now fail.
 
 - adds `front_desk` to `user_role`. Nothing else. Authorization stays in the server
   layer (`getFrontDeskSession`, ADR-0003); no RLS policies are added.
+
+`0009_front_desk_confirm_reject.sql` (FD-001 PR 4):
+
+- adds `cammi_connect_confirm_appointment(appointment, staff)`. In one transaction it
+  locks the appointment and the doctor, checks the request is still `requested`, that
+  the doctor is active, and that the time is in the future, inside the doctor's
+  current hours and clear of schedule exceptions. It then sets `confirmed`,
+  `confirmed_by_profile_id` and `confirmed_at`, and writes the `confirmed` audit row;
+- adds `cammi_connect_reject_appointment(appointment, staff, reason)`, which requires
+  a non-blank reason, sets `rejected` and `rejection_reason`, and writes the
+  `rejected` audit row. Rejected rows are kept;
+- both raise `P0001` with a code (`not_found`, `not_pending`, `inactive_doctor`,
+  `past`, `outside_hours`, `blocked`, `reason_required`) and are executable by
+  `service_role` only.
 
 ### Knowledge base ingestion (ADR-0004)
 
@@ -378,6 +393,27 @@ No real patient data is used.
       the patient. No chat transcript is shown.
     - An unknown or non-Cami appointment ID under `/front-desk/requests/` shows the
       not-found page. As a patient, the same URL shows access denied.
+18. Check confirm and reject (FD-001 PR 4), after applying 0009 and re-running the seed:
+    - As the front desk account, open a pending request whose time is still in the
+      future. The Appointment card shows a "Schedule check". Click **Confirm request**,
+      then **Confirm appointment**. A toast appears only after the save, the status
+      becomes Confirmed, the decision buttons disappear, and Status history gains a
+      "Confirmed" entry with your name. In SQL, `confirmed_by_profile_id` and
+      `confirmed_at` are set on the row.
+    - Open another pending request in two tabs. Confirm it in one, then try to confirm
+      or reject it in the other. The dialog shows "This request is no longer pending".
+    - Reject a third request with **Other hospital-approved reason** (details are
+      required) and confirm the row still exists with `status = 'rejected'` and the
+      stored reason, and the history shows "Rejected" with the reason.
+    - In the SQL editor, `select public.cammi_connect_reject_appointment('<a pending
+      id>', '<staff profile id>', '  ');` fails with `reason_required`, and calling
+      confirm on a rejected id fails with `not_pending`.
+    - Confirming a seeded request whose time has passed fails with "The requested time
+      has already passed".
+    - As the doctor, a pending appointment in `/doctor` shows "Awaiting front desk
+      confirmation" and no Confirm button.
+    - As the patient who booked through `/chat`, the confirmed or rejected status shows
+      in their appointments.
 
 ## Troubleshooting
 

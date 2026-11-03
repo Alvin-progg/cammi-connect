@@ -9,6 +9,7 @@ import {
   formatManilaTime,
 } from "@/lib/appointments/format";
 import type { BookingSource } from "@/lib/appointments/status";
+import { SLOT_CHECK_LABELS, type SlotCheck } from "@/lib/front-desk/decisions";
 import type { UserRole } from "@/lib/auth/roles";
 import {
   formatRequestId,
@@ -86,7 +87,14 @@ function actorLabel(entry: RequestAuditEntry): string {
  * conversation (SPEC-frontdesk §5). The chat transcript itself is not shown
  * (FD-001 decision 2026-11-03).
  */
-export function RequestDetailsView({ request }: { request: RequestDetails }) {
+export function RequestDetailsView({
+  request,
+  slotCheck = null,
+}: {
+  request: RequestDetails;
+  /** The pre-decision schedule check; null once the request is decided. */
+  slotCheck?: SlotCheck | null;
+}) {
   // todayInManila gives the Manila calendar date of any instant.
   const manilaDate = todayInManila(new Date(request.scheduledAt));
 
@@ -118,6 +126,13 @@ export function RequestDetailsView({ request }: { request: RequestDetails }) {
           <Field label="Time">
             {`${formatManilaTime(request.scheduledAt)} · ${request.durationMinutes} minutes`}
           </Field>
+          {slotCheck ? (
+            <Field label="Schedule check">
+              <span className={slotCheck === "available" ? "text-success-soft-ink" : "text-danger-soft-ink"}>
+                {SLOT_CHECK_LABELS[slotCheck]}
+              </span>
+            </Field>
+          ) : null}
           <Field label="Booked via">{BOOKING_SOURCE_LABELS[request.bookingSource]}</Field>
           <Field label="Submitted">{formatManilaDateTime(request.createdAt)}</Field>
           {request.rejectionReason ? (
