@@ -27,6 +27,8 @@ export type DoctorAdminStore = {
   listDoctors(filter: AdminDoctorFilter): Promise<AdminDoctorListItem[]>;
   getDoctor(doctorId: string): Promise<AdminDoctorDetail | null>;
   listLinkableAccounts(): Promise<LinkableDoctorAccount[]>;
+  /** True when this one profile is an active doctor account with a login and no doctor record. */
+  isLinkableAccount(profileId: string): Promise<boolean>;
   listFutureConflicts(doctorId: string): Promise<DoctorConflict[]>;
   listAppointmentHistory(doctorId: string): Promise<DoctorAppointmentRow[]>;
   /** Saves the doctor and replaces its specialty set in one transaction. */
@@ -53,15 +55,6 @@ function refusalMessage(code: string | undefined): string {
 }
 
 /**
- * Only an active `doctor` account with a login and no doctor record may be
- * linked (spec: checked here and again by the database).
- */
-async function isLinkable(accountProfileId: string, store: DoctorAdminStore): Promise<boolean> {
-  const accounts = await store.listLinkableAccounts();
-  return accounts.some((account) => account.profileId === accountProfileId);
-}
-
-/**
  * Creates or updates a doctor with its specialty set. A linked account is only
  * taken on create; an existing doctor is linked through `linkDoctorAccount`.
  */
@@ -74,7 +67,9 @@ export async function saveDoctor(
   store: DoctorAdminStore,
 ): Promise<{ ok: true; doctorId: string; message: string } | { ok: false; message: string }> {
   const accountProfileId = doctorId === null ? input.accountProfileId : null;
-  if (accountProfileId && !(await isLinkable(accountProfileId, store))) {
+  // Only an unlinked `doctor` account may be linked (spec: checked here and
+  // again by the database).
+  if (accountProfileId && !(await store.isLinkableAccount(accountProfileId))) {
     return { ok: false, message: DOCTOR_REFUSAL_MESSAGES.not_linkable };
   }
 
@@ -90,7 +85,7 @@ export async function linkDoctorAccount(
   input: { actorId: string; doctorId: string; accountProfileId: string },
   store: DoctorAdminStore,
 ): Promise<{ ok: true; message: string } | { ok: false; message: string }> {
-  if (!(await isLinkable(input.accountProfileId, store))) {
+  if (!(await store.isLinkableAccount(input.accountProfileId))) {
     return { ok: false, message: DOCTOR_REFUSAL_MESSAGES.not_linkable };
   }
   const outcome = await store.linkAccount(input);

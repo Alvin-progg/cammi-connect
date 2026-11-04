@@ -37,9 +37,8 @@ function fakeStore() {
   return {
     listDoctors: vi.fn().mockResolvedValue([]),
     getDoctor: vi.fn().mockResolvedValue(null),
-    listLinkableAccounts: vi
-      .fn()
-      .mockResolvedValue([{ profileId: ACCOUNT_ID, fullName: "Dr. Invited Account" }]),
+    listLinkableAccounts: vi.fn().mockResolvedValue([]),
+    isLinkableAccount: vi.fn(async (profileId: string) => profileId === ACCOUNT_ID),
     listFutureConflicts: vi.fn().mockResolvedValue([]),
     listAppointmentHistory: vi.fn().mockResolvedValue([]),
     save: vi.fn().mockResolvedValue({ ok: true, doctorId: DOCTOR_ID }),
@@ -71,6 +70,8 @@ describe("saveDoctor", () => {
       { actorId: ADMIN_ID, doctorId: null, input: { ...INPUT, accountProfileId: ACCOUNT_ID } },
       store,
     );
+    expect(store.isLinkableAccount).toHaveBeenCalledWith(ACCOUNT_ID);
+    expect(store.listLinkableAccounts).not.toHaveBeenCalled();
     expect(store.save).toHaveBeenCalledWith(
       expect.objectContaining({ doctorId: null, accountProfileId: ACCOUNT_ID }),
     );
@@ -91,7 +92,7 @@ describe("saveDoctor", () => {
       { actorId: ADMIN_ID, doctorId: DOCTOR_ID, input: { ...INPUT, accountProfileId: ACCOUNT_ID } },
       store,
     );
-    expect(store.listLinkableAccounts).not.toHaveBeenCalled();
+    expect(store.isLinkableAccount).not.toHaveBeenCalled();
     expect(store.save).toHaveBeenCalledWith(
       expect.objectContaining({ doctorId: DOCTOR_ID, accountProfileId: null }),
     );
@@ -119,6 +120,7 @@ describe("linkDoctorAccount", () => {
     await expect(
       linkDoctorAccount({ actorId: ADMIN_ID, doctorId: DOCTOR_ID, accountProfileId: ACCOUNT_ID }, store),
     ).resolves.toEqual({ ok: true, message: "Account linked." });
+    expect(store.isLinkableAccount).toHaveBeenCalledWith(ACCOUNT_ID);
     expect(store.linkAccount).toHaveBeenCalledWith({
       actorId: ADMIN_ID,
       doctorId: DOCTOR_ID,
