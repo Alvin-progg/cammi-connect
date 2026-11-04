@@ -12,6 +12,7 @@ import {
 vi.mock("server-only", () => ({}));
 
 const DOCTOR_ID = "00000000-0000-4000-8000-000000000101";
+const ACTOR_ID = "00000000-0000-4000-8000-000000000001";
 const PERIOD_ID = "00000000-0000-4000-8000-000000000901";
 // 2026-11-02 is a Monday in Asia/Manila.
 const NOW = new Date("2026-11-01T12:00:00+08:00");
@@ -41,9 +42,10 @@ const AFTERNOON_PERIOD = {
 function createStore(overrides: Partial<DoctorSchedulesStore> = {}): DoctorSchedulesStore {
   return {
     listSchedulesForDoctor: vi.fn().mockResolvedValue([MONDAY_MORNING]),
+    listSchedulesForDoctors: vi.fn().mockResolvedValue([MONDAY_MORNING]),
     listExceptionsForDoctor: vi.fn().mockResolvedValue([]),
-    createSchedulePeriod: vi.fn().mockResolvedValue("saved"),
-    updateSchedulePeriod: vi.fn().mockResolvedValue("saved"),
+    savePeriod: vi.fn().mockResolvedValue({ ok: true }),
+    listUpcomingAppointments: vi.fn().mockResolvedValue([]),
     addException: vi.fn().mockResolvedValue(undefined),
     removeException: vi.fn().mockResolvedValue(true),
     listActiveIntervals: vi.fn().mockResolvedValue([]),
@@ -55,18 +57,49 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+// A confirmed Monday 09:00–09:30 appointment, inside MONDAY_MORNING.
+const MONDAY_BOOKING = {
+  appointmentId: "00000000-0000-4000-8000-000000000201",
+  scheduledAt: "2026-11-02T01:00:00.000Z",
+  scheduledEndAt: "2026-11-02T01:30:00.000Z",
+  status: "confirmed" as const,
+};
+
+const MONDAY_CONFLICT = {
+  appointmentId: MONDAY_BOOKING.appointmentId,
+  scheduledAt: MONDAY_BOOKING.scheduledAt,
+  status: MONDAY_BOOKING.status,
+};
+
+const ORPHAN_MESSAGE =
+  "This change would leave 1 upcoming appointment outside the doctor's hours. Ask the front desk to reschedule or cancel it first, or end-date this period and add a new one.";
+
+function save(
+  store: DoctorSchedulesStore,
+  overrides: Partial<Parameters<typeof saveSchedulePeriod>[0]> = {},
+) {
+  return saveSchedulePeriod(
+    {
+      actorId: ACTOR_ID,
+      doctorId: DOCTOR_ID,
+      periodId: null,
+      period: AFTERNOON_PERIOD,
+      now: NOW,
+      ...overrides,
+    },
+    store,
+  );
+}
+
 describe("saveSchedulePeriod", () => {
-  it("adds a second consultation period on the same day", async () => {
+  it("adds a second consultation period on the same day as the acting user", async () => {
     const store = createStore();
 
-    await expect(
-      saveSchedulePeriod(
-        { doctorId: DOCTOR_ID, periodId: null, period: AFTERNOON_PERIOD, now: NOW },
-        store,
-      ),
-    ).resolves.toEqual({ ok: true, message: "Consultation hours saved." });
-    expect(store.createSchedulePeriod).toHaveBeenCalledWith({
+    await expect(save(store)).resolves.toEqual({ ok: true, message: "Consultation hours saved." });
+    expect(store.savePeriod).toHaveBeenCalledWith({
+      actorId: ACTOR_ID,
       doctorId: DOCTOR_ID,
+      periodId: null,
       ...AFTERNOON_PERIOD,
     });
   });
@@ -75,33 +108,20 @@ describe("saveSchedulePeriod", () => {
     const store = createStore();
 
     await expect(
-      saveSchedulePeriod(
-        {
-          doctorId: DOCTOR_ID,
-          periodId: null,
-          period: { ...AFTERNOON_PERIOD, startTime: "11:00" },
-          now: NOW,
-        },
-        store,
-      ),
+      save(store, { period: { ...AFTERNOON_PERIOD, startTime: "11:00" } }),
     ).resolves.toEqual({
       ok: false,
       message: "This overlaps the Monday 08:00–12:00 period.",
     });
-    expect(store.createSchedulePeriod).not.toHaveBeenCalled();
+    expect(store.savePeriod).not.toHaveBeenCalled();
   });
 
   it("maps a database overlap race to the same friendly error", async () => {
     const store = createStore({
-      createSchedulePeriod: vi.fn().mockResolvedValue("overlap"),
+      savePeriod: vi.fn().mockResolvedValue({ ok: false, code: "overlap" }),
     });
 
-    await expect(
-      saveSchedulePeriod(
-        { doctorId: DOCTOR_ID, periodId: null, period: AFTERNOON_PERIOD, now: NOW },
-        store,
-      ),
-    ).resolves.toEqual({
+    await expect(save(store)).resolves.toEqual({
       ok: false,
       message: "This overlaps another active period on that day.",
     });
@@ -110,19 +130,14 @@ describe("saveSchedulePeriod", () => {
   it("updates a period only within the doctor's own schedule", async () => {
     const store = createStore();
 
-    await saveSchedulePeriod(
-      {
-        doctorId: DOCTOR_ID,
-        periodId: PERIOD_ID,
-        period: { ...AFTERNOON_PERIOD, startTime: "07:00", endTime: "12:00" },
-        now: NOW,
-      },
-      store,
-    );
+    await save(store, {
+      periodId: PERIOD_ID,
+      period: { ...AFTERNOON_PERIOD, startTime: "07:00", endTime: "12:00" },
+    });
 
     expect(store.listSchedulesForDoctor).toHaveBeenCalledWith(DOCTOR_ID);
-    expect(store.updateSchedulePeriod).toHaveBeenCalledWith(
-      expect.objectContaining({ doctorId: DOCTOR_ID, periodId: PERIOD_ID }),
+    expect(store.savePeriod).toHaveBeenCalledWith(
+      expect.objectContaining({ actorId: ACTOR_ID, doctorId: DOCTOR_ID, periodId: PERIOD_ID }),
     );
   });
 
@@ -130,48 +145,109 @@ describe("saveSchedulePeriod", () => {
     const store = createStore();
 
     await expect(
-      saveSchedulePeriod(
-        {
-          doctorId: DOCTOR_ID,
-          periodId: "00000000-0000-4000-8000-0000000009ff",
-          period: AFTERNOON_PERIOD,
-          now: NOW,
-        },
-        store,
-      ),
+      save(store, { periodId: "00000000-0000-4000-8000-0000000009ff" }),
     ).resolves.toEqual({ ok: false, message: "That schedule period no longer exists." });
-    expect(store.updateSchedulePeriod).not.toHaveBeenCalled();
+    expect(store.savePeriod).not.toHaveBeenCalled();
   });
 
-  it("keeps existing appointments and reports those now outside hours", async () => {
+  it("maps a period removed meanwhile to not found", async () => {
     const store = createStore({
-      listSchedulesForDoctor: vi
-        .fn()
-        .mockResolvedValueOnce([MONDAY_MORNING])
-        .mockResolvedValueOnce([{ ...MONDAY_MORNING, isActive: false }]),
-      listActiveIntervals: vi.fn().mockResolvedValue([
-        { start: "2026-11-02T01:00:00.000Z", end: "2026-11-02T01:30:00.000Z" },
-      ]),
+      savePeriod: vi.fn().mockResolvedValue({ ok: false, code: "not_found" }),
     });
 
-    const result = await saveSchedulePeriod(
-      {
-        doctorId: DOCTOR_ID,
+    await expect(save(store, { periodId: PERIOD_ID })).resolves.toEqual({
+      ok: false,
+      message: "That schedule period no longer exists.",
+    });
+  });
+
+  it("refuses an edit that leaves an upcoming appointment outside the hours, listing it without writing", async () => {
+    const store = createStore({
+      listUpcomingAppointments: vi.fn().mockResolvedValue([MONDAY_BOOKING]),
+    });
+
+    await expect(
+      save(store, {
+        periodId: PERIOD_ID,
+        period: { ...AFTERNOON_PERIOD, startTime: "10:00", endTime: "12:00" },
+      }),
+    ).resolves.toEqual({ ok: false, message: ORPHAN_MESSAGE, conflicts: [MONDAY_CONFLICT] });
+    expect(store.listUpcomingAppointments).toHaveBeenCalledWith({
+      doctorId: DOCTOR_ID,
+      from: NOW.toISOString(),
+    });
+    expect(store.savePeriod).not.toHaveBeenCalled();
+  });
+
+  it("refuses deactivating a period that holds an upcoming appointment", async () => {
+    const store = createStore({
+      listUpcomingAppointments: vi.fn().mockResolvedValue([MONDAY_BOOKING]),
+    });
+
+    await expect(
+      save(store, {
         periodId: PERIOD_ID,
         period: { ...AFTERNOON_PERIOD, startTime: "08:00", endTime: "12:00", isActive: false },
-        now: NOW,
-      },
-      store,
-    );
+      }),
+    ).resolves.toEqual({ ok: false, message: ORPHAN_MESSAGE, conflicts: [MONDAY_CONFLICT] });
+    expect(store.savePeriod).not.toHaveBeenCalled();
+  });
 
-    expect(result).toEqual({
-      ok: true,
-      message:
-        "Consultation hours saved. 1 existing appointment now falls outside these hours and was kept; review it in the appointment list.",
+  it("allows an edit that keeps every upcoming appointment inside the hours", async () => {
+    const store = createStore({
+      listUpcomingAppointments: vi.fn().mockResolvedValue([MONDAY_BOOKING]),
     });
-    expect(store.listActiveIntervals).toHaveBeenCalledWith(
-      expect.objectContaining({ doctorId: DOCTOR_ID, start: NOW.toISOString() }),
-    );
+
+    await expect(
+      save(store, {
+        periodId: PERIOD_ID,
+        period: { ...AFTERNOON_PERIOD, startTime: "07:00", endTime: "12:00" },
+      }),
+    ).resolves.toEqual({ ok: true, message: "Consultation hours saved." });
+  });
+
+  it("does not let an appointment already outside the hours block an unrelated edit", async () => {
+    // Monday 18:00–18:30 Manila: outside every period before and after the save.
+    const legacy = {
+      ...MONDAY_BOOKING,
+      appointmentId: "00000000-0000-4000-8000-000000000202",
+      scheduledAt: "2026-11-02T10:00:00.000Z",
+      scheduledEndAt: "2026-11-02T10:30:00.000Z",
+    };
+    const store = createStore({
+      listUpcomingAppointments: vi.fn().mockResolvedValue([legacy]),
+    });
+
+    await expect(save(store)).resolves.toEqual({ ok: true, message: "Consultation hours saved." });
+    expect(store.savePeriod).toHaveBeenCalled();
+  });
+
+  it("lists the conflicts when the database refuses a booking that slipped in", async () => {
+    const store = createStore({
+      listUpcomingAppointments: vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([MONDAY_BOOKING]),
+      savePeriod: vi.fn().mockResolvedValue({ ok: false, code: "orphans_appointments" }),
+    });
+
+    await expect(
+      save(store, {
+        periodId: PERIOD_ID,
+        period: { ...AFTERNOON_PERIOD, startTime: "10:00", endTime: "12:00" },
+      }),
+    ).resolves.toEqual({ ok: false, message: ORPHAN_MESSAGE, conflicts: [MONDAY_CONFLICT] });
+  });
+
+  it("hides unexpected database refusals behind a generic message", async () => {
+    const store = createStore({
+      savePeriod: vi.fn().mockResolvedValue({ ok: false, code: undefined }),
+    });
+
+    await expect(save(store)).resolves.toEqual({
+      ok: false,
+      message: "Something went wrong. Try again.",
+    });
   });
 });
 

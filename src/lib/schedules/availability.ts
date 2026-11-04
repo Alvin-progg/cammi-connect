@@ -36,7 +36,8 @@ export function timeToMinutes(time: string): number {
   return hours * 60 + minutes;
 }
 
-type ConsultationPeriod = Pick<
+/** The period fields that decide whether an interval is inside the hours. */
+export type ConsultationPeriod = Pick<
   WeeklySchedule,
   | "dayOfWeek"
   | "startTime"

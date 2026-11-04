@@ -2,18 +2,22 @@ import "server-only";
 
 import { intervalsOverlap } from "@/lib/schedules/availability";
 import {
-  countAppointmentsOutsideSchedule,
+  findAppointmentsOutsideSchedule,
   findOverlappingPeriod,
+  withCandidatePeriod,
 } from "@/lib/schedules/periods";
 import type { SchedulePeriodInput } from "@/lib/schedules/schemas";
 import {
   WEEKDAY_LABELS,
+  type ScheduleConflict,
   type ScheduleException,
   type ScheduleExceptionType,
+  type UpcomingAppointment,
   type WeeklySchedule,
 } from "@/lib/schedules/types";
 
-export type PeriodSaveOutcome = "saved" | "overlap" | "not_found";
+/** `code` is the database refusal, e.g. overlap, not_found, orphans_appointments. */
+export type PeriodSaveOutcome = { ok: true } | { ok: false; code: string | undefined };
 
 /**
  * Data access contract for doctor schedules and exceptions. Every method is
@@ -22,17 +26,23 @@ export type PeriodSaveOutcome = "saved" | "overlap" | "not_found";
  */
 export type DoctorSchedulesStore = {
   listSchedulesForDoctor(doctorId: string): Promise<WeeklySchedule[]>;
+  /** Every period of the given doctors, for the admin overview. */
+  listSchedulesForDoctors(doctorIds: string[]): Promise<WeeklySchedule[]>;
   listExceptionsForDoctor(input: {
     doctorId: string;
     start: string;
     end: string;
   }): Promise<ScheduleException[]>;
-  createSchedulePeriod(
-    input: { doctorId: string } & SchedulePeriodInput,
+  /**
+   * Creates (`periodId` null) or updates a period and writes its audit row in
+   * one transaction. The database refuses overlaps and edits that would leave
+   * an upcoming appointment outside the hours. `actorId` comes from the session.
+   */
+  savePeriod(
+    input: { actorId: string; doctorId: string; periodId: string | null } & SchedulePeriodInput,
   ): Promise<PeriodSaveOutcome>;
-  updateSchedulePeriod(
-    input: { doctorId: string; periodId: string } & SchedulePeriodInput,
-  ): Promise<PeriodSaveOutcome>;
+  /** Slot-holding appointments starting at or after `from`, soonest first. */
+  listUpcomingAppointments(input: { doctorId: string; from: string }): Promise<UpcomingAppointment[]>;
   addException(input: {
     doctorId: string;
     startsAt: string;
@@ -54,10 +64,10 @@ export type DoctorSchedulesStore = {
 
 export type ScheduleResult =
   | { ok: true; message: string }
-  | { ok: false; message: string };
+  | { ok: false; message: string; conflicts?: ScheduleConflict[] };
 
-/** Far enough ahead to cover every future booking when counting affected ones. */
-const OPEN_ENDED = "9999-12-31T00:00:00.000Z";
+const PERIOD_GONE = "That schedule period no longer exists.";
+const GENERIC_FAILURE = "Something went wrong. Try again.";
 
 function toIntervals(rows: { start: string; end: string }[]) {
   return rows.map((row) => ({ start: new Date(row.start), end: new Date(row.end) }));
@@ -85,13 +95,23 @@ export async function listDoctorExceptions(
   });
 }
 
+function orphanMessage(count: number): string {
+  const appointments = count === 1 ? "1 upcoming appointment" : `${count} upcoming appointments`;
+  return `This change would leave ${appointments} outside the doctor's hours. Ask the front desk to reschedule or cancel ${
+    count === 1 ? "it" : "them"
+  } first, or end-date this period and add a new one.`;
+}
+
 /**
- * Creates (`periodId` null) or updates one consultation period. Existing
- * appointments are never modified; the result reports how many future active
- * appointments no longer fit the doctor's hours so the change is not silent.
+ * Creates (`periodId` null) or updates one consultation period. An edit that
+ * would move an upcoming requested, confirmed, or checked-in appointment
+ * outside the doctor's hours is refused and the appointments are returned
+ * (spec-admin ADM-05, D6); nothing is moved. The database re-checks inside
+ * the save transaction.
  */
 export async function saveSchedulePeriod(
   input: {
+    actorId: string;
     doctorId: string;
     periodId: string | null;
     period: SchedulePeriodInput;
@@ -99,11 +119,11 @@ export async function saveSchedulePeriod(
   },
   store: DoctorSchedulesStore,
 ): Promise<ScheduleResult> {
-  const { doctorId, periodId, period } = input;
+  const { actorId, doctorId, periodId, period } = input;
   const schedules = await store.listSchedulesForDoctor(doctorId);
 
   if (periodId && !schedules.some((schedule) => schedule.id === periodId)) {
-    return { ok: false, message: "That schedule period no longer exists." };
+    return { ok: false, message: PERIOD_GONE };
   }
 
   const clash = findOverlappingPeriod({ ...period, id: periodId ?? undefined }, schedules);
@@ -114,39 +134,49 @@ export async function saveSchedulePeriod(
     };
   }
 
-  const outcome = periodId
-    ? await store.updateSchedulePeriod({ doctorId, periodId, ...period })
-    : await store.createSchedulePeriod({ doctorId, ...period });
-  if (outcome === "overlap") {
-    return { ok: false, message: "This overlaps another active period on that day." };
-  }
-  if (outcome === "not_found") {
-    return { ok: false, message: "That schedule period no longer exists." };
+  const findOrphans = async (): Promise<ScheduleConflict[]> => {
+    const upcoming = await store.listUpcomingAppointments({
+      doctorId,
+      from: input.now.toISOString(),
+    });
+    const intervals = upcoming.map((appointment) => ({
+      ...appointment,
+      start: new Date(appointment.scheduledAt),
+      end: new Date(appointment.scheduledEndAt),
+    }));
+    // Only appointments this edit pushes out count; one that was already
+    // outside the hours (legacy data) does not block unrelated edits.
+    const alreadyOutside = new Set(
+      findAppointmentsOutsideSchedule(intervals, schedules).map((item) => item.appointmentId),
+    );
+    const proposed = withCandidatePeriod(schedules, periodId, period);
+    return findAppointmentsOutsideSchedule(intervals, proposed)
+      .filter((item) => !alreadyOutside.has(item.appointmentId))
+      .map(({ appointmentId, scheduledAt, status }) => ({ appointmentId, scheduledAt, status }));
+  };
+
+  const orphans = await findOrphans();
+  if (orphans.length > 0) {
+    return { ok: false, message: orphanMessage(orphans.length), conflicts: orphans };
   }
 
-  const [updatedSchedules, upcoming] = await Promise.all([
-    store.listSchedulesForDoctor(doctorId),
-    store.listActiveIntervals({
-      doctorId,
-      start: input.now.toISOString(),
-      end: OPEN_ENDED,
-    }),
-  ]);
-  const outside = countAppointmentsOutsideSchedule(
-    toIntervals(upcoming),
-    updatedSchedules,
-  );
-  if (outside === 0) {
+  const outcome = await store.savePeriod({ actorId, doctorId, periodId, ...period });
+  if (outcome.ok) {
     return { ok: true, message: "Consultation hours saved." };
   }
-  return {
-    ok: true,
-    message: `Consultation hours saved. ${appointmentCount(outside)} now ${
-      outside === 1 ? "falls" : "fall"
-    } outside these hours and ${outside === 1 ? "was" : "were"} kept; review ${
-      outside === 1 ? "it" : "them"
-    } in the appointment list.`,
-  };
+  switch (outcome.code) {
+    case "overlap":
+      return { ok: false, message: "This overlaps another active period on that day." };
+    case "not_found":
+      return { ok: false, message: PERIOD_GONE };
+    case "orphans_appointments": {
+      // A booking landed between the check above and the save.
+      const conflicts = await findOrphans();
+      return { ok: false, message: orphanMessage(Math.max(conflicts.length, 1)), conflicts };
+    }
+    default:
+      return { ok: false, message: GENERIC_FAILURE };
+  }
 }
 
 /**

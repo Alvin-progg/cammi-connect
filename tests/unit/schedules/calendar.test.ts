@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildMonthGrid, summarizeBlocksByDate } from "@/lib/schedules/calendar";
+import {
+  buildMonthGrid,
+  groupPeriodsByWeekday,
+  summarizeBlocksByDate,
+} from "@/lib/schedules/calendar";
 import type { ScheduleException } from "@/lib/schedules/types";
 
 describe("buildMonthGrid", () => {
@@ -162,5 +166,30 @@ describe("summarizeBlocksByDate", () => {
       ["2026-11-03", true],
       ["2026-11-04", false],
     ]);
+  });
+});
+
+describe("groupPeriodsByWeekday", () => {
+  const period = (dayOfWeek: number, startTime: string) => ({ dayOfWeek, startTime });
+
+  it("returns all seven days Monday-first with each day's periods by start time", () => {
+    const days = groupPeriodsByWeekday([
+      period(1, "13:00"),
+      period(0, "09:00"),
+      period(1, "08:00"),
+    ]);
+
+    expect(days.map((day) => day.label)).toEqual([
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ]);
+    expect(days[0].periods).toEqual([period(1, "08:00"), period(1, "13:00")]);
+    expect(days[1].periods).toEqual([]);
+    expect(days[6]).toMatchObject({ dayOfWeek: 0, periods: [period(0, "09:00")] });
   });
 });

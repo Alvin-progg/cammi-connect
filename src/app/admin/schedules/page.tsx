@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 
 import { AdminShell } from "@/components/admin/admin-shell";
-import { EmptyState } from "@/components/admin/empty-state";
 import { AccessDenied } from "@/components/auth/access-denied";
 import {
   ScheduleExceptionsSection,
   SchedulePeriodsSection,
 } from "@/components/schedules/schedule-editor";
+import { SchedulesOverview } from "@/components/schedules/schedules-overview";
+import { Button } from "@/components/ui/button";
 import { parseRecordIdParam } from "@/lib/admin/dashboard";
 import { manilaDayRange, todayInManila } from "@/lib/appointments/filters";
 import { getAdminSession } from "@/server/auth/dal";
@@ -82,15 +83,58 @@ export default async function AdminSchedulesPage({
   );
 
   if (!selected) {
+    const departmentId = parseRecordIdParam(params.department) ?? undefined;
+    const [departments, listedDoctors] = await Promise.all([
+      supabaseDirectoryRepository.listDepartments(),
+      departmentId
+        ? supabaseDirectoryRepository.listDoctors({ departmentId, activeOnly: false })
+        : doctors,
+    ]);
+    const schedules = await supabaseDoctorSchedulesRepository.listSchedulesForDoctors(
+      listedDoctors.map((doctor) => doctor.id),
+    );
+
     return (
       <AdminShell
         adminName={session.admin.fullName}
         active="schedules"
         crumbs={[{ label: "Schedules" }]}
       >
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
           {picker}
-          <EmptyState>Choose a doctor to manage their consultation hours.</EmptyState>
+          <form
+            method="get"
+            action="/admin/schedules"
+            aria-label="Filter schedules"
+            className="flex flex-wrap items-end gap-3"
+          >
+            <div className="flex flex-col gap-1">
+              <label htmlFor="schedule-department" className="text-xs font-medium text-ink-muted">
+                Department
+              </label>
+              <select
+                id="schedule-department"
+                name="department"
+                defaultValue={departmentId ?? ""}
+                className={SELECT_CLASS}
+              >
+                <option value="">All departments</option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button type="submit" variant="secondary">
+              Filter
+            </Button>
+          </form>
+          <SchedulesOverview
+            doctors={listedDoctors}
+            schedules={schedules}
+            today={todayInManila()}
+          />
         </div>
       </AdminShell>
     );

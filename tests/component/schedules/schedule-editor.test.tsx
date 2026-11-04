@@ -7,7 +7,10 @@ import {
   SchedulePeriodsSection,
 } from "@/components/schedules/schedule-editor";
 import type { ScheduleException, WeeklySchedule } from "@/lib/schedules/types";
-import { removeScheduleExceptionAction } from "@/server/schedules/actions";
+import {
+  removeScheduleExceptionAction,
+  saveSchedulePeriodAction,
+} from "@/server/schedules/actions";
 
 vi.mock("@/server/schedules/actions", () => ({
   saveSchedulePeriodAction: vi.fn(),
@@ -84,6 +87,29 @@ describe("SchedulePeriodsSection", () => {
 
     const wednesday = screen.getByRole("group", { name: "Wednesday" });
     expect(within(wednesday).getByText("Until Dec 31, 2026")).toBeInTheDocument();
+  });
+
+  it("lists the upcoming appointments that block a save", async () => {
+    vi.mocked(saveSchedulePeriodAction).mockResolvedValue({
+      status: "error",
+      message: "This change would leave 1 upcoming appointment outside the doctor's hours.",
+      conflicts: [
+        {
+          appointmentId: "00000000-0000-4000-8000-000000000201",
+          scheduledAt: "2026-11-02T01:00:00.000Z",
+          status: "confirmed",
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<SchedulePeriodsSection editor="doctor" schedules={[period({})]} today="2026-11-01" />);
+
+    await user.click(within(screen.getByRole("group", { name: "Monday" })).getByRole("button", { name: "Save period" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("outside the doctor's hours");
+    const blocking = screen.getByRole("list", { name: "Blocking appointments" });
+    expect(within(blocking).getByText("Confirmed")).toBeInTheDocument();
+    expect(within(blocking).getAllByRole("listitem")).toHaveLength(1);
   });
 
   it("shows weekdays without periods as not available", () => {

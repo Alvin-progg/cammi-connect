@@ -27,8 +27,8 @@ vi.mock("@/server/schedules/repository", () => ({
   supabaseDoctorSchedulesRepository: {
     listSchedulesForDoctor: vi.fn(),
     listExceptionsForDoctor: vi.fn(),
-    createSchedulePeriod: vi.fn(),
-    updateSchedulePeriod: vi.fn(),
+    savePeriod: vi.fn(),
+    listUpcomingAppointments: vi.fn(),
     addException: vi.fn(),
     removeException: vi.fn(),
     listActiveIntervals: vi.fn(),
@@ -38,6 +38,7 @@ vi.mock("@/server/schedules/repository", () => ({
 const OWN_DOCTOR_ID = "00000000-0000-4000-8000-000000000101";
 const OTHER_DOCTOR_ID = "00000000-0000-4000-8000-000000000102";
 const EXCEPTION_ID = "00000000-0000-4000-8000-000000000951";
+const PERIOD_ID = "00000000-0000-4000-8000-000000000901";
 const IDLE = { status: "idle" } as const;
 const store = vi.mocked(supabaseDoctorSchedulesRepository);
 
@@ -80,14 +81,15 @@ const EXCEPTION_FIELDS = {
 beforeEach(() => {
   vi.clearAllMocks();
   store.listSchedulesForDoctor.mockResolvedValue([]);
-  store.createSchedulePeriod.mockResolvedValue("saved");
+  store.savePeriod.mockResolvedValue({ ok: true });
+  store.listUpcomingAppointments.mockResolvedValue([]);
   store.addException.mockResolvedValue(undefined);
   store.removeException.mockResolvedValue(true);
   store.listActiveIntervals.mockResolvedValue([]);
 });
 
 describe("doctor schedule actions", () => {
-  it("saves a period for the session doctor, ignoring any doctorId in the form", async () => {
+  it("saves a period for the session doctor as the actor, ignoring any doctorId in the form", async () => {
     vi.mocked(getDoctorSession).mockResolvedValue(DOCTOR_SESSION);
 
     const result = await saveSchedulePeriodAction(
@@ -96,9 +98,52 @@ describe("doctor schedule actions", () => {
     );
 
     expect(result).toEqual({ status: "success", message: "Consultation hours saved." });
-    expect(store.createSchedulePeriod).toHaveBeenCalledWith(
-      expect.objectContaining({ doctorId: OWN_DOCTOR_ID }),
+    expect(store.savePeriod).toHaveBeenCalledWith(
+      expect.objectContaining({ actorId: OWN_DOCTOR_ID, doctorId: OWN_DOCTOR_ID }),
     );
+  });
+
+  it("returns the appointments that block a save", async () => {
+    vi.mocked(getDoctorSession).mockResolvedValue(DOCTOR_SESSION);
+    store.listSchedulesForDoctor.mockResolvedValue([
+      {
+        id: PERIOD_ID,
+        doctorId: OWN_DOCTOR_ID,
+        dayOfWeek: 1,
+        startTime: "13:00",
+        endTime: "17:00",
+        slotDurationMinutes: 30,
+        effectiveFrom: "2026-01-01",
+        effectiveUntil: null,
+        isActive: true,
+      },
+    ]);
+    // Monday 2099-11-02 13:00–13:30 Manila, inside the period until it shrinks.
+    store.listUpcomingAppointments.mockResolvedValue([
+      {
+        appointmentId: "00000000-0000-4000-8000-000000000201",
+        scheduledAt: "2099-11-02T05:00:00.000Z",
+        scheduledEndAt: "2099-11-02T05:30:00.000Z",
+        status: "confirmed",
+      },
+    ]);
+
+    const result = await saveSchedulePeriodAction(
+      IDLE,
+      formData({ ...PERIOD_FIELDS, periodId: PERIOD_ID, startTime: "14:00" }),
+    );
+
+    expect(result).toMatchObject({
+      status: "error",
+      conflicts: [
+        {
+          appointmentId: "00000000-0000-4000-8000-000000000201",
+          scheduledAt: "2099-11-02T05:00:00.000Z",
+          status: "confirmed",
+        },
+      ],
+    });
+    expect(store.savePeriod).not.toHaveBeenCalled();
   });
 
   it("removes exceptions only within the session doctor's schedule", async () => {
@@ -136,7 +181,7 @@ describe("doctor schedule actions", () => {
       status: "error",
       message: "End time must be after the start time.",
     });
-    expect(store.createSchedulePeriod).not.toHaveBeenCalled();
+    expect(store.savePeriod).not.toHaveBeenCalled();
   });
 });
 
@@ -157,8 +202,8 @@ describe("admin schedule actions", () => {
       formData({ ...PERIOD_FIELDS, doctorId: OTHER_DOCTOR_ID }),
     );
 
-    expect(store.createSchedulePeriod).toHaveBeenCalledWith(
-      expect.objectContaining({ doctorId: OTHER_DOCTOR_ID }),
+    expect(store.savePeriod).toHaveBeenCalledWith(
+      expect.objectContaining({ actorId: ADMIN_SESSION.admin.id, doctorId: OTHER_DOCTOR_ID }),
     );
     expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");
   });
@@ -187,7 +232,7 @@ describe("admin schedule actions", () => {
         formData({ exceptionId: EXCEPTION_ID, doctorId: OTHER_DOCTOR_ID }),
       ),
     ).resolves.toMatchObject({ status: "error" });
-    expect(store.createSchedulePeriod).not.toHaveBeenCalled();
+    expect(store.savePeriod).not.toHaveBeenCalled();
     expect(store.addException).not.toHaveBeenCalled();
     expect(store.removeException).not.toHaveBeenCalled();
   });
@@ -202,6 +247,6 @@ describe("admin schedule actions", () => {
         formData({ ...PERIOD_FIELDS, doctorId: OTHER_DOCTOR_ID }),
       ),
     ).resolves.toEqual({ status: "error", message: "That doctor no longer exists." });
-    expect(store.createSchedulePeriod).not.toHaveBeenCalled();
+    expect(store.savePeriod).not.toHaveBeenCalled();
   });
 });

@@ -694,6 +694,25 @@ export type Database = {
           status: AppointmentStatus;
         }[];
       };
+      cammi_connect_save_schedule_period: {
+        Args: {
+          p_actor_profile_id: string;
+          p_doctor_id: string;
+          p_period_id: string | null;
+          p_day_of_week: number;
+          p_start_time: string;
+          p_end_time: string;
+          p_slot_duration_minutes: number;
+          p_effective_from: string;
+          p_effective_until: string | null;
+          p_is_active: boolean;
+        };
+        Returns: string;
+      };
+      cammi_connect_doctor_appointments_outside_hours: {
+        Args: { p_doctor_id: string };
+        Returns: string[];
+      };
       cammi_connect_admin_list_linkable_doctor_accounts: {
         Args: Record<PropertyKey, never>;
         Returns: {

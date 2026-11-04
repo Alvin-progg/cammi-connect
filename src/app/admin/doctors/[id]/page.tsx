@@ -12,11 +12,16 @@ import { DoctorAppointments } from "@/components/doctors/doctor-appointments";
 import { DoctorForm } from "@/components/doctors/doctor-form";
 import { DoctorStatusForm } from "@/components/doctors/doctor-status";
 import { DoctorTabs } from "@/components/doctors/doctor-tabs";
+import { SchedulePeriodsSection } from "@/components/schedules/schedule-editor";
+import { WeeklyPeriodGrid } from "@/components/schedules/weekly-period-grid";
+import { todayInManila } from "@/lib/appointments/filters";
 import { parseDoctorTab } from "@/lib/doctors/params";
 import type { AdminDoctorDetail } from "@/lib/doctors/types";
 import { getAdminSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import { supabaseDoctorAdminRepository } from "@/server/doctors/repository";
+import { supabaseDoctorSchedulesRepository } from "@/server/schedules/repository";
+import { listDoctorSchedules } from "@/server/schedules/service";
 
 import { ADMIN_ACCESS_DENIED_MESSAGE } from "../../_shared/placeholder-page";
 
@@ -87,21 +92,31 @@ async function ProfileTab({ doctor }: { doctor: AdminDoctorDetail }) {
   );
 }
 
-/** Read-only until the weekly schedule slice (ADM-05) replaces it. */
-function ScheduleTab({ doctorId }: { doctorId: string }) {
+/** The doctor's week at a glance, then the period editor. Exceptions stay on /admin/schedules. */
+async function ScheduleTab({ doctorId }: { doctorId: string }) {
+  const schedules = await listDoctorSchedules(doctorId, supabaseDoctorSchedulesRepository);
+  const today = todayInManila();
   return (
-    <TaskCard title="Schedule" description="Weekly hours and exceptions.">
-      <p className="text-sm text-ink-secondary">
-        The schedule view for this page is coming soon. For now, manage this doctor&rsquo;s hours
-        on the Schedules page.
-      </p>
+    <div className="flex flex-col gap-8">
+      <section aria-labelledby="doctor-week-heading" className="flex flex-col gap-3">
+        <h2 id="doctor-week-heading" className="text-lg font-semibold text-ink">
+          Weekly overview
+        </h2>
+        <WeeklyPeriodGrid schedules={schedules} today={today} />
+      </section>
+      <SchedulePeriodsSection
+        editor="admin"
+        doctorId={doctorId}
+        schedules={schedules}
+        today={today}
+      />
       <Link
         href={`/admin/schedules?doctor=${doctorId}`}
         className="self-start rounded text-sm font-medium text-primary underline underline-offset-4 focus-ring"
       >
-        Open schedules
+        Manage exceptions on the Schedules page
       </Link>
-    </TaskCard>
+    </div>
   );
 }
 

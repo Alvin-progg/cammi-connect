@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  countAppointmentsOutsideSchedule,
+  findAppointmentsOutsideSchedule,
   findOverlappingPeriod,
+  withCandidatePeriod,
 } from "@/lib/schedules/periods";
 import type { WeeklySchedule } from "@/lib/schedules/types";
 
@@ -90,27 +91,52 @@ describe("findOverlappingPeriod", () => {
   });
 });
 
-describe("countAppointmentsOutsideSchedule", () => {
+describe("findAppointmentsOutsideSchedule", () => {
   // 2026-11-02 is a Monday in Asia/Manila.
   const inside = {
+    appointmentId: "inside",
     start: new Date("2026-11-02T09:00:00+08:00"),
     end: new Date("2026-11-02T09:30:00+08:00"),
   };
   const outside = {
+    appointmentId: "outside",
     start: new Date("2026-11-02T14:00:00+08:00"),
     end: new Date("2026-11-02T14:30:00+08:00"),
   };
 
-  it("counts appointments no period covers", () => {
-    expect(countAppointmentsOutsideSchedule([inside, outside], [EXISTING])).toBe(1);
+  it("returns the appointments no period covers", () => {
+    expect(findAppointmentsOutsideSchedule([inside, outside], [EXISTING])).toEqual([outside]);
   });
 
-  it("counts every appointment when no period is active", () => {
+  it("returns every appointment when no period is active", () => {
     expect(
-      countAppointmentsOutsideSchedule(
-        [inside, outside],
-        [schedule({ isActive: false })],
-      ),
-    ).toBe(2);
+      findAppointmentsOutsideSchedule([inside, outside], [schedule({ isActive: false })]),
+    ).toEqual([inside, outside]);
+  });
+});
+
+describe("withCandidatePeriod", () => {
+  const candidate = {
+    dayOfWeek: 1,
+    startTime: "10:00",
+    endTime: "12:00",
+    slotDurationMinutes: 30,
+    effectiveFrom: "2026-01-01",
+    effectiveUntil: null,
+    isActive: true,
+  };
+
+  it("replaces the edited period with the candidate", () => {
+    const other = schedule({ id: "other", dayOfWeek: 2 });
+    const periods = withCandidatePeriod([EXISTING, other], EXISTING.id, candidate);
+
+    expect(periods).toHaveLength(2);
+    expect(periods).toContainEqual(other);
+    expect(periods).toContainEqual(candidate);
+    expect(periods).not.toContainEqual(EXISTING);
+  });
+
+  it("adds the candidate when creating a period", () => {
+    expect(withCandidatePeriod([EXISTING], null, candidate)).toEqual([EXISTING, candidate]);
   });
 });
