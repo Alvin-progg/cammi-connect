@@ -121,6 +121,25 @@ export const supabaseDoctorAdminRepository: DoctorAdminStore = {
     return (data ?? []).map((row) => ({ profileId: row.profile_id, fullName: row.full_name }));
   },
 
+  async isLinkableAccount(profileId) {
+    const supabase = getSupabaseAdminClient();
+    const [account, doctorRecord] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", profileId)
+        .eq("role", "doctor")
+        .eq("is_active", true)
+        .not("auth_user_id", "is", null)
+        .maybeSingle(),
+      supabase.from("doctors").select("id").eq("id", profileId).maybeSingle(),
+    ]);
+    if (account.error || doctorRecord.error) {
+      throw new Error("Unable to check the doctor account.");
+    }
+    return account.data !== null && doctorRecord.data === null;
+  },
+
   async listFutureConflicts(doctorId) {
     const { data, error } = await getSupabaseAdminClient().rpc(
       "cammi_connect_doctor_future_conflicts",
