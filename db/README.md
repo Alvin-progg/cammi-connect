@@ -81,7 +81,8 @@ Then run `db/migrations/0009_front_desk_confirm_reject.sql` once, then
 `db/migrations/0014_admin_user_management.sql` once, then
 `db/migrations/0015_admin_departments.sql` once, then
 `db/migrations/0016_admin_specialties.sql` once, then
-`db/migrations/0017_admin_doctors.sql` once. After 0014, re-run
+`db/migrations/0017_admin_doctors.sql` once, then
+`db/migrations/0018_admin_schedules.sql` once. After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
 department names differ only by case, and 0016 likewise for specialty names;
@@ -317,6 +318,21 @@ now fail.
 - adds the read functions `cammi_connect_doctor_future_conflicts` (no patient data) and
   `cammi_connect_admin_list_linkable_doctor_accounts`;
 - leaves `cammi_connect_save_doctor` in place; the app no longer calls it;
+- every function is executable by `service_role` only.
+
+`0018_admin_schedules.sql` (ADM-05):
+
+- adds `cammi_connect_save_schedule_period`, the one path for creating or editing a
+  weekly consultation period, for doctors (own schedule) and admins. It re-checks that
+  the actor is an active admin or the active doctor whose schedule it is, and locks the
+  `doctors` row as the booking functions do;
+- refuses (`orphans_appointments`) an edit that would move an upcoming requested,
+  confirmed, or checked-in appointment outside the doctor's hours. An appointment that
+  was already outside the hours before the edit does not block it. Overlaps still raise
+  the `doctor_schedules_no_active_overlap` exclusion violation;
+- writes `schedule.create`, `schedule.update`, or `schedule.deactivate` to `audit_logs`
+  in the same transaction; an unchanged save writes nothing;
+- adds the helper `cammi_connect_doctor_appointments_outside_hours`;
 - every function is executable by `service_role` only.
 
 #### Supabase Auth email templates (ADM-01, manual)
@@ -755,6 +771,22 @@ No real patient data is used.
     - In SQL, calling `cammi_connect_admin_set_doctor_active` with a non-admin actor fails
       with `not_admin`, and `cammi_connect_admin_set_doctor_specialties` with an inactive
       specialty fails with `inactive_specialty` and leaves the doctor's set unchanged.
+
+28. Check weekly schedules (ADM-05), after applying 0018. Use synthetic data only:
+    - As the admin, open **Schedules**: every doctor is listed with the weekly hours in
+      effect today. Filter by department.
+    - On a doctor's page, open the **Schedule** tab. Add Monday 08:00–12:00 and
+      13:00–17:00 at 30 minutes: the weekly overview shows both blocks, and Cami or the
+      front desk offers 16 slots on an open Monday. `audit_logs` has two
+      `schedule.create` rows.
+    - Book a Monday 09:00 appointment, then change the morning period to start at 10:00:
+      the save is refused and the appointment is listed. End-date the morning period
+      instead and add a new one from the day after: both save (`schedule.update`,
+      `schedule.create`). Untick **Active** on a period with no bookings:
+      `schedule.deactivate` is logged.
+    - As that doctor at `/doctor`, the same shortening is refused with the same list.
+    - In SQL, calling `cammi_connect_save_schedule_period` with another doctor's profile
+      as the actor fails with `not_authorized`.
 
 ## Troubleshooting
 

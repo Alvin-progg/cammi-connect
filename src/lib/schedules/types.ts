@@ -1,3 +1,5 @@
+import type { AppointmentStatus } from "@/lib/appointments/status";
+
 /**
  * Weekly schedule and schedule-exception shapes shared between the server
  * layer and the dashboard UIs. `dayOfWeek` is 0-6, Sunday-first, in
@@ -18,6 +20,16 @@ export type WeeklySchedule = {
   effectiveUntil: string | null;
   isActive: boolean;
 };
+
+/** An upcoming appointment that blocks a schedule change. No patient data. */
+export type ScheduleConflict = {
+  appointmentId: string;
+  scheduledAt: string;
+  status: AppointmentStatus;
+};
+
+/** An upcoming slot-holding appointment, with its end, for the hours check. */
+export type UpcomingAppointment = ScheduleConflict & { scheduledEndAt: string };
 
 export const SCHEDULE_EXCEPTION_TYPES = [
   "leave",

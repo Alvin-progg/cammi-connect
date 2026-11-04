@@ -84,6 +84,27 @@ describe("generateAvailableSlots", () => {
     ]);
   });
 
+  it("splits 08:00–12:00 at 30 minutes into 8 slots, the last ending at 12:00", () => {
+    const slots = generate({ schedules: [period({ startTime: "08:00", endTime: "12:00" })] });
+
+    expect(slots).toHaveLength(8);
+    expect(slots[0].start).toEqual(manila(MONDAY, "08:00"));
+    expect(slots[7].start).toEqual(manila(MONDAY, "11:30"));
+    expect(slots[7].end).toEqual(manila(MONDAY, "12:00"));
+  });
+
+  it("offers 16 Monday slots for 08:00–12:00 and 13:00–17:00 at 30 minutes", () => {
+    const slots = generate({
+      schedules: [
+        period({ startTime: "08:00", endTime: "12:00" }),
+        period({ startTime: "13:00", endTime: "17:00" }),
+      ],
+    });
+
+    expect(slots).toHaveLength(16);
+    expect(startTimes(slots)).not.toContain(manila(MONDAY, "12:00").toISOString());
+  });
+
   it("supports several consultation periods on one day", () => {
     const slots = generate({
       schedules: [

@@ -1,6 +1,7 @@
 import {
   fitsConsultationHours,
   timeToMinutes,
+  type ConsultationPeriod,
   type SlotInterval,
 } from "./availability";
 import type { WeeklySchedule } from "./types";
@@ -46,14 +47,25 @@ export function findOverlappingPeriod<Period extends PeriodCandidate>(
 }
 
 /**
- * How many appointments no longer fit the doctor's consultation hours. Used
- * after a schedule change to report, never to modify, affected bookings.
+ * The appointments that no consultation period covers. A schedule edit that
+ * leaves an upcoming appointment here is refused (spec-admin ADM-05).
  */
-export function countAppointmentsOutsideSchedule(
-  appointments: SlotInterval[],
+export function findAppointmentsOutsideSchedule<Appointment extends SlotInterval>(
+  appointments: Appointment[],
+  schedules: ConsultationPeriod[],
+): Appointment[] {
+  return appointments.filter((appointment) => !fitsConsultationHours(appointment, schedules));
+}
+
+/**
+ * The doctor's periods as they would be after saving `candidate`: it replaces
+ * the period `periodId`, or is added when `periodId` is null.
+ */
+export function withCandidatePeriod(
   schedules: WeeklySchedule[],
-): number {
-  return appointments.filter(
-    (appointment) => !fitsConsultationHours(appointment, schedules),
-  ).length;
+  periodId: string | null,
+  candidate: ConsultationPeriod,
+): ConsultationPeriod[] {
+  const others = schedules.filter((schedule) => schedule.id !== periodId);
+  return [...others, candidate];
 }

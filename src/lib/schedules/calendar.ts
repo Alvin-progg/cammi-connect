@@ -1,12 +1,49 @@
 import type { AppointmentStatus } from "@/lib/appointments/status";
+import { formatManilaMediumDate } from "@/lib/appointments/format";
 import { manilaDateOfTimestamp } from "@/lib/appointments/stats";
 
 import {
   isScheduleEffectiveOn,
+  WEEKDAY_LABELS,
   type ScheduleException,
   type ScheduleExceptionType,
   type WeeklySchedule,
 } from "./types";
+
+/** Monday-first, the order a working week is read in. */
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
+
+/** The seven weekdays Monday-first, each with its periods sorted by start time. */
+export function groupPeriodsByWeekday<Period extends Pick<WeeklySchedule, "dayOfWeek" | "startTime">>(
+  periods: Period[],
+): { dayOfWeek: number; label: string; periods: Period[] }[] {
+  return WEEK_ORDER.map((dayOfWeek) => ({
+    dayOfWeek,
+    label: WEEKDAY_LABELS[dayOfWeek],
+    periods: periods
+      .filter((period) => period.dayOfWeek === dayOfWeek)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime)),
+  }));
+}
+
+/** "Until Dec 31, 2026", "Starts Jan 5, 2027", "Ended …", or "Ongoing". */
+export function periodEffectiveLabel(
+  period: Pick<WeeklySchedule, "effectiveFrom" | "effectiveUntil">,
+  today: string,
+): string {
+  if (period.effectiveUntil !== null && period.effectiveUntil < today) {
+    return `Ended ${formatManilaMediumDate(period.effectiveUntil)}`;
+  }
+  if (period.effectiveFrom > today) {
+    const starts = `Starts ${formatManilaMediumDate(period.effectiveFrom)}`;
+    return period.effectiveUntil
+      ? `${starts} · until ${formatManilaMediumDate(period.effectiveUntil)}`
+      : starts;
+  }
+  return period.effectiveUntil
+    ? `Until ${formatManilaMediumDate(period.effectiveUntil)}`
+    : "Ongoing";
+}
 
 /** The exception shown on one calendar day. */
 export type CalendarDayBlock = {

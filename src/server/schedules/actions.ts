@@ -9,6 +9,7 @@ import {
   schedulePeriodSchema,
   scheduleRecordIdSchema,
 } from "@/lib/schedules/schemas";
+import type { ScheduleConflict } from "@/lib/schedules/types";
 import { getAdminSession, getDoctorSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 
@@ -22,7 +23,7 @@ import {
 
 export type ScheduleActionState =
   | { status: "idle" }
-  | { status: "error"; message: string }
+  | { status: "error"; message: string; conflicts?: ScheduleConflict[] }
   | { status: "success"; message: string };
 
 /**
@@ -43,13 +44,18 @@ function firstIssueMessage(error: {
   return error.issues[0]?.message ?? "Check the form values.";
 }
 
+/** The doctor whose schedule is edited and the acting profile, both from the session. */
+type ScheduleOwner = { doctorId: string; actorId: string };
+
 async function resolveScheduleDoctorId(
   editor: ScheduleEditor,
   formData: FormData,
-): Promise<{ doctorId: string } | { denied: ScheduleActionState }> {
+): Promise<ScheduleOwner | { denied: ScheduleActionState }> {
   if (editor === "doctor") {
     const session = await getDoctorSession("/doctor");
-    return session ? { doctorId: session.doctor.id } : { denied: NOT_AUTHORIZED };
+    return session
+      ? { doctorId: session.doctor.id, actorId: session.doctor.id }
+      : { denied: NOT_AUTHORIZED };
   }
 
   const session = await getAdminSession("/admin/schedules");
@@ -64,12 +70,12 @@ async function resolveScheduleDoctorId(
   if (!doctor) {
     return { denied: { status: "error", message: "That doctor no longer exists." } };
   }
-  return { doctorId: doctor.id };
+  return { doctorId: doctor.id, actorId: session.admin.id };
 }
 
 function toActionState(result: ScheduleResult): ScheduleActionState {
   if (!result.ok) {
-    return { status: "error", message: result.message };
+    return { status: "error", message: result.message, conflicts: result.conflicts };
   }
   revalidatePath("/doctor");
   revalidatePath("/admin", "layout");
@@ -108,6 +114,7 @@ function savePeriodAction(editor: ScheduleEditor) {
     return toActionState(
       await saveSchedulePeriod(
         {
+          actorId: owner.actorId,
           doctorId: owner.doctorId,
           periodId: periodId?.data ?? null,
           period: parsed.data,

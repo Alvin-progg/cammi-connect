@@ -7,10 +7,11 @@ import { ChevronRightIcon, PlusIcon } from "@/components/doctor/icons";
 import {
   formatClockTime,
   formatManilaDateTime,
-  formatManilaMediumDate,
   formatManilaTime,
 } from "@/lib/appointments/format";
 import { manilaDateOfTimestamp } from "@/lib/appointments/stats";
+import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
+import { groupPeriodsByWeekday, periodEffectiveLabel } from "@/lib/schedules/calendar";
 import {
   SCHEDULE_EXCEPTION_LABELS,
   SCHEDULE_EXCEPTION_TYPES,
@@ -52,9 +53,6 @@ const ACTIONS = {
 
 const IDLE_STATE: ScheduleActionState = { status: "idle" };
 
-/** Monday-first, the order a working week is read in. */
-const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
-
 const FIELD_CLASS =
   "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
 const LABEL_CLASS = "text-xs font-medium text-ink-muted";
@@ -88,35 +86,33 @@ function useCloseDisclosure() {
   return [detailsRef, close] as const;
 }
 
+/** The error, plus any upcoming appointments that blocked a period save. */
 function FormError({ state }: { state: ScheduleActionState }) {
   if (state.status !== "error") {
     return null;
   }
+  const conflicts = state.conflicts ?? [];
   return (
-    <p role="alert" className="text-sm text-danger-soft-ink">
-      {state.message}
-    </p>
+    <div className="flex flex-col gap-2">
+      <p role="alert" className="text-sm text-danger-soft-ink">
+        {state.message}
+      </p>
+      {conflicts.length > 0 ? (
+        <ul aria-label="Blocking appointments" className="flex flex-col divide-y divide-line text-sm">
+          {conflicts.map((conflict) => (
+            <li key={conflict.appointmentId} className="flex flex-wrap gap-x-3 py-2">
+              <span className="font-medium text-ink">{formatManilaDateTime(conflict.scheduledAt)}</span>
+              <span className="text-ink-secondary">{APPOINTMENT_STATUS_LABELS[conflict.status]}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
 function DoctorField({ doctorId }: { doctorId?: string }) {
   return doctorId ? <input type="hidden" name="doctorId" value={doctorId} /> : null;
-}
-
-/** "Until Dec 31, 2026", "Starts Jan 5, 2027", "Ended …", or "Ongoing". */
-function effectiveLabel(period: WeeklySchedule, today: string): string {
-  if (period.effectiveUntil !== null && period.effectiveUntil < today) {
-    return `Ended ${formatManilaMediumDate(period.effectiveUntil)}`;
-  }
-  if (period.effectiveFrom > today) {
-    const starts = `Starts ${formatManilaMediumDate(period.effectiveFrom)}`;
-    return period.effectiveUntil
-      ? `${starts} · until ${formatManilaMediumDate(period.effectiveUntil)}`
-      : starts;
-  }
-  return period.effectiveUntil
-    ? `Until ${formatManilaMediumDate(period.effectiveUntil)}`
-    : "Ongoing";
 }
 
 function PeriodFields({
@@ -241,7 +237,7 @@ function PeriodRow({
           >
             {hours} · {period.slotDurationMinutes} min
           </span>
-          <span className="text-xs text-ink-muted">{effectiveLabel(period, today)}</span>
+          <span className="text-xs text-ink-muted">{periodEffectiveLabel(period, today)}</span>
         </span>
         {period.isActive ? null : (
           <span className="inline-flex shrink-0 items-center rounded-full border border-line-strong bg-surface px-2 py-0.5 text-xs font-medium text-ink-secondary">
@@ -360,13 +356,7 @@ export function SchedulePeriodsSection({
   today,
   ...editorProps
 }: EditorProps & { schedules: WeeklySchedule[]; today: string }) {
-  const days = WEEK_ORDER.map((dayOfWeek) => ({
-    dayOfWeek,
-    label: WEEKDAY_LABELS[dayOfWeek],
-    periods: schedules
-      .filter((schedule) => schedule.dayOfWeek === dayOfWeek)
-      .sort((a, b) => a.startTime.localeCompare(b.startTime)),
-  }));
+  const days = groupPeriodsByWeekday(schedules);
 
   return (
     <section aria-labelledby="weekly-hours-heading">
@@ -375,7 +365,9 @@ export function SchedulePeriodsSection({
       </h2>
       <p className={SECTION_INTRO_CLASS}>
         Times are in Asia/Manila (PHT). Changing hours never moves existing
-        appointments.
+        appointments, and a change that would leave an upcoming appointment
+        outside these hours is refused. To change hours, end-date the old
+        period and add a new one.
       </p>
 
       <div className="mt-4 flex flex-col gap-3">

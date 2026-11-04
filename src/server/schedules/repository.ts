@@ -1,13 +1,15 @@
 import "server-only";
 
+import { SLOT_HOLDING_STATUSES } from "@/lib/appointments/status";
 import type {
   ScheduleException,
+  UpcomingAppointment,
   WeeklySchedule,
 } from "@/lib/schedules/types";
 import { supabaseDoctorAppointmentsRepository } from "@/server/appointments/repository";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
-import type { DoctorSchedulesStore, PeriodSaveOutcome } from "./service";
+import type { DoctorSchedulesStore } from "./service";
 
 const EXCLUSION_VIOLATION = "23P01";
 
@@ -16,47 +18,56 @@ function trimTime(time: string): string {
   return time.slice(0, 5);
 }
 
-function toPeriodOutcome(
-  error: { code?: string } | null,
-  affectedRows: number,
-): PeriodSaveOutcome {
-  if (error?.code === EXCLUSION_VIOLATION) {
+/**
+ * P0001 refusals carry their code as the message. The overlap exclusion
+ * constraint surfaces as 23P01. Anything else is unexpected.
+ */
+function refusalCode(error: { code?: string; message: string }): string | undefined {
+  if (error.code === "P0001") {
+    return error.message;
+  }
+  if (error.code === EXCLUSION_VIOLATION) {
     return "overlap";
   }
+  console.error("Schedule period save failed.");
+  return undefined;
+}
+
+async function loadSchedules(doctorIds: string[]): Promise<WeeklySchedule[]> {
+  const { data, error } = await getSupabaseAdminClient()
+    .from("doctor_schedules")
+    .select(
+      "id, doctor_id, day_of_week, start_time, end_time, slot_duration_minutes, effective_from, effective_until, is_active",
+    )
+    .in("doctor_id", doctorIds)
+    .order("day_of_week", { ascending: true })
+    .order("start_time", { ascending: true });
+
   if (error) {
-    throw new Error("Unable to save the consultation hours.");
+    throw new Error("Unable to load consultation hours.");
   }
-  return affectedRows > 0 ? "saved" : "not_found";
+  return (data ?? []).map(
+    (row): WeeklySchedule => ({
+      id: row.id,
+      doctorId: row.doctor_id,
+      dayOfWeek: row.day_of_week,
+      startTime: trimTime(row.start_time),
+      endTime: trimTime(row.end_time),
+      slotDurationMinutes: row.slot_duration_minutes,
+      effectiveFrom: row.effective_from,
+      effectiveUntil: row.effective_until,
+      isActive: row.is_active,
+    }),
+  );
 }
 
 export const supabaseDoctorSchedulesRepository: DoctorSchedulesStore = {
-  async listSchedulesForDoctor(doctorId) {
-    const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("doctor_schedules")
-      .select(
-        "id, doctor_id, day_of_week, start_time, end_time, slot_duration_minutes, effective_from, effective_until, is_active",
-      )
-      .eq("doctor_id", doctorId)
-      .order("day_of_week", { ascending: true })
-      .order("start_time", { ascending: true });
+  listSchedulesForDoctor(doctorId) {
+    return loadSchedules([doctorId]);
+  },
 
-    if (error) {
-      throw new Error("Unable to load consultation hours.");
-    }
-    return (data ?? []).map(
-      (row): WeeklySchedule => ({
-        id: row.id,
-        doctorId: row.doctor_id,
-        dayOfWeek: row.day_of_week,
-        startTime: trimTime(row.start_time),
-        endTime: trimTime(row.end_time),
-        slotDurationMinutes: row.slot_duration_minutes,
-        effectiveFrom: row.effective_from,
-        effectiveUntil: row.effective_until,
-        isActive: row.is_active,
-      }),
-    );
+  listSchedulesForDoctors(doctorIds) {
+    return doctorIds.length === 0 ? Promise.resolve([]) : loadSchedules(doctorIds);
   },
 
   async listExceptionsForDoctor({ doctorId, start, end }) {
@@ -83,43 +94,42 @@ export const supabaseDoctorSchedulesRepository: DoctorSchedulesStore = {
     );
   },
 
-  async createSchedulePeriod({ doctorId, ...period }) {
-    const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("doctor_schedules")
-      .insert({
-        doctor_id: doctorId,
-        day_of_week: period.dayOfWeek,
-        start_time: period.startTime,
-        end_time: period.endTime,
-        slot_duration_minutes: period.slotDurationMinutes,
-        effective_from: period.effectiveFrom,
-        effective_until: period.effectiveUntil,
-        is_active: period.isActive,
-      })
-      .select("id");
-
-    return toPeriodOutcome(error, (data ?? []).length);
+  async savePeriod({ actorId, doctorId, periodId, ...period }) {
+    const { error } = await getSupabaseAdminClient().rpc("cammi_connect_save_schedule_period", {
+      p_actor_profile_id: actorId,
+      p_doctor_id: doctorId,
+      p_period_id: periodId,
+      p_day_of_week: period.dayOfWeek,
+      p_start_time: period.startTime,
+      p_end_time: period.endTime,
+      p_slot_duration_minutes: period.slotDurationMinutes,
+      p_effective_from: period.effectiveFrom,
+      p_effective_until: period.effectiveUntil,
+      p_is_active: period.isActive,
+    });
+    return error ? { ok: false, code: refusalCode(error) } : { ok: true };
   },
 
-  async updateSchedulePeriod({ doctorId, periodId, ...period }) {
-    const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("doctor_schedules")
-      .update({
-        day_of_week: period.dayOfWeek,
-        start_time: period.startTime,
-        end_time: period.endTime,
-        slot_duration_minutes: period.slotDurationMinutes,
-        effective_from: period.effectiveFrom,
-        effective_until: period.effectiveUntil,
-        is_active: period.isActive,
-      })
-      .eq("id", periodId)
+  async listUpcomingAppointments({ doctorId, from }) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from("appointments")
+      .select("id, scheduled_at, scheduled_end_at, status")
       .eq("doctor_id", doctorId)
-      .select("id");
+      .in("status", [...SLOT_HOLDING_STATUSES])
+      .gte("scheduled_at", from)
+      .order("scheduled_at", { ascending: true });
 
-    return toPeriodOutcome(error, (data ?? []).length);
+    if (error) {
+      throw new Error("Unable to check upcoming appointments.");
+    }
+    return (data ?? []).map(
+      (row): UpcomingAppointment => ({
+        appointmentId: row.id,
+        scheduledAt: row.scheduled_at,
+        scheduledEndAt: row.scheduled_end_at,
+        status: row.status,
+      }),
+    );
   },
 
   async addException(input) {
