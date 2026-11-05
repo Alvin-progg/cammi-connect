@@ -6,6 +6,7 @@ import type {
 import type { UserRole } from "@/lib/auth/roles";
 import type { ChatRole } from "@/lib/chat/schemas";
 import type { NotificationType } from "@/lib/notifications/types";
+import type { RequirementStatus } from "@/lib/requirements/types";
 import type { ScheduleExceptionType } from "@/lib/schedules/types";
 import type { ServiceBookingMode } from "@/lib/services/types";
 
@@ -112,6 +113,50 @@ export type Database = {
           requires_appointment?: boolean;
           booking_mode?: ServiceBookingMode;
           is_active?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      /** Migration 0022 (admin requirements). Exactly one of service_id/specialty_id is set. */
+      service_requirements: {
+        Row: {
+          id: string;
+          title: string;
+          description: string | null;
+          service_id: string | null;
+          specialty_id: string | null;
+          is_mandatory: boolean;
+          effective_from: string;
+          effective_to: string | null;
+          status: RequirementStatus;
+          superseded_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          description?: string | null;
+          service_id?: string | null;
+          specialty_id?: string | null;
+          is_mandatory?: boolean;
+          effective_from?: string;
+          effective_to?: string | null;
+          status?: RequirementStatus;
+          superseded_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          title?: string;
+          description?: string | null;
+          service_id?: string | null;
+          specialty_id?: string | null;
+          is_mandatory?: boolean;
+          effective_from?: string;
+          effective_to?: string | null;
+          status?: RequirementStatus;
+          superseded_by?: string | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -704,6 +749,33 @@ export type Database = {
           p_is_active: boolean;
         };
         Returns: undefined;
+      };
+      /** Migration 0022 (admin requirements). Each raises P0001 with a RequirementRefusal code. */
+      cammi_connect_admin_save_requirement: {
+        Args: {
+          p_actor_profile_id: string;
+          p_requirement_id: string | null;
+          p_title: string;
+          p_description: string | null;
+          p_service_id: string | null;
+          p_specialty_id: string | null;
+          p_is_mandatory: boolean;
+          p_effective_from: string;
+          p_effective_to: string | null;
+        };
+        Returns: string;
+      };
+      cammi_connect_admin_publish_requirement: {
+        Args: { p_actor_profile_id: string; p_requirement_id: string };
+        Returns: undefined;
+      };
+      cammi_connect_admin_archive_requirement: {
+        Args: { p_actor_profile_id: string; p_requirement_id: string };
+        Returns: undefined;
+      };
+      cammi_connect_admin_supersede_requirement: {
+        Args: { p_actor_profile_id: string; p_requirement_id: string; p_starts_on: string };
+        Returns: string;
       };
       /** Migration 0017 (admin doctors). Each raises P0001 with a DoctorRefusal code. */
       cammi_connect_admin_save_doctor: {

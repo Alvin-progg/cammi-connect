@@ -85,7 +85,10 @@ Then run `db/migrations/0009_front_desk_confirm_reject.sql` once, then
 `db/migrations/0018_admin_schedules.sql` once, then
 `db/migrations/0019_schedule_exception_holiday.sql` **on its own** (it adds an enum
 value that 0020 uses), then `db/migrations/0020_admin_schedule_exceptions.sql` once,
-then `db/migrations/0021_admin_services.sql` once.
+then `db/migrations/0021_admin_services.sql` once, then
+`db/migrations/0022_admin_requirements.sql` once, then
+`db/migrations/0023_fix_admin_save_create.sql` once, then
+`db/migrations/0024_requirement_resupersede.sql` once.
 After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
@@ -371,6 +374,39 @@ now fail.
   admin and write `service.*` audit rows in the same transaction. Services are never
   deleted;
 - every function is executable by `service_role` only.
+
+`0022_admin_requirements.sql` (ADM-08):
+
+- adds `service_requirements` (title, description, exactly one of `service_id` /
+  `specialty_id`, `is_mandatory`, Manila `effective_from` / `effective_to` (both
+  inclusive), `status` `draft` / `published` / `archived`, and `superseded_by`). RLS is
+  on with no policies and `anon`/`authenticated` have no access. Requirements are never
+  deleted;
+- adds `cammi_connect_admin_save_requirement` (drafts only, `not_draft` otherwise;
+  `inactive_target` when a new or changed service/specialty is inactive),
+  `cammi_connect_admin_publish_requirement` (draft → published),
+  `cammi_connect_admin_archive_requirement` (draft or published → archived), and
+  `cammi_connect_admin_supersede_requirement`, which ends a published requirement the day
+  before the given date and clones it into a new draft from that date (`invalid_date`
+  unless the date is after its start and no later than its end; `already_superseded`
+  the second time). Each re-checks the admin actor and writes `requirement.*` audit
+  rows in the same transaction (supersede writes `requirement.update` for the old row
+  and `requirement.create` for the copy);
+- every function is executable by `service_role` only.
+
+`0023_fix_admin_save_create.sql`:
+
+- redefines `cammi_connect_admin_save_department`, `_save_specialty`, `_save_service`,
+  and `_save_requirement`. Their untyped `record` variable for the previous values was
+  unassigned on create, so every create failed with `55000 record "v_previous" is not
+  assigned yet`. It is now a typed row of the table; nothing else changes.
+
+`0024_requirement_resupersede.sql` (ADM-08):
+
+- redefines `cammi_connect_admin_supersede_requirement` so a published requirement
+  whose newer version was archived can be superseded again (`already_superseded` only
+  while that version is a draft or published). The new copy gets the original end date,
+  taken from the archived copy, and `superseded_by` moves to it.
 
 #### Supabase Auth email templates (ADM-01, manual)
 
@@ -862,6 +898,31 @@ No real patient data is used.
     - Sign in as a non-admin and open `/admin/services`: access is denied. In SQL,
       calling `cammi_connect_admin_set_service_active` with a non-admin actor fails with
       `not_admin`.
+
+31. Check appointment requirements (ADM-08), after applying 0022. Use synthetic data only:
+    - As the admin, open a service (for example "X-ray") and choose **Add requirement**:
+      "Applies to" is preselected. Create "Valid ID" as a mandatory draft from today. You
+      land on its page; `audit_logs` has `requirement.create`. Edit the description and
+      save: `requirement.update` is logged.
+    - **Publish** it: the status shows Published and In effect, the form becomes
+      read-only, and `requirement.publish` is logged. In SQL, calling
+      `cammi_connect_admin_save_requirement` for it fails with `not_draft`.
+    - **Supersede** it from a date after today: you land on a new draft with the same
+      wording starting that day. The original stays published with `effective_to` set to
+      the day before and `superseded_by` pointing at the draft; `audit_logs` has a
+      `requirement.update` for the original and a `requirement.create` for the copy.
+      Superseding the original again is refused. Superseding with a start date on or
+      before its `effective_from` is refused (`invalid_date`).
+    - **Archive** the new draft: it shows Archived with no actions; `requirement.archive`
+      is logged. The original now says the newer version was archived and offers
+      **Supersede** again (after 0024); doing so opens another draft and moves
+      `superseded_by` to it. The service page lists all of them.
+    - Create a requirement for a specialty. At **Requirements**, filter by
+      Services/Specialties and by status: requirements are grouped under their service or
+      specialty.
+    - In SQL, inserting a row with both `service_id` and `specialty_id` (or neither) fails
+      the `service_requirements_one_target` check. Sign in as a non-admin and open
+      `/admin/requirements`: access is denied.
 
 ## Troubleshooting
 
