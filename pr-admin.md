@@ -547,6 +547,13 @@ Show only patient name + patient ID in list; contact details only in detail view
 ## Done when
 §20 "Appointment Monitoring" passes, incl. identifying the staff member who confirmed.
 
+## Status as built (2026-11-05)
+- Built: `/admin/appointments` list + `/admin/appointments/[id]` detail page (not a drawer), read-only. No service column: appointments have no `service_id` (D9).
+- No migration. Audit rows stay written by each writer (SQL functions 0007–0012/0020 and the TS transition repository), not a trigger; `tests/unit/appointments/audit-coverage.test.ts` fails if a new writer skips the audit insert.
+- `cancelled_at`/`no_show_at`/`completed_at` deferred to ADM-10 (add columns or derive from `appointment_audit_logs`).
+- Conflicts view dropped: `appointments_no_active_overlap` forbids active overlaps and ADM-06 refuses exceptions over booked appointments, so there is no `needs_reschedule` flag.
+- RLS tests: N/A by design (ADR-0003, service-role only, anon/authenticated revoked); authorization is `getAdminSession()`, covered by page tests. E2E not run (Playwright not installed).
+
 
 ---
 
