@@ -7,6 +7,7 @@ import type { UserRole } from "@/lib/auth/roles";
 import type { ChatRole } from "@/lib/chat/schemas";
 import type { NotificationType } from "@/lib/notifications/types";
 import type { ScheduleExceptionType } from "@/lib/schedules/types";
+import type { ServiceBookingMode } from "@/lib/services/types";
 
 export type Json =
   | string
@@ -75,6 +76,41 @@ export type Database = {
         Update: {
           name?: string;
           description?: string | null;
+          is_active?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      /** Migration 0021 (admin services). Informational only; never scheduled. */
+      services: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          department_id: string | null;
+          requires_appointment: boolean;
+          booking_mode: ServiceBookingMode;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          department_id?: string | null;
+          requires_appointment?: boolean;
+          booking_mode?: ServiceBookingMode;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          description?: string | null;
+          department_id?: string | null;
+          requires_appointment?: boolean;
+          booking_mode?: ServiceBookingMode;
           is_active?: boolean;
           updated_at?: string;
         };
@@ -644,6 +680,27 @@ export type Database = {
         Args: {
           p_actor_profile_id: string;
           p_specialty_id: string;
+          p_is_active: boolean;
+        };
+        Returns: undefined;
+      };
+      /** Migration 0021 (admin services). Raise P0001 not_admin, duplicate, not_found, unchanged, or inactive_department. */
+      cammi_connect_admin_save_service: {
+        Args: {
+          p_actor_profile_id: string;
+          p_service_id: string | null;
+          p_name: string;
+          p_description: string | null;
+          p_department_id: string | null;
+          p_requires_appointment: boolean;
+          p_booking_mode: ServiceBookingMode;
+        };
+        Returns: string;
+      };
+      cammi_connect_admin_set_service_active: {
+        Args: {
+          p_actor_profile_id: string;
+          p_service_id: string;
           p_is_active: boolean;
         };
         Returns: undefined;
