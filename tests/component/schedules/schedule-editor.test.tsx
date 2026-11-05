@@ -8,6 +8,8 @@ import {
 } from "@/components/schedules/schedule-editor";
 import type { ScheduleException, WeeklySchedule } from "@/lib/schedules/types";
 import {
+  addScheduleExceptionAction,
+  adminAddHolidayAction,
   removeScheduleExceptionAction,
   saveSchedulePeriodAction,
 } from "@/server/schedules/actions";
@@ -19,6 +21,8 @@ vi.mock("@/server/schedules/actions", () => ({
   adminSaveSchedulePeriodAction: vi.fn(),
   adminAddScheduleExceptionAction: vi.fn(),
   adminRemoveScheduleExceptionAction: vi.fn(),
+  adminAddHolidayAction: vi.fn(),
+  adminRemoveHolidayAction: vi.fn(),
 }));
 
 const DOCTOR_ID = "00000000-0000-4000-8000-000000000101";
@@ -57,11 +61,28 @@ const SCHEDULES = [
 
 const LEAVE: ScheduleException = {
   id: "00000000-0000-4000-8000-000000000951",
+  doctorId: DOCTOR_ID,
   startsAt: "2026-11-02T00:00:00+08:00",
   endsAt: "2026-11-03T00:00:00+08:00",
   exceptionType: "leave",
   reason: "Annual leave",
 };
+
+const ALL_SAINTS: ScheduleException = {
+  id: "00000000-0000-4000-8000-000000000952",
+  doctorId: null,
+  startsAt: "2026-11-01T00:00:00+08:00",
+  endsAt: "2026-11-02T00:00:00+08:00",
+  exceptionType: "holiday",
+  reason: "All Saints' Day",
+};
+
+async function submitException(user: ReturnType<typeof userEvent.setup>, buttonName: string) {
+  const form = screen.getByRole("form", { name: /^Add / });
+  await user.type(within(form).getByLabelText("From date"), "2026-11-02");
+  await user.type(within(form).getByLabelText("Reason"), "Annual leave");
+  await user.click(within(form).getByRole("button", { name: buttonName }));
+}
 
 describe("SchedulePeriodsSection", () => {
   it("lists several consultation periods under the same weekday", () => {
@@ -199,5 +220,77 @@ describe("ScheduleExceptionsSection", () => {
     render(<ScheduleExceptionsSection editor="doctor" exceptions={[]} />);
 
     expect(screen.getByText("No exceptions in this period.")).toBeInTheDocument();
+  });
+
+  it("marks hospital holidays and leaves their removal to the holidays page", () => {
+    render(<ScheduleExceptionsSection editor="doctor" exceptions={[ALL_SAINTS]} />);
+
+    expect(screen.getByText("Hospital holiday", { selector: "span" })).toBeInTheDocument();
+    expect(screen.getByText("All Saints' Day")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
+  });
+
+  it("lists the appointments that block a new exception", async () => {
+    const user = userEvent.setup();
+    vi.mocked(addScheduleExceptionAction).mockResolvedValue({
+      status: "error",
+      message:
+        "This exception covers 1 existing appointment. Ask the front desk to reschedule or cancel it first.",
+      conflicts: [
+        {
+          appointmentId: "00000000-0000-4000-8000-000000000201",
+          scheduledAt: "2026-11-02T01:00:00.000Z",
+          status: "confirmed",
+        },
+      ],
+    });
+    render(<ScheduleExceptionsSection editor="doctor" exceptions={[]} />);
+
+    await submitException(user, "Add exception");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("This exception covers 1 existing appointment");
+    const blocking = screen.getByRole("list", { name: "Blocking appointments" });
+    expect(within(blocking).getByText("Confirmed")).toBeInTheDocument();
+  });
+});
+
+describe("ScheduleExceptionsSection for hospital holidays", () => {
+  it("lists holidays with a remove control and no type choice", () => {
+    render(<ScheduleExceptionsSection editor="holiday" exceptions={[ALL_SAINTS]} />);
+
+    expect(screen.getByRole("heading", { name: "Hospital holidays" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Type")).toBeNull();
+    expect(screen.getByText("All Saints' Day")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+  });
+
+  it("shows an empty state", () => {
+    render(<ScheduleExceptionsSection editor="holiday" exceptions={[]} />);
+
+    expect(screen.getByText("No hospital holidays in this period.")).toBeInTheDocument();
+  });
+
+  it("names the doctor on each blocking appointment", async () => {
+    const user = userEvent.setup();
+    vi.mocked(adminAddHolidayAction).mockResolvedValue({
+      status: "error",
+      message:
+        "This exception covers 1 existing appointment. Ask the front desk to reschedule or cancel it first.",
+      conflicts: [
+        {
+          appointmentId: "00000000-0000-4000-8000-000000000201",
+          scheduledAt: "2026-11-02T01:00:00.000Z",
+          status: "requested",
+          doctorName: "Dr. Maya Santos",
+        },
+      ],
+    });
+    render(<ScheduleExceptionsSection editor="holiday" exceptions={[]} />);
+
+    await submitException(user, "Add holiday");
+
+    const blocking = await screen.findByRole("list", { name: "Blocking appointments" });
+    expect(within(blocking).getByText("Dr. Maya Santos")).toBeInTheDocument();
+    expect(adminAddHolidayAction).toHaveBeenCalled();
   });
 });

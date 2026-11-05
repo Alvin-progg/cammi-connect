@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { SCHEDULE_EXCEPTION_TYPES, SLOT_DURATIONS } from "./types";
+import { DOCTOR_EXCEPTION_TYPES, SLOT_DURATIONS } from "./types";
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -47,33 +47,56 @@ export const schedulePeriodSchema = z
 
 export type SchedulePeriodInput = z.infer<typeof schedulePeriodSchema>;
 
-export const scheduleExceptionSchema = z
-  .object({
-    startDate: dateField,
-    endDate: z.preprocess(blankToUndefined, dateField.optional()),
-    startTime: z.preprocess(blankToUndefined, timeField("a start time").optional()),
-    endTime: z.preprocess(blankToUndefined, timeField("an end time").optional()),
-    exceptionType: z.enum(SCHEDULE_EXCEPTION_TYPES, "Choose an exception type."),
-    reason: z
-      .string()
-      .trim()
-      .min(3, "Please give a short reason for this exception.")
-      .max(200, "Keep the reason under 200 characters."),
-  })
-  .refine(
-    (value) => (value.startTime === undefined) === (value.endTime === undefined),
-    {
-      message: "Enter both a start and end time, or leave both blank for whole days.",
-      path: ["endTime"],
-    },
-  )
-  .refine(
-    (value) => {
-      const { start, end } = exceptionInterval(value);
-      return end > start;
-    },
-    { message: "The exception must end after it starts.", path: ["endDate"] },
-  );
+const exceptionRangeFields = {
+  startDate: dateField,
+  endDate: z.preprocess(blankToUndefined, dateField.optional()),
+  startTime: z.preprocess(blankToUndefined, timeField("a start time").optional()),
+  endTime: z.preprocess(blankToUndefined, timeField("an end time").optional()),
+  reason: z
+    .string()
+    .trim()
+    .min(3, "Please give a short reason for this exception.")
+    .max(200, "Keep the reason under 200 characters."),
+};
+
+type ExceptionRange = {
+  startDate: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+};
+
+/** The range checks shared by doctor exceptions and hospital holidays. */
+function withRangeChecks<Schema extends z.ZodType<ExceptionRange>>(schema: Schema) {
+  return schema
+    .refine(
+      (value) => (value.startTime === undefined) === (value.endTime === undefined),
+      {
+        message: "Enter both a start and end time, or leave both blank for whole days.",
+        path: ["endTime"],
+      },
+    )
+    .refine(
+      (value) => {
+        const { start, end } = exceptionInterval(value);
+        return end > start;
+      },
+      { message: "The exception must end after it starts.", path: ["endDate"] },
+    );
+}
+
+/** A doctor's own exception. The holiday type is not accepted here. */
+export const scheduleExceptionSchema = withRangeChecks(
+  z.object({
+    ...exceptionRangeFields,
+    exceptionType: z.enum(DOCTOR_EXCEPTION_TYPES, "Choose an exception type."),
+  }),
+);
+
+/** A hospital-wide holiday; its type is always `holiday`. */
+export const hospitalHolidaySchema = withRangeChecks(z.object(exceptionRangeFields));
+
+export type HospitalHolidayInput = z.infer<typeof hospitalHolidaySchema>;
 
 export type ScheduleExceptionInput = z.infer<typeof scheduleExceptionSchema>;
 

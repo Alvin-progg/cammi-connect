@@ -83,6 +83,7 @@ function exception(
 ): ScheduleException {
   return {
     id: "00000000-0000-4000-8000-000000000951",
+    doctorId: "00000000-0000-4000-8000-000000000101",
     exceptionType: "leave",
     reason: "Annual leave",
     ...overrides,

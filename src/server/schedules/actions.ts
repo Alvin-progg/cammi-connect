@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import {
   doctorIdSchema,
   exceptionInterval,
+  hospitalHolidaySchema,
   scheduleExceptionSchema,
   schedulePeriodSchema,
   scheduleRecordIdSchema,
@@ -152,6 +153,7 @@ function addExceptionAction(editor: ScheduleEditor) {
     return toActionState(
       await addScheduleException(
         {
+          actorId: owner.actorId,
           doctorId: owner.doctorId,
           start,
           end,
@@ -181,11 +183,75 @@ function removeExceptionAction(editor: ScheduleEditor) {
 
     return toActionState(
       await removeScheduleException(
-        { doctorId: owner.doctorId, exceptionId: parsed.data },
+        { actorId: owner.actorId, doctorId: owner.doctorId, exceptionId: parsed.data },
         supabaseDoctorSchedulesRepository,
       ),
     );
   };
+}
+
+/** Hospital holidays apply to every doctor, so only an admin manages them. */
+async function resolveHolidayAdmin(): Promise<{ actorId: string } | { denied: ScheduleActionState }> {
+  const session = await getAdminSession("/admin/schedules/exceptions");
+  return session ? { actorId: session.admin.id } : { denied: NOT_AUTHORIZED };
+}
+
+export async function adminAddHolidayAction(
+  _previous: ScheduleActionState,
+  formData: FormData,
+): Promise<ScheduleActionState> {
+  const admin = await resolveHolidayAdmin();
+  if ("denied" in admin) {
+    return admin.denied;
+  }
+
+  const parsed = hospitalHolidaySchema.safeParse({
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+    startTime: formData.get("startTime"),
+    endTime: formData.get("endTime"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: firstIssueMessage(parsed.error) };
+  }
+
+  const { start, end } = exceptionInterval(parsed.data);
+  return toActionState(
+    await addScheduleException(
+      {
+        actorId: admin.actorId,
+        doctorId: null,
+        start,
+        end,
+        exceptionType: "holiday",
+        reason: parsed.data.reason,
+      },
+      supabaseDoctorSchedulesRepository,
+    ),
+  );
+}
+
+export async function adminRemoveHolidayAction(
+  _previous: ScheduleActionState,
+  formData: FormData,
+): Promise<ScheduleActionState> {
+  const admin = await resolveHolidayAdmin();
+  if ("denied" in admin) {
+    return admin.denied;
+  }
+
+  const parsed = scheduleRecordIdSchema.safeParse(formData.get("exceptionId"));
+  if (!parsed.success) {
+    return { status: "error", message: firstIssueMessage(parsed.error) };
+  }
+
+  return toActionState(
+    await removeScheduleException(
+      { actorId: admin.actorId, doctorId: null, exceptionId: parsed.data },
+      supabaseDoctorSchedulesRepository,
+    ),
+  );
 }
 
 export const saveSchedulePeriodAction = savePeriodAction("doctor");

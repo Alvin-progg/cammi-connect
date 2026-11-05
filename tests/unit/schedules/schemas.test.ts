@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   availabilityQuerySchema,
   exceptionInterval,
+  hospitalHolidaySchema,
   scheduleExceptionSchema,
   schedulePeriodSchema,
 } from "@/lib/schedules/schemas";
@@ -120,9 +121,57 @@ describe("scheduleExceptionSchema and exceptionInterval", () => {
     expect(
       scheduleExceptionSchema.safeParse({
         startDate: "2026-11-02",
-        exceptionType: "holiday",
+        exceptionType: "vacation",
         reason: "Holiday",
       }).success,
+    ).toBe(false);
+  });
+});
+
+describe("hospital holidays", () => {
+  it("does not let a doctor's exception form submit the holiday type", () => {
+    const result = scheduleExceptionSchema.safeParse({
+      startDate: "2026-11-02",
+      exceptionType: "holiday",
+      reason: "All Saints' Day",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("parses a whole-day holiday without a type field", () => {
+    const parsed = hospitalHolidaySchema.parse({
+      startDate: "2026-11-01",
+      endDate: "",
+      startTime: "",
+      endTime: "",
+      reason: "All Saints' Day",
+    });
+
+    expect(exceptionInterval(parsed)).toEqual({
+      start: new Date("2026-11-01T00:00:00+08:00"),
+      end: new Date("2026-11-02T00:00:00+08:00"),
+    });
+  });
+
+  it("parses a timed holiday and applies the same range checks", () => {
+    expect(
+      hospitalHolidaySchema.safeParse({
+        startDate: "2026-12-24",
+        startTime: "12:00",
+        endTime: "17:00",
+        reason: "Christmas Eve half day",
+      }).success,
+    ).toBe(true);
+    expect(
+      hospitalHolidaySchema.safeParse({
+        startDate: "2026-12-24",
+        startTime: "12:00",
+        reason: "Christmas Eve half day",
+      }).success,
+    ).toBe(false);
+    expect(
+      hospitalHolidaySchema.safeParse({ startDate: "2026-12-24", reason: "" }).success,
     ).toBe(false);
   });
 });

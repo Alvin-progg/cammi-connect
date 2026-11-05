@@ -355,10 +355,11 @@ export type Database = {
         };
         Relationships: [];
       };
+      /** doctor_id null with exception_type holiday applies to every doctor (0020). */
       schedule_exceptions: {
         Row: {
           id: string;
-          doctor_id: string;
+          doctor_id: string | null;
           start_datetime: string;
           end_datetime: string;
           exception_type: ScheduleExceptionType;
@@ -367,7 +368,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          doctor_id: string;
+          doctor_id: string | null;
           start_datetime: string;
           end_datetime: string;
           exception_type?: ScheduleExceptionType;
@@ -708,6 +709,33 @@ export type Database = {
           p_is_active: boolean;
         };
         Returns: string;
+      };
+      /**
+       * Migration 0020 (ADM-06). Raise P0001 invalid_type, not_authorized,
+       * not_found, or has_appointments. p_doctor_id null is a hospital holiday.
+       */
+      cammi_connect_add_schedule_exception: {
+        Args: {
+          p_actor_profile_id: string;
+          p_doctor_id: string | null;
+          p_exception_type: ScheduleExceptionType;
+          p_start: string;
+          p_end: string;
+          p_reason: string;
+        };
+        Returns: string;
+      };
+      cammi_connect_remove_schedule_exception: {
+        Args: {
+          p_actor_profile_id: string;
+          p_doctor_id: string | null;
+          p_exception_id: string;
+        };
+        Returns: undefined;
+      };
+      cammi_connect_exception_blocks: {
+        Args: { p_doctor_id: string; p_start: string; p_end: string };
+        Returns: boolean;
       };
       cammi_connect_doctor_appointments_outside_hours: {
         Args: { p_doctor_id: string };

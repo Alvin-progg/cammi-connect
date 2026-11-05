@@ -82,7 +82,10 @@ Then run `db/migrations/0009_front_desk_confirm_reject.sql` once, then
 `db/migrations/0015_admin_departments.sql` once, then
 `db/migrations/0016_admin_specialties.sql` once, then
 `db/migrations/0017_admin_doctors.sql` once, then
-`db/migrations/0018_admin_schedules.sql` once. After 0014, re-run
+`db/migrations/0018_admin_schedules.sql` once, then
+`db/migrations/0019_schedule_exception_holiday.sql` **on its own** (it adds an enum
+value that 0020 uses), then `db/migrations/0020_admin_schedule_exceptions.sql` once.
+After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
 department names differ only by case, and 0016 likewise for specialty names;
@@ -333,6 +336,24 @@ now fail.
 - writes `schedule.create`, `schedule.update`, or `schedule.deactivate` to `audit_logs`
   in the same transaction; an unchanged save writes nothing;
 - adds the helper `cammi_connect_doctor_appointments_outside_hours`;
+- every function is executable by `service_role` only.
+
+`0019_schedule_exception_holiday.sql` and `0020_admin_schedule_exceptions.sql` (ADM-06):
+
+- 0019 adds the `holiday` exception type. Run it on its own, before 0020;
+- 0020 lets `schedule_exceptions.doctor_id` be null for a hospital-wide holiday (a
+  check keeps null doctor and type `holiday` together); holidays apply to every doctor;
+- adds `cammi_connect_exception_blocks` and redefines `cammi_connect_book_appointment`,
+  `cammi_connect_confirm_appointment`, `cammi_connect_reschedule_appointment`, and
+  `cammi_connect_front_desk_book_appointment` to use it, so holidays raise `blocked`.
+  Nothing else in those functions changes;
+- adds `cammi_connect_add_schedule_exception` and
+  `cammi_connect_remove_schedule_exception`, the one path for exception changes. They
+  re-check the actor (an active admin, or the active doctor for their own exceptions;
+  holidays are admin only), refuse (`has_appointments`) an exception that covers a
+  requested, confirmed, or checked-in appointment, and write
+  `schedule_exception.create` / `schedule_exception.delete` to `audit_logs` in the same
+  transaction. Adding a holiday locks every `doctors` row, so no booking lands mid-check;
 - every function is executable by `service_role` only.
 
 #### Supabase Auth email templates (ADM-01, manual)
@@ -787,6 +808,27 @@ No real patient data is used.
     - As that doctor at `/doctor`, the same shortening is refused with the same list.
     - In SQL, calling `cammi_connect_save_schedule_period` with another doctor's profile
       as the actor fails with `not_authorized`.
+
+29. Check schedule exceptions and holidays (ADM-06), after applying 0019 then 0020. Use
+    synthetic data only:
+    - Book a Friday 09:00 appointment for a doctor. On that doctor's **Schedules** page,
+      add leave for that Friday: the save is refused and the appointment is listed;
+      nothing is written. Cancel the appointment at the front desk, add the leave again:
+      it saves, and Cami and the front desk offer no Friday slots for that doctor.
+      `audit_logs` has a `schedule_exception.create` row.
+    - As that doctor at `/doctor`, the type list has no **Hospital holiday** and the same
+      refusal applies to their own exceptions.
+    - As the admin, open **Schedules → Hospital holidays** and add a whole-day holiday on
+      a date with a booking: it is refused and the list names the doctor. On a free
+      date it saves; no doctor is offered slots that day, and each doctor's exception
+      list shows it as "Applies to all doctors" with no Remove button. Remove it from the
+      holidays page: `schedule_exception.delete` is logged with the old values.
+    - In SQL, calling `cammi_connect_add_schedule_exception` with a doctor actor and a
+      null doctor fails with `not_authorized`; calling it with type `holiday` and a
+      doctor id fails with `invalid_type`; inserting a holiday-covered slot through
+      `cammi_connect_book_appointment` raises `blocked`.
+    - For the double-booking guard, run step 14's concurrency check again: of two
+      parallel bookings of the same slot, exactly one succeeds.
 
 ## Troubleshooting
 

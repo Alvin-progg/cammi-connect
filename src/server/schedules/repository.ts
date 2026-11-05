@@ -2,6 +2,7 @@ import "server-only";
 
 import { SLOT_HOLDING_STATUSES } from "@/lib/appointments/status";
 import type {
+  ScheduleConflict,
   ScheduleException,
   UpcomingAppointment,
   WeeklySchedule,
@@ -9,7 +10,7 @@ import type {
 import { supabaseDoctorAppointmentsRepository } from "@/server/appointments/repository";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
-import type { DoctorSchedulesStore } from "./service";
+import type { DoctorSchedulesStore, StoreWriteOutcome } from "./service";
 
 const EXCLUSION_VIOLATION = "23P01";
 
@@ -29,8 +30,32 @@ function refusalCode(error: { code?: string; message: string }): string | undefi
   if (error.code === EXCLUSION_VIOLATION) {
     return "overlap";
   }
-  console.error("Schedule period save failed.");
+  console.error("Schedule save failed.");
   return undefined;
+}
+
+function toWriteOutcome(error: { code?: string; message: string } | null): StoreWriteOutcome {
+  return error ? { ok: false, code: refusalCode(error) } : { ok: true };
+}
+
+const EXCEPTION_COLUMNS = "id, doctor_id, start_datetime, end_datetime, exception_type, reason";
+
+function toScheduleException(row: {
+  id: string;
+  doctor_id: string | null;
+  start_datetime: string;
+  end_datetime: string;
+  exception_type: ScheduleException["exceptionType"];
+  reason: string;
+}): ScheduleException {
+  return {
+    id: row.id,
+    doctorId: row.doctor_id,
+    startsAt: row.start_datetime,
+    endsAt: row.end_datetime,
+    exceptionType: row.exception_type,
+    reason: row.reason,
+  };
 }
 
 async function loadSchedules(doctorIds: string[]): Promise<WeeklySchedule[]> {
@@ -70,12 +95,12 @@ export const supabaseDoctorSchedulesRepository: DoctorSchedulesStore = {
     return doctorIds.length === 0 ? Promise.resolve([]) : loadSchedules(doctorIds);
   },
 
+  /** The doctor's own exceptions plus hospital holidays, which apply to everyone. */
   async listExceptionsForDoctor({ doctorId, start, end }) {
-    const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseAdminClient()
       .from("schedule_exceptions")
-      .select("id, start_datetime, end_datetime, exception_type, reason")
-      .eq("doctor_id", doctorId)
+      .select(EXCEPTION_COLUMNS)
+      .or(`doctor_id.eq.${doctorId},doctor_id.is.null`)
       .lt("start_datetime", end)
       .gt("end_datetime", start)
       .order("start_datetime", { ascending: true });
@@ -83,15 +108,22 @@ export const supabaseDoctorSchedulesRepository: DoctorSchedulesStore = {
     if (error) {
       throw new Error("Unable to load schedule exceptions.");
     }
-    return (data ?? []).map(
-      (row): ScheduleException => ({
-        id: row.id,
-        startsAt: row.start_datetime,
-        endsAt: row.end_datetime,
-        exceptionType: row.exception_type,
-        reason: row.reason,
-      }),
-    );
+    return (data ?? []).map(toScheduleException);
+  },
+
+  async listHolidays({ start, end }) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from("schedule_exceptions")
+      .select(EXCEPTION_COLUMNS)
+      .is("doctor_id", null)
+      .lt("start_datetime", end)
+      .gt("end_datetime", start)
+      .order("start_datetime", { ascending: true });
+
+    if (error) {
+      throw new Error("Unable to load hospital holidays.");
+    }
+    return (data ?? []).map(toScheduleException);
   },
 
   async savePeriod({ actorId, doctorId, periodId, ...period }) {
@@ -133,33 +165,66 @@ export const supabaseDoctorSchedulesRepository: DoctorSchedulesStore = {
   },
 
   async addException(input) {
-    const supabase = getSupabaseAdminClient();
-    const { error } = await supabase.from("schedule_exceptions").insert({
-      doctor_id: input.doctorId,
-      start_datetime: input.startsAt,
-      end_datetime: input.endsAt,
-      exception_type: input.exceptionType,
-      reason: input.reason,
+    const { error } = await getSupabaseAdminClient().rpc("cammi_connect_add_schedule_exception", {
+      p_actor_profile_id: input.actorId,
+      p_doctor_id: input.doctorId,
+      p_exception_type: input.exceptionType,
+      p_start: input.startsAt,
+      p_end: input.endsAt,
+      p_reason: input.reason,
     });
-
-    if (error) {
-      throw new Error("Unable to add the schedule exception.");
-    }
+    return toWriteOutcome(error);
   },
 
-  async removeException({ doctorId, exceptionId }) {
-    const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("schedule_exceptions")
-      .delete()
-      .eq("id", exceptionId)
-      .eq("doctor_id", doctorId)
-      .select("id");
+  async removeException({ actorId, doctorId, exceptionId }) {
+    const { error } = await getSupabaseAdminClient().rpc(
+      "cammi_connect_remove_schedule_exception",
+      {
+        p_actor_profile_id: actorId,
+        p_doctor_id: doctorId,
+        p_exception_id: exceptionId,
+      },
+    );
+    return toWriteOutcome(error);
+  },
 
-    if (error) {
-      throw new Error("Unable to remove the schedule exception.");
+  async listOverlappingAppointments({ doctorId, start, end }) {
+    const supabase = getSupabaseAdminClient();
+    let query = supabase
+      .from("appointments")
+      .select("id, doctor_id, scheduled_at, status")
+      .in("status", [...SLOT_HOLDING_STATUSES])
+      .lt("scheduled_at", end)
+      .gt("scheduled_end_at", start)
+      .order("scheduled_at", { ascending: true });
+    if (doctorId !== null) {
+      query = query.eq("doctor_id", doctorId);
     }
-    return (data ?? []).length > 0;
+
+    const { data, error } = await query;
+    if (error) {
+      throw new Error("Unable to check appointments in that range.");
+    }
+    const rows = data ?? [];
+    const toConflict = (row: (typeof rows)[number]): ScheduleConflict => ({
+      appointmentId: row.id,
+      scheduledAt: row.scheduled_at,
+      status: row.status,
+    });
+    if (doctorId !== null || rows.length === 0) {
+      return rows.map(toConflict);
+    }
+
+    // A holiday spans every doctor, so name the doctor on each appointment.
+    const { data: doctors, error: doctorsError } = await supabase
+      .from("doctors")
+      .select("id, full_name")
+      .in("id", [...new Set(rows.map((row) => row.doctor_id))]);
+    if (doctorsError) {
+      throw new Error("Unable to check appointments in that range.");
+    }
+    const names = new Map((doctors ?? []).map((doctor) => [doctor.id, doctor.full_name]));
+    return rows.map((row) => ({ ...toConflict(row), doctorName: names.get(row.doctor_id) }));
   },
 
   listActiveIntervals(input) {

@@ -1,6 +1,5 @@
 import "server-only";
 
-import { intervalsOverlap } from "@/lib/schedules/availability";
 import {
   findAppointmentsOutsideSchedule,
   findOverlappingPeriod,
@@ -16,8 +15,11 @@ import {
   type WeeklySchedule,
 } from "@/lib/schedules/types";
 
-/** `code` is the database refusal, e.g. overlap, not_found, orphans_appointments. */
-export type PeriodSaveOutcome = { ok: true } | { ok: false; code: string | undefined };
+/**
+ * `code` is the database refusal, e.g. overlap, not_found,
+ * orphans_appointments, or has_appointments; undefined when unexpected.
+ */
+export type StoreWriteOutcome = { ok: true } | { ok: false; code: string | undefined };
 
 /**
  * Data access contract for doctor schedules and exceptions. Every method is
@@ -40,20 +42,39 @@ export type DoctorSchedulesStore = {
    */
   savePeriod(
     input: { actorId: string; doctorId: string; periodId: string | null } & SchedulePeriodInput,
-  ): Promise<PeriodSaveOutcome>;
+  ): Promise<StoreWriteOutcome>;
   /** Slot-holding appointments starting at or after `from`, soonest first. */
   listUpcomingAppointments(input: { doctorId: string; from: string }): Promise<UpcomingAppointment[]>;
+  /**
+   * Adds an exception and its audit row in one transaction; `doctorId` null
+   * is a hospital holiday. The database refuses one that covers a
+   * slot-holding appointment (has_appointments).
+   */
   addException(input: {
-    doctorId: string;
+    actorId: string;
+    doctorId: string | null;
     startsAt: string;
     endsAt: string;
     exceptionType: ScheduleExceptionType;
     reason: string;
-  }): Promise<void>;
+  }): Promise<StoreWriteOutcome>;
+  /** Removes the doctor's exception (or, with `doctorId` null, a holiday), audited. */
   removeException(input: {
-    doctorId: string;
+    actorId: string;
+    doctorId: string | null;
     exceptionId: string;
-  }): Promise<boolean>;
+  }): Promise<StoreWriteOutcome>;
+  /**
+   * Slot-holding appointments overlapping [start, end): one doctor's, or every
+   * doctor's (with `doctorName`) when `doctorId` is null. Soonest first.
+   */
+  listOverlappingAppointments(input: {
+    doctorId: string | null;
+    start: string;
+    end: string;
+  }): Promise<ScheduleConflict[]>;
+  /** Hospital holidays overlapping [start, end). */
+  listHolidays(input: { start: string; end: string }): Promise<ScheduleException[]>;
   /** Slot-holding (SLOT_HOLDING_STATUSES) appointment intervals starting in [start, end). */
   listActiveIntervals(input: {
     doctorId: string;
@@ -69,19 +90,18 @@ export type ScheduleResult =
 const PERIOD_GONE = "That schedule period no longer exists.";
 const GENERIC_FAILURE = "Something went wrong. Try again.";
 
-function toIntervals(rows: { start: string; end: string }[]) {
-  return rows.map((row) => ({ start: new Date(row.start), end: new Date(row.end) }));
-}
-
-function appointmentCount(count: number): string {
-  return count === 1 ? "1 existing appointment" : `${count} existing appointments`;
-}
-
 export async function listDoctorSchedules(
   doctorId: string,
   store: DoctorSchedulesStore,
 ): Promise<WeeklySchedule[]> {
   return store.listSchedulesForDoctor(doctorId);
+}
+
+export async function listHospitalHolidays(
+  input: { start: Date; end: Date },
+  store: Pick<DoctorSchedulesStore, "listHolidays">,
+): Promise<ScheduleException[]> {
+  return store.listHolidays({ start: input.start.toISOString(), end: input.end.toISOString() });
 }
 
 export async function listDoctorExceptions(
@@ -179,14 +199,24 @@ export async function saveSchedulePeriod(
   }
 }
 
+function coveredMessage(count: number): string {
+  const appointments = count === 1 ? "1 existing appointment" : `${count} existing appointments`;
+  return `This exception covers ${appointments}. Ask the front desk to reschedule or cancel ${
+    count === 1 ? "it" : "them"
+  } first.`;
+}
+
 /**
- * Adds an unavailability interval. New bookings inside it are refused by the
- * availability check and the booking function; existing appointments are
- * kept and reported.
+ * Adds an unavailability interval; `doctorId` null adds a hospital holiday
+ * for every doctor. An interval that covers a requested, confirmed, or
+ * checked-in appointment is refused and the appointments are returned
+ * (spec-admin ADM-06, D6); nothing is moved or cancelled. The database
+ * re-checks inside the save transaction.
  */
 export async function addScheduleException(
   input: {
-    doctorId: string;
+    actorId: string;
+    doctorId: string | null;
     start: Date;
     end: Date;
     exceptionType: ScheduleExceptionType;
@@ -194,46 +224,51 @@ export async function addScheduleException(
   },
   store: DoctorSchedulesStore,
 ): Promise<ScheduleResult> {
-  await store.addException({
+  const range = {
     doctorId: input.doctorId,
-    startsAt: input.start.toISOString(),
-    endsAt: input.end.toISOString(),
+    start: input.start.toISOString(),
+    end: input.end.toISOString(),
+  };
+
+  const covered = await store.listOverlappingAppointments(range);
+  if (covered.length > 0) {
+    return { ok: false, message: coveredMessage(covered.length), conflicts: covered };
+  }
+
+  const outcome = await store.addException({
+    actorId: input.actorId,
+    doctorId: input.doctorId,
+    startsAt: range.start,
+    endsAt: range.end,
     exceptionType: input.exceptionType,
     reason: input.reason,
   });
-
-  // Appointments that start before the exception may still run into it, so
-  // look back one day (longer than any consultation) and filter by overlap.
-  const lookBack = new Date(input.start.getTime() - 24 * 60 * 60 * 1000);
-  const nearby = await store.listActiveIntervals({
-    doctorId: input.doctorId,
-    start: lookBack.toISOString(),
-    end: input.end.toISOString(),
-  });
-  const affected = toIntervals(nearby).filter((appointment) =>
-    intervalsOverlap(appointment, { start: input.start, end: input.end }),
-  ).length;
-
-  if (affected === 0) {
-    return { ok: true, message: "Exception added." };
+  if (outcome.ok) {
+    return { ok: true, message: input.doctorId === null ? "Holiday added." : "Exception added." };
   }
-  return {
-    ok: true,
-    message: `Exception added. ${appointmentCount(affected)} ${
-      affected === 1 ? "falls" : "fall"
-    } inside it and ${affected === 1 ? "was" : "were"} kept; review ${
-      affected === 1 ? "it" : "them"
-    } in the appointment list.`,
-  };
+  if (outcome.code === "has_appointments") {
+    // A booking landed between the check above and the save.
+    const conflicts = await store.listOverlappingAppointments(range);
+    return { ok: false, message: coveredMessage(Math.max(conflicts.length, 1)), conflicts };
+  }
+  return { ok: false, message: GENERIC_FAILURE };
 }
 
 export async function removeScheduleException(
-  input: { doctorId: string; exceptionId: string },
+  input: { actorId: string; doctorId: string | null; exceptionId: string },
   store: DoctorSchedulesStore,
 ): Promise<ScheduleResult> {
-  const removed = await store.removeException(input);
-  if (!removed) {
-    return { ok: false, message: "That exception was already removed." };
+  const outcome = await store.removeException(input);
+  if (outcome.ok) {
+    return { ok: true, message: input.doctorId === null ? "Holiday removed." : "Exception removed." };
   }
-  return { ok: true, message: "Exception removed." };
+  if (outcome.code === "not_found") {
+    return {
+      ok: false,
+      message: input.doctorId === null
+        ? "That holiday was already removed."
+        : "That exception was already removed.",
+    };
+  }
+  return { ok: false, message: GENERIC_FAILURE };
 }

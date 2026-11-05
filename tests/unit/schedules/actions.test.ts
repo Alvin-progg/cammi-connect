@@ -7,7 +7,9 @@ import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import { supabaseDoctorSchedulesRepository } from "@/server/schedules/repository";
 import {
   addScheduleExceptionAction,
+  adminAddHolidayAction,
   adminAddScheduleExceptionAction,
+  adminRemoveHolidayAction,
   adminRemoveScheduleExceptionAction,
   adminSaveSchedulePeriodAction,
   removeScheduleExceptionAction,
@@ -31,6 +33,8 @@ vi.mock("@/server/schedules/repository", () => ({
     listUpcomingAppointments: vi.fn(),
     addException: vi.fn(),
     removeException: vi.fn(),
+    listOverlappingAppointments: vi.fn(),
+    listHolidays: vi.fn(),
     listActiveIntervals: vi.fn(),
   },
 }));
@@ -83,8 +87,9 @@ beforeEach(() => {
   store.listSchedulesForDoctor.mockResolvedValue([]);
   store.savePeriod.mockResolvedValue({ ok: true });
   store.listUpcomingAppointments.mockResolvedValue([]);
-  store.addException.mockResolvedValue(undefined);
-  store.removeException.mockResolvedValue(true);
+  store.addException.mockResolvedValue({ ok: true });
+  store.removeException.mockResolvedValue({ ok: true });
+  store.listOverlappingAppointments.mockResolvedValue([]);
   store.listActiveIntervals.mockResolvedValue([]);
 });
 
@@ -155,9 +160,53 @@ describe("doctor schedule actions", () => {
     );
 
     expect(store.removeException).toHaveBeenCalledWith({
+      actorId: OWN_DOCTOR_ID,
       doctorId: OWN_DOCTOR_ID,
       exceptionId: EXCEPTION_ID,
     });
+  });
+
+  it("adds exceptions for the session doctor as the actor", async () => {
+    vi.mocked(getDoctorSession).mockResolvedValue(DOCTOR_SESSION);
+
+    await expect(
+      addScheduleExceptionAction(
+        IDLE,
+        formData({ ...EXCEPTION_FIELDS, doctorId: OTHER_DOCTOR_ID }),
+      ),
+    ).resolves.toEqual({ status: "success", message: "Exception added." });
+    expect(store.addException).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: OWN_DOCTOR_ID,
+        doctorId: OWN_DOCTOR_ID,
+        exceptionType: "leave",
+      }),
+    );
+  });
+
+  it("never lets a doctor add a hospital holiday", async () => {
+    vi.mocked(getDoctorSession).mockResolvedValue(DOCTOR_SESSION);
+
+    await expect(
+      addScheduleExceptionAction(IDLE, formData({ ...EXCEPTION_FIELDS, exceptionType: "holiday" })),
+    ).resolves.toMatchObject({ status: "error" });
+    expect(store.addException).not.toHaveBeenCalled();
+  });
+
+  it("returns the appointments that block an exception", async () => {
+    vi.mocked(getDoctorSession).mockResolvedValue(DOCTOR_SESSION);
+    const conflict = {
+      appointmentId: "00000000-0000-4000-8000-000000000201",
+      scheduledAt: "2026-11-02T01:00:00.000Z",
+      status: "confirmed" as const,
+    };
+    store.listOverlappingAppointments.mockResolvedValue([conflict]);
+
+    await expect(
+      addScheduleExceptionAction(IDLE, formData(EXCEPTION_FIELDS)),
+    ).resolves.toMatchObject({ status: "error", conflicts: [conflict] });
+    expect(store.addException).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it("denies accounts without the doctor role", async () => {
@@ -248,5 +297,73 @@ describe("admin schedule actions", () => {
       ),
     ).resolves.toEqual({ status: "error", message: "That doctor no longer exists." });
     expect(store.savePeriod).not.toHaveBeenCalled();
+  });
+});
+
+describe("hospital holiday actions", () => {
+  const HOLIDAY_FIELDS = {
+    startDate: "2026-11-01",
+    endDate: "",
+    startTime: "",
+    endTime: "",
+    reason: "All Saints' Day",
+  };
+
+  it("adds a holiday for every doctor as the admin", async () => {
+    vi.mocked(getAdminSession).mockResolvedValue(ADMIN_SESSION);
+
+    await expect(
+      adminAddHolidayAction(IDLE, formData({ ...HOLIDAY_FIELDS, doctorId: OTHER_DOCTOR_ID })),
+    ).resolves.toEqual({ status: "success", message: "Holiday added." });
+    expect(store.listOverlappingAppointments).toHaveBeenCalledWith(
+      expect.objectContaining({ doctorId: null }),
+    );
+    expect(store.addException).toHaveBeenCalledWith({
+      actorId: ADMIN_SESSION.admin.id,
+      doctorId: null,
+      startsAt: "2026-10-31T16:00:00.000Z",
+      endsAt: "2026-11-01T16:00:00.000Z",
+      exceptionType: "holiday",
+      reason: "All Saints' Day",
+    });
+    expect(getAdminSession).toHaveBeenCalledWith("/admin/schedules/exceptions");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");
+    expect(revalidatePath).toHaveBeenCalledWith("/doctor");
+  });
+
+  it("removes a holiday as the admin", async () => {
+    vi.mocked(getAdminSession).mockResolvedValue(ADMIN_SESSION);
+
+    await expect(
+      adminRemoveHolidayAction(IDLE, formData({ exceptionId: EXCEPTION_ID })),
+    ).resolves.toEqual({ status: "success", message: "Holiday removed." });
+    expect(store.removeException).toHaveBeenCalledWith({
+      actorId: ADMIN_SESSION.admin.id,
+      doctorId: null,
+      exceptionId: EXCEPTION_ID,
+    });
+  });
+
+  it("denies everyone without an admin session", async () => {
+    vi.mocked(getAdminSession).mockResolvedValue(null);
+
+    await expect(adminAddHolidayAction(IDLE, formData(HOLIDAY_FIELDS))).resolves.toEqual({
+      status: "error",
+      message: "You are not authorized to manage this schedule.",
+    });
+    await expect(
+      adminRemoveHolidayAction(IDLE, formData({ exceptionId: EXCEPTION_ID })),
+    ).resolves.toMatchObject({ status: "error" });
+    expect(store.addException).not.toHaveBeenCalled();
+    expect(store.removeException).not.toHaveBeenCalled();
+  });
+
+  it("returns validation errors without writing", async () => {
+    vi.mocked(getAdminSession).mockResolvedValue(ADMIN_SESSION);
+
+    await expect(
+      adminAddHolidayAction(IDLE, formData({ ...HOLIDAY_FIELDS, reason: "" })),
+    ).resolves.toMatchObject({ status: "error" });
+    expect(store.addException).not.toHaveBeenCalled();
   });
 });
