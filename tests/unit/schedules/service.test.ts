@@ -46,8 +46,10 @@ function createStore(overrides: Partial<DoctorSchedulesStore> = {}): DoctorSched
     listExceptionsForDoctor: vi.fn().mockResolvedValue([]),
     savePeriod: vi.fn().mockResolvedValue({ ok: true }),
     listUpcomingAppointments: vi.fn().mockResolvedValue([]),
-    addException: vi.fn().mockResolvedValue(undefined),
-    removeException: vi.fn().mockResolvedValue(true),
+    addException: vi.fn().mockResolvedValue({ ok: true }),
+    removeException: vi.fn().mockResolvedValue({ ok: true }),
+    listOverlappingAppointments: vi.fn().mockResolvedValue([]),
+    listHolidays: vi.fn().mockResolvedValue([]),
     listActiveIntervals: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
@@ -259,13 +261,22 @@ describe("addScheduleException", () => {
     reason: "Annual leave",
   };
 
-  it("stores a typed exception for the doctor", async () => {
+  const COVERED_MESSAGE =
+    "This exception covers 1 existing appointment. Ask the front desk to reschedule or cancel it first.";
+
+  it("stores a typed exception for the doctor as the acting user", async () => {
     const store = createStore();
 
     await expect(
-      addScheduleException({ doctorId: DOCTOR_ID, ...LEAVE }, store),
+      addScheduleException({ actorId: ACTOR_ID, doctorId: DOCTOR_ID, ...LEAVE }, store),
     ).resolves.toEqual({ ok: true, message: "Exception added." });
+    expect(store.listOverlappingAppointments).toHaveBeenCalledWith({
+      doctorId: DOCTOR_ID,
+      start: LEAVE.start.toISOString(),
+      end: LEAVE.end.toISOString(),
+    });
     expect(store.addException).toHaveBeenCalledWith({
+      actorId: ACTOR_ID,
       doctorId: DOCTOR_ID,
       startsAt: LEAVE.start.toISOString(),
       endsAt: LEAVE.end.toISOString(),
@@ -274,34 +285,114 @@ describe("addScheduleException", () => {
     });
   });
 
-  it("reports existing appointments inside the exception without changing them", async () => {
+  it("refuses an exception over an existing appointment, listing it without writing", async () => {
     const store = createStore({
-      listActiveIntervals: vi.fn().mockResolvedValue([
-        { start: "2026-11-02T01:00:00.000Z", end: "2026-11-02T01:30:00.000Z" },
-        { start: "2026-11-02T02:00:00.000Z", end: "2026-11-02T02:30:00.000Z" },
-      ]),
+      listOverlappingAppointments: vi.fn().mockResolvedValue([MONDAY_CONFLICT]),
     });
 
     await expect(
-      addScheduleException({ doctorId: DOCTOR_ID, ...LEAVE }, store),
-    ).resolves.toEqual({
-      ok: true,
-      message:
-        "Exception added. 2 existing appointments fall inside it and were kept; review them in the appointment list.",
+      addScheduleException({ actorId: ACTOR_ID, doctorId: DOCTOR_ID, ...LEAVE }, store),
+    ).resolves.toEqual({ ok: false, message: COVERED_MESSAGE, conflicts: [MONDAY_CONFLICT] });
+    expect(store.addException).not.toHaveBeenCalled();
+  });
+
+  it("pluralizes the refusal for several appointments", async () => {
+    const second = { ...MONDAY_CONFLICT, appointmentId: "00000000-0000-4000-8000-000000000202" };
+    const store = createStore({
+      listOverlappingAppointments: vi.fn().mockResolvedValue([MONDAY_CONFLICT, second]),
     });
+
+    const result = await addScheduleException(
+      { actorId: ACTOR_ID, doctorId: DOCTOR_ID, ...LEAVE },
+      store,
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      message:
+        "This exception covers 2 existing appointments. Ask the front desk to reschedule or cancel them first.",
+    });
+  });
+
+  it("lists the conflicts when the database refuses a booking that slipped in", async () => {
+    const listOverlappingAppointments = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([MONDAY_CONFLICT]);
+    const store = createStore({
+      listOverlappingAppointments,
+      addException: vi.fn().mockResolvedValue({ ok: false, code: "has_appointments" }),
+    });
+
+    await expect(
+      addScheduleException({ actorId: ACTOR_ID, doctorId: DOCTOR_ID, ...LEAVE }, store),
+    ).resolves.toEqual({ ok: false, message: COVERED_MESSAGE, conflicts: [MONDAY_CONFLICT] });
+  });
+
+  it("checks every doctor's appointments for a hospital holiday", async () => {
+    const store = createStore();
+
+    await expect(
+      addScheduleException(
+        { actorId: ACTOR_ID, doctorId: null, ...LEAVE, exceptionType: "holiday", reason: "All Saints' Day" },
+        store,
+      ),
+    ).resolves.toEqual({ ok: true, message: "Holiday added." });
+    expect(store.listOverlappingAppointments).toHaveBeenCalledWith({
+      doctorId: null,
+      start: LEAVE.start.toISOString(),
+      end: LEAVE.end.toISOString(),
+    });
+    expect(store.addException).toHaveBeenCalledWith(
+      expect.objectContaining({ doctorId: null, exceptionType: "holiday" }),
+    );
+  });
+
+  it("hides unexpected database refusals behind a generic message", async () => {
+    const store = createStore({
+      addException: vi.fn().mockResolvedValue({ ok: false, code: undefined }),
+    });
+
+    await expect(
+      addScheduleException({ actorId: ACTOR_ID, doctorId: DOCTOR_ID, ...LEAVE }, store),
+    ).resolves.toEqual({ ok: false, message: "Something went wrong. Try again." });
   });
 });
 
 describe("removeScheduleException", () => {
-  it("reports a missing exception", async () => {
-    const store = createStore({ removeException: vi.fn().mockResolvedValue(false) });
+  it("removes the exception as the acting user", async () => {
+    const store = createStore();
 
     await expect(
-      removeScheduleException({ doctorId: DOCTOR_ID, exceptionId: PERIOD_ID }, store),
-    ).resolves.toEqual({ ok: false, message: "That exception was already removed." });
+      removeScheduleException(
+        { actorId: ACTOR_ID, doctorId: DOCTOR_ID, exceptionId: PERIOD_ID },
+        store,
+      ),
+    ).resolves.toEqual({ ok: true, message: "Exception removed." });
     expect(store.removeException).toHaveBeenCalledWith({
+      actorId: ACTOR_ID,
       doctorId: DOCTOR_ID,
       exceptionId: PERIOD_ID,
     });
+  });
+
+  it("reports a missing exception", async () => {
+    const store = createStore({
+      removeException: vi.fn().mockResolvedValue({ ok: false, code: "not_found" }),
+    });
+
+    await expect(
+      removeScheduleException(
+        { actorId: ACTOR_ID, doctorId: DOCTOR_ID, exceptionId: PERIOD_ID },
+        store,
+      ),
+    ).resolves.toEqual({ ok: false, message: "That exception was already removed." });
+  });
+
+  it("names a removed holiday as such", async () => {
+    const store = createStore();
+
+    await expect(
+      removeScheduleException({ actorId: ACTOR_ID, doctorId: null, exceptionId: PERIOD_ID }, store),
+    ).resolves.toEqual({ ok: true, message: "Holiday removed." });
   });
 });

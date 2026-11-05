@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AccessDenied } from "@/components/auth/access-denied";
@@ -101,7 +102,12 @@ export default async function AdminSchedulesPage({
         crumbs={[{ label: "Schedules" }]}
       >
         <div className="flex flex-col gap-6">
-          {picker}
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            {picker}
+            <Link href="/admin/schedules/exceptions" className={SECONDARY_BUTTON_CLASS}>
+              Hospital holidays
+            </Link>
+          </div>
           <form
             method="get"
             action="/admin/schedules"

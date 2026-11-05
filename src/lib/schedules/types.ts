@@ -26,17 +26,26 @@ export type ScheduleConflict = {
   appointmentId: string;
   scheduledAt: string;
   status: AppointmentStatus;
+  /** Set when the change spans several doctors, i.e. a hospital holiday. */
+  doctorName?: string;
 };
 
 /** An upcoming slot-holding appointment, with its end, for the hours check. */
 export type UpcomingAppointment = ScheduleConflict & { scheduledEndAt: string };
 
-export const SCHEDULE_EXCEPTION_TYPES = [
+/** Exception types a doctor (or an admin, for one doctor) can add. */
+export const DOCTOR_EXCEPTION_TYPES = [
   "leave",
   "blocked_period",
   "unavailable_date",
   "temporary_change",
 ] as const;
+
+/**
+ * Every stored type. A `holiday` has no doctor and applies to all doctors;
+ * only admins add it, from the hospital holidays page.
+ */
+export const SCHEDULE_EXCEPTION_TYPES = [...DOCTOR_EXCEPTION_TYPES, "holiday"] as const;
 
 export type ScheduleExceptionType = (typeof SCHEDULE_EXCEPTION_TYPES)[number];
 
@@ -45,11 +54,14 @@ export const SCHEDULE_EXCEPTION_LABELS: Record<ScheduleExceptionType, string> = 
   blocked_period: "Blocked period",
   unavailable_date: "Unavailable date",
   temporary_change: "Temporary change",
+  holiday: "Hospital holiday",
 };
 
 /** An interval where the doctor is unavailable. Always removes availability. */
 export type ScheduleException = {
   id: string;
+  /** null for a hospital holiday, which applies to every doctor. */
+  doctorId: string | null;
   startsAt: string;
   endsAt: string;
   exceptionType: ScheduleExceptionType;

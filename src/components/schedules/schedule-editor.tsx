@@ -13,8 +13,8 @@ import { manilaDateOfTimestamp } from "@/lib/appointments/stats";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
 import { groupPeriodsByWeekday, periodEffectiveLabel } from "@/lib/schedules/calendar";
 import {
+  DOCTOR_EXCEPTION_TYPES,
   SCHEDULE_EXCEPTION_LABELS,
-  SCHEDULE_EXCEPTION_TYPES,
   SLOT_DURATIONS,
   WEEKDAY_LABELS,
   type ScheduleException,
@@ -22,7 +22,9 @@ import {
 } from "@/lib/schedules/types";
 import {
   addScheduleExceptionAction,
+  adminAddHolidayAction,
   adminAddScheduleExceptionAction,
+  adminRemoveHolidayAction,
   adminRemoveScheduleExceptionAction,
   adminSaveSchedulePeriodAction,
   removeScheduleExceptionAction,
@@ -38,16 +40,29 @@ type EditorProps =
   | { editor: "doctor"; doctorId?: undefined }
   | { editor: "admin"; doctorId: string };
 
-const ACTIONS = {
+const PERIOD_ACTIONS = {
+  doctor: saveSchedulePeriodAction,
+  admin: adminSaveSchedulePeriodAction,
+} as const;
+
+/**
+ * The exceptions list also serves the admin's hospital holidays page
+ * ("holiday"), where every entry applies to all doctors.
+ */
+type ExceptionEditorProps = EditorProps | { editor: "holiday"; doctorId?: undefined };
+
+const EXCEPTION_ACTIONS = {
   doctor: {
-    savePeriod: saveSchedulePeriodAction,
     addException: addScheduleExceptionAction,
     removeException: removeScheduleExceptionAction,
   },
   admin: {
-    savePeriod: adminSaveSchedulePeriodAction,
     addException: adminAddScheduleExceptionAction,
     removeException: adminRemoveScheduleExceptionAction,
+  },
+  holiday: {
+    addException: adminAddHolidayAction,
+    removeException: adminRemoveHolidayAction,
   },
 } as const;
 
@@ -86,7 +101,7 @@ function useCloseDisclosure() {
   return [detailsRef, close] as const;
 }
 
-/** The error, plus any upcoming appointments that blocked a period save. */
+/** The error, plus any appointments that blocked a period or exception save. */
 function FormError({ state }: { state: ScheduleActionState }) {
   if (state.status !== "error") {
     return null;
@@ -102,6 +117,9 @@ function FormError({ state }: { state: ScheduleActionState }) {
           {conflicts.map((conflict) => (
             <li key={conflict.appointmentId} className="flex flex-wrap gap-x-3 py-2">
               <span className="font-medium text-ink">{formatManilaDateTime(conflict.scheduledAt)}</span>
+              {conflict.doctorName ? (
+                <span className="text-ink">{conflict.doctorName}</span>
+              ) : null}
               <span className="text-ink-secondary">{APPOINTMENT_STATUS_LABELS[conflict.status]}</span>
             </li>
           ))}
@@ -219,7 +237,7 @@ function PeriodRow({
 }: EditorProps & { period: WeeklySchedule; today: string }) {
   const [detailsRef, closeDetails] = useCloseDisclosure();
   const [state, formAction, pending] = useActionState(
-    ACTIONS[editorProps.editor].savePeriod,
+    PERIOD_ACTIONS[editorProps.editor],
     IDLE_STATE,
   );
   useScheduleToast(state, closeDetails);
@@ -289,7 +307,7 @@ function AddPeriodForm({ today, ...editorProps }: EditorProps & { today: string 
   const formRef = useRef<HTMLFormElement>(null);
   const [detailsRef, closeDetails] = useCloseDisclosure();
   const [state, formAction, pending] = useActionState(
-    ACTIONS[editorProps.editor].savePeriod,
+    PERIOD_ACTIONS[editorProps.editor],
     IDLE_STATE,
   );
   const onSuccess = useCallback(() => {
@@ -421,11 +439,12 @@ export function SchedulePeriodsSection({
   );
 }
 
-function AddExceptionForm(editorProps: EditorProps) {
+function AddExceptionForm(editorProps: ExceptionEditorProps) {
+  const isHoliday = editorProps.editor === "holiday";
   const formRef = useRef<HTMLFormElement>(null);
   const [detailsRef, closeDetails] = useCloseDisclosure();
   const [state, formAction, pending] = useActionState(
-    ACTIONS[editorProps.editor].addException,
+    EXCEPTION_ACTIONS[editorProps.editor].addException,
     IDLE_STATE,
   );
   const onSuccess = useCallback(() => {
@@ -438,33 +457,35 @@ function AddExceptionForm(editorProps: EditorProps) {
     <details ref={detailsRef} className="group">
       <summary className={ADD_SUMMARY_CLASS}>
         <PlusIcon className="size-4 transition-transform duration-150 ease-snappy group-open:rotate-45 motion-reduce:transition-none" />
-        Add exception
+        {isHoliday ? "Add holiday" : "Add exception"}
       </summary>
       <form
         ref={formRef}
         action={formAction}
-        aria-label="Add schedule exception"
+        aria-label={isHoliday ? "Add hospital holiday" : "Add schedule exception"}
         className="disclosure-motion mt-3 flex flex-col gap-3 rounded-xl border border-dashed border-line-strong bg-surface p-4"
       >
         <DoctorField doctorId={editorProps.doctorId} />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="exception-type" className={LABEL_CLASS}>
-              Type
-            </label>
-            <select
-              id="exception-type"
-              name="exceptionType"
-              defaultValue="blocked_period"
-              className={FIELD_CLASS}
-            >
-              {SCHEDULE_EXCEPTION_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {SCHEDULE_EXCEPTION_LABELS[type]}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isHoliday ? null : (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="exception-type" className={LABEL_CLASS}>
+                Type
+              </label>
+              <select
+                id="exception-type"
+                name="exceptionType"
+                defaultValue="blocked_period"
+                className={FIELD_CLASS}
+              >
+                {DOCTOR_EXCEPTION_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {SCHEDULE_EXCEPTION_LABELS[type]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex flex-col gap-1">
             <label htmlFor="exception-start-date" className={LABEL_CLASS}>
               From date
@@ -521,7 +542,7 @@ function AddExceptionForm(editorProps: EditorProps) {
               required
               minLength={3}
               maxLength={200}
-              placeholder="e.g. Annual leave"
+              placeholder={isHoliday ? "e.g. All Saints' Day" : "e.g. Annual leave"}
               className="min-h-11 rounded-lg border border-control-line bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus-ring"
             />
           </div>
@@ -537,7 +558,7 @@ function AddExceptionForm(editorProps: EditorProps) {
             aria-busy={pending}
             className={PRIMARY_BUTTON_CLASS}
           >
-            {pending ? "Adding…" : "Add exception"}
+            {pending ? "Adding…" : isHoliday ? "Add holiday" : "Add exception"}
           </button>
           <FormError state={state} />
         </div>
@@ -554,13 +575,13 @@ function AddExceptionForm(editorProps: EditorProps) {
 function RemoveExceptionButton({
   exceptionId,
   ...editorProps
-}: EditorProps & { exceptionId: string }) {
+}: ExceptionEditorProps & { exceptionId: string }) {
   const [confirming, setConfirming] = useState(false);
   const userToggled = useRef(false);
   const removeRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const [state, formAction, pending] = useActionState(
-    ACTIONS[editorProps.editor].removeException,
+    EXCEPTION_ACTIONS[editorProps.editor].removeException,
     IDLE_STATE,
   );
   useScheduleToast(state);
@@ -618,27 +639,42 @@ function RemoveExceptionButton({
   );
 }
 
+const SECTION_COPY = {
+  exceptions: {
+    heading: "Time off & exceptions",
+    intro:
+      "Exceptions override the weekly hours. An exception can't cover existing appointments; ask the front desk to reschedule or cancel them first.",
+    empty: "No exceptions in this period.",
+  },
+  holidays: {
+    heading: "Hospital holidays",
+    intro:
+      "A holiday closes booking for every doctor. It can't cover existing appointments; ask the front desk to reschedule or cancel them first.",
+    empty: "No hospital holidays in this period.",
+  },
+} as const;
+
 /**
  * Date-specific unavailability: leave, blocked periods, unavailable dates,
- * and temporary changes. Exceptions override the weekly hours.
+ * temporary changes, and hospital holidays. Exceptions override the weekly
+ * hours. A doctor's list shows holidays read-only; they are managed on the
+ * admin holidays page (`editor="holiday"`).
  */
 export function ScheduleExceptionsSection({
   exceptions,
   ...editorProps
-}: EditorProps & { exceptions: ScheduleException[] }) {
+}: ExceptionEditorProps & { exceptions: ScheduleException[] }) {
+  const copy = editorProps.editor === "holiday" ? SECTION_COPY.holidays : SECTION_COPY.exceptions;
   return (
     <section aria-labelledby="schedule-exceptions-heading">
       <h2 id="schedule-exceptions-heading" className={SECTION_HEADING_CLASS}>
-        Time off &amp; exceptions
+        {copy.heading}
       </h2>
-      <p className={SECTION_INTRO_CLASS}>
-        Exceptions override the weekly hours. Existing appointments inside them
-        are kept and reported so they can be followed up.
-      </p>
+      <p className={SECTION_INTRO_CLASS}>{copy.intro}</p>
 
       {exceptions.length === 0 ? (
         <p className="mt-4 rounded-xl border border-dashed border-line px-4 py-6 text-sm text-ink-muted">
-          No exceptions in this period.
+          {copy.empty}
         </p>
       ) : (
         <ul className="mt-4 divide-y divide-line rounded-xl border border-line bg-surface">
@@ -663,7 +699,11 @@ export function ScheduleExceptionsSection({
                   PHT
                 </p>
               </div>
-              <RemoveExceptionButton exceptionId={exception.id} {...editorProps} />
+              {exception.doctorId === null && editorProps.editor !== "holiday" ? (
+                <p className="text-xs text-ink-muted">Applies to all doctors</p>
+              ) : (
+                <RemoveExceptionButton exceptionId={exception.id} {...editorProps} />
+              )}
             </li>
           ))}
         </ul>
