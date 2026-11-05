@@ -8,6 +8,7 @@ import {
   ratesBySlot,
   statusByMonth,
   type AnalyticsAppointment,
+  type AnalyticsDatasets,
 } from "@/lib/analytics/metrics";
 import {
   analyticsPeriodBounds,
@@ -32,7 +33,11 @@ export type AnalyticsReader = {
 };
 
 /** Every analytics dataset for one period, computed from a single read. */
-export async function loadAnalytics(query: AnalyticsQuery, reader: AnalyticsReader, now: Date = new Date()) {
+export async function loadAnalytics(
+  query: AnalyticsQuery,
+  reader: AnalyticsReader,
+  now: Date = new Date(),
+): Promise<AnalyticsDatasets> {
   const { start, end } = analyticsPeriodBounds(query);
   const months = analyticsPeriodMonths(query);
   const filters = { doctorId: query.doctorId, departmentId: query.departmentId };
@@ -52,4 +57,4 @@ export async function loadAnalytics(query: AnalyticsQuery, reader: AnalyticsRead
   };
 }
 
-export type AnalyticsDatasets = Awaited<ReturnType<typeof loadAnalytics>>;
+export type { AnalyticsDatasets };

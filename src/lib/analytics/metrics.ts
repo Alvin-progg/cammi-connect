@@ -265,3 +265,13 @@ export function ratesBySlot(rows: AnalyticsAppointment[], now: Date): SlotRates[
     return dueCount > 0 ? [{ ...slot, dueCount, cancellationRate, noShowRate }] : [];
   });
 }
+
+/** Every dataset for one period, as `loadAnalytics` returns it. */
+export type AnalyticsDatasets = {
+  kpis: AnalyticsKpis & { pending: number };
+  monthly: MonthlyVolume[];
+  byDoctor: DoctorAnalytics[];
+  heatmap: HeatmapCell[];
+  statusByMonth: MonthlyStatusCounts[];
+  ratesBySlot: SlotRates[];
+};
