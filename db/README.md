@@ -84,7 +84,8 @@ Then run `db/migrations/0009_front_desk_confirm_reject.sql` once, then
 `db/migrations/0017_admin_doctors.sql` once, then
 `db/migrations/0018_admin_schedules.sql` once, then
 `db/migrations/0019_schedule_exception_holiday.sql` **on its own** (it adds an enum
-value that 0020 uses), then `db/migrations/0020_admin_schedule_exceptions.sql` once.
+value that 0020 uses), then `db/migrations/0020_admin_schedule_exceptions.sql` once,
+then `db/migrations/0021_admin_services.sql` once.
 After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
@@ -354,6 +355,21 @@ now fail.
   requested, confirmed, or checked-in appointment, and write
   `schedule_exception.create` / `schedule_exception.delete` to `audit_logs` in the same
   transaction. Adding a holiday locks every `doctors` row, so no booking lands mid-check;
+- every function is executable by `service_role` only.
+
+`0021_admin_services.sql` (ADM-07):
+
+- adds `services` (name, description, optional department, `requires_appointment`,
+  and `booking_mode` `none` / `doctor_consultation` / `walk_in`), with a
+  case-insensitive unique name. Services are informational only: there is no
+  service-level scheduling or capacity (decision D9). RLS is on with no policies and
+  `anon`/`authenticated` have no access;
+- adds `cammi_connect_admin_save_service` (create or update; `duplicate` on a name
+  clash, `inactive_department` when a new or changed department is inactive; a service
+  may keep a department deactivated after assignment) and
+  `cammi_connect_admin_set_service_active`. Both re-check that the actor is an active
+  admin and write `service.*` audit rows in the same transaction. Services are never
+  deleted;
 - every function is executable by `service_role` only.
 
 #### Supabase Auth email templates (ADM-01, manual)
@@ -829,6 +845,23 @@ No real patient data is used.
       `cammi_connect_book_appointment` raises `blocked`.
     - For the double-booking guard, run step 14's concurrency check again: of two
       parallel bookings of the same slot, exactly one succeeds.
+
+30. Check hospital services (ADM-07), after applying 0021. Use synthetic data only:
+    - As the admin, open **Services**: the list is empty at first. **New service**
+      "X-ray" in Radiology (or any active department), access Walk-in: you land on its
+      page. Creating "x-ray" again is refused as a duplicate. In SQL, `audit_logs` has
+      `service.create`.
+    - Edit the description, tick **Requires an appointment**, and save:
+      `service.update` is logged with the old and new values. The detail page shows the
+      Requirements placeholder and a disabled **Publish to Cami AI** button.
+    - Filter the list by department and by status. Deactivate the service: it shows
+      Inactive and `service.deactivate` is logged. Activate it again.
+    - Deactivate the service's department at **Departments**, then edit the service: it
+      still saves with that department, while choosing that department for a new
+      service is refused (`inactive_department`). Reactivate the department.
+    - Sign in as a non-admin and open `/admin/services`: access is denied. In SQL,
+      calling `cammi_connect_admin_set_service_active` with a non-admin actor fails with
+      `not_admin`.
 
 ## Troubleshooting
 
