@@ -11,6 +11,8 @@ vi.mock("@/server/schedules/actions", () => ({
   adminSaveSchedulePeriodAction: vi.fn(),
   adminAddScheduleExceptionAction: vi.fn(),
   adminRemoveScheduleExceptionAction: vi.fn(),
+  adminAddHolidayAction: vi.fn(),
+  adminRemoveHolidayAction: vi.fn(),
 }));
 
 const grid = buildMonthGrid({
