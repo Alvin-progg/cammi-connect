@@ -1,11 +1,9 @@
-import clsx from "clsx";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { SignOutButton } from "@/components/auth/sign-out-button";
-
 import { CommandPalette } from "./command-palette";
-import { FRONT_DESK_NAV_ITEMS, type FrontDeskSection } from "./nav-items";
+import { FrontDeskRail } from "./front-desk-rail";
+import type { FrontDeskSection } from "./nav-items";
 
 export type { FrontDeskSection };
 
@@ -15,11 +13,10 @@ const SECTION_LABEL = "Front desk";
 export type FrontDeskCrumb = { label: string; href?: string };
 
 /**
- * Page frame for /front-desk, following the administrator shell in design.md
- * §6.7: a 240px sidebar and a 64px top bar holding the breadcrumb, the
- * signed-in staff member, and sign-out. Below `lg` the sidebar stacks above
- * the content as a top section, so navigation is never hidden behind a
- * control. The page heading is the last breadcrumb.
+ * Page frame for /front-desk: the shared staff icon rail (sections, the
+ * signed-in staff member, and sign-out), which stays in view while the page
+ * scrolls, plus a 64px top bar holding the breadcrumb and the ⌘K search. The
+ * page heading is the last breadcrumb.
  */
 export function FrontDeskShell({
   staffName,
@@ -35,43 +32,8 @@ export function FrontDeskShell({
   const heading = crumbs[crumbs.length - 1].label;
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-canvas lg:flex-row">
-      <aside className="flex flex-col border-b border-line bg-surface lg:w-60 lg:shrink-0 lg:border-r lg:border-b-0">
-        <div className="flex min-h-16 items-center px-4 lg:px-5">
-          <Link
-            href="/"
-            className="rounded-lg text-base font-semibold tracking-tight text-ink focus-ring"
-          >
-            CamiConnect
-          </Link>
-        </div>
-        <nav aria-label={SECTION_LABEL} className="px-2 pb-2 lg:flex-1 lg:py-2">
-          <ul className="flex flex-wrap gap-1 lg:flex-col">
-            {FRONT_DESK_NAV_ITEMS.map((item) => {
-              const current = item.key === active;
-              return (
-                <li key={item.key}>
-                  <Link
-                    href={item.href}
-                    aria-current={current ? "page" : undefined}
-                    className={clsx(
-                      "focus-ring flex min-h-11 items-center rounded-lg px-3 text-sm font-medium transition-colors duration-150 ease-snappy motion-reduce:transition-none",
-                      current
-                        ? // design.md §5.6: a 2px rule as well as the tint, so the
-                          // active item is not marked by colour alone. It sits under
-                          // the item in the stacked layout and to its left at `lg`.
-                          "bg-primary-soft text-primary shadow-[inset_0_-2px_0_var(--color-primary)] lg:shadow-[inset_2px_0_0_var(--color-primary)]"
-                        : "text-ink-secondary hover:bg-surface-muted hover:text-ink",
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-      </aside>
+    <div className="flex min-h-full flex-1 bg-canvas">
+      <FrontDeskRail active={active} staffName={staffName} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex min-h-16 items-center justify-between gap-3 border-b border-line bg-surface px-4 sm:px-6 lg:px-8">
           <nav aria-label="Breadcrumb" className="min-w-0">
@@ -104,13 +66,7 @@ export function FrontDeskShell({
               })}
             </ol>
           </nav>
-          <div className="flex min-w-0 items-center gap-3">
-            <CommandPalette />
-            <span className="hidden truncate text-sm text-ink-secondary sm:inline">
-              {staffName}
-            </span>
-            <SignOutButton />
-          </div>
+          <CommandPalette />
         </header>
         <main id="main" className="flex-1">
           <div className="mx-auto w-full max-w-[90rem] px-4 py-6 sm:px-6 lg:px-8">
