@@ -460,7 +460,7 @@ function toPatientMatch(row: PatientRow): PatientMatch {
  * (commas, parentheses, quotes, backslashes), so a search cannot change the
  * filter.
  */
-function toSearchTerm(value: string): string {
+export function toSearchTerm(value: string): string {
   return value.replace(/[^\p{L}\p{N}\s.'+-]/gu, "").trim();
 }
 
