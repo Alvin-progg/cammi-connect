@@ -1,0 +1,96 @@
+// @vitest-environment node
+import { describe, expect, it, vi } from "vitest";
+
+import type { AnalyticsAppointment } from "@/lib/analytics/metrics";
+import { loadAnalytics, type AnalyticsReader } from "@/server/analytics/service";
+
+vi.mock("server-only", () => ({}));
+
+const DOCTOR_ID = "00000000-0000-4000-8000-000000000010";
+const DEPARTMENT_ID = "00000000-0000-4000-8000-000000000020";
+const NOW = new Date("2026-11-05T04:00:00.000Z");
+
+const COMPLETED: AnalyticsAppointment = {
+  id: "00000000-0000-4000-8000-000000000100",
+  doctorId: DOCTOR_ID,
+  doctorName: "Dr. Synthetic",
+  scheduledAt: "2026-10-05T01:00:00.000Z",
+  scheduledEndAt: "2026-10-05T01:30:00.000Z",
+  status: "completed",
+  confirmedAt: "2026-10-01T01:00:00.000Z",
+  confirmedInAudit: true,
+  cancelledAt: null,
+};
+
+function fakeReader(rows: AnalyticsAppointment[], pending: number) {
+  return {
+    listAppointments: vi.fn<AnalyticsReader["listAppointments"]>().mockResolvedValue(rows),
+    countPending: vi.fn<AnalyticsReader["countPending"]>().mockResolvedValue(pending),
+  } satisfies AnalyticsReader;
+}
+
+describe("loadAnalytics", () => {
+  it("reads the period's appointments with Manila bounds and the doctor and department filters", async () => {
+    const reader = fakeReader([], 0);
+
+    await loadAnalytics(
+      { from: "2026-10-01", to: "2026-11-01", doctorId: DOCTOR_ID, departmentId: DEPARTMENT_ID },
+      reader,
+      NOW,
+    );
+
+    expect(reader.listAppointments).toHaveBeenCalledWith({
+      start: "2026-09-30T16:00:00.000Z",
+      end: "2026-10-31T16:00:00.000Z",
+      doctorId: DOCTOR_ID,
+      departmentId: DEPARTMENT_ID,
+    });
+    expect(reader.countPending).toHaveBeenCalledWith({ doctorId: DOCTOR_ID, departmentId: DEPARTMENT_ID });
+  });
+
+  it("returns every dataset computed from the same rows, with the pending snapshot in the KPIs", async () => {
+    const reader = fakeReader([COMPLETED], 4);
+
+    const analytics = await loadAnalytics(
+      { from: "2026-10-01", to: "2026-11-01", doctorId: null, departmentId: null },
+      reader,
+      NOW,
+    );
+
+    expect(analytics.kpis).toEqual({
+      total: 1,
+      dueCount: 1,
+      completionRate: 100,
+      noShowRate: 0,
+      cancellationRate: 0,
+      pending: 4,
+    });
+    expect(analytics.monthly).toEqual([{ month: "2026-10", total: 1 }]);
+    expect(analytics.byDoctor).toEqual([
+      { doctorId: DOCTOR_ID, doctorName: "Dr. Synthetic", total: 1, dueCount: 1, cancellationRate: 0, noShowRate: 0 },
+    ]);
+    expect(analytics.heatmap.find((cell) => cell.count > 0)).toEqual({
+      weekday: "Mon",
+      hourBucket: "08–10",
+      count: 1,
+    });
+    expect(analytics.statusByMonth).toEqual([
+      {
+        month: "2026-10",
+        counts: { requested: 0, confirmed: 0, cancelled: 0, checked_in: 0, completed: 1, no_show: 0 },
+      },
+    ]);
+    expect(analytics.ratesBySlot).toEqual([
+      { weekday: "Mon", hourBucket: "08–10", dueCount: 1, cancellationRate: 0, noShowRate: 0 },
+    ]);
+  });
+
+  it("refuses an invalid period without reading", async () => {
+    const reader = fakeReader([], 0);
+
+    await expect(
+      loadAnalytics({ from: "2026-11-01", to: "2026-10-01", doctorId: null, departmentId: null }, reader, NOW),
+    ).rejects.toThrow(RangeError);
+    expect(reader.listAppointments).not.toHaveBeenCalled();
+  });
+});

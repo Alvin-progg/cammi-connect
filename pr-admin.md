@@ -603,6 +603,11 @@ Seed a fixed fixture set (~40 appointments, known statuses/dates) and assert exa
 ## Done when
 Every chart/KPI in ADM-11/12 can be served from these functions with no math in React.
 
+## Status as built (2026-11-05)
+- Metric math lives in TypeScript (`src/lib/analytics/metrics.ts`), not SQL functions: there is no local DB, so SQL math could not be unit-tested (same precedent as `generateAvailableSlots`). No migration and no view.
+- `src/server/analytics/` holds the read-only repository (paged past PostgREST's 1000-row cap) and `loadAnalytics`, which computes every dataset from one read. Callers must pass `getAdminSession()`; the non-admin test moves to the ADM-11 page.
+- Definitions frozen in `docs/analytics-definitions.md` with the real status names (`requested` = pending). `cancelled_at`/`completed_at`/`no_show_at` columns are not added: confirmation and cancellation dates come from `confirmed_at` and `appointment_audit_logs`.
+
 
 ---
 
