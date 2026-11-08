@@ -17,10 +17,9 @@ import {
   BOOKING_SOURCES,
 } from "@/lib/appointments/status";
 import { BOOKING_SOURCE_LABELS, formatRequestId } from "@/lib/front-desk/requests";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 const FIELD_LABEL_CLASS = "text-xs font-medium text-ink-muted";
-const CONTROL_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
 const LINK_CLASS =
   "rounded font-mono text-xs font-medium text-primary underline-offset-4 focus-ring hover:text-primary-hover hover:underline";
 
@@ -159,7 +158,7 @@ export function MonitoringFilters({
           <Link href={MONITORING_PATH} className={buttonVariants({ variant: "ghost" })}>
             Clear
           </Link>
-          <button type="submit" className={buttonVariants({ variant: "secondary" })}>
+          <button type="submit" className={buttonVariants({ variant: "outline", size: "sm" })}>
             Filter
           </button>
         </div>

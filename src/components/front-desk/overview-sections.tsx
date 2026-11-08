@@ -12,14 +12,14 @@ import {
 } from "@/lib/front-desk/requests";
 import type { ScheduleItem } from "@/lib/front-desk/schedule";
 
-import { EmptyState } from "@/components/ui/data";
-import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
+import { CELL, EmptyState, HEADER_CELL, ROW, Table } from "@/components/ui/data";
 
 /** Overview lists (SPEC-frontdesk §4). Each links to the full view for more. */
 
-const LIST_CLASS = "divide-y divide-line rounded-xl border border-line bg-surface shadow-card";
+// Lists sit flush inside the overview section cards.
+const LIST_CLASS = "divide-y divide-line border-t border-line";
 const MORE_LINK_CLASS =
-  "focus-ring inline-flex min-h-11 items-center self-start rounded-lg text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline";
+  "focus-ring mx-4 mb-2 inline-flex min-h-11 items-center self-start rounded-lg text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline";
 const DETAILS_LINK_CLASS =
   "focus-ring inline-flex min-h-11 shrink-0 items-center rounded-lg px-2 text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline";
 
@@ -43,7 +43,7 @@ function DetailsLink({ id, stretched = false }: { id: string; stretched?: boolea
 
 function Row({ children, id }: { children: ReactNode; id: string }) {
   return (
-    <li className="relative flex items-start justify-between gap-3 px-4 py-3 transition-colors duration-150 ease-snappy first:rounded-t-xl last:rounded-b-xl hover:bg-surface-muted motion-reduce:transition-none">
+    <li className="relative flex items-start justify-between gap-3 px-4 py-3 transition-colors duration-150 ease-snappy hover:bg-surface-muted/50 motion-reduce:transition-none">
       <div className="flex min-w-0 flex-col gap-1">{children}</div>
       <DetailsLink id={id} stretched />
     </li>
@@ -58,7 +58,7 @@ export function PendingRequestsList({
   total: number;
 }) {
   if (items.length === 0) {
-    return <EmptyState>No requests are waiting for review.</EmptyState>;
+    return <EmptyState className="mx-4 mb-4">No requests are waiting for review.</EmptyState>;
   }
   return (
     <div className="flex flex-col gap-2">
@@ -87,7 +87,7 @@ export function TodayScheduleList({
   total: number;
 }) {
   if (items.length === 0) {
-    return <EmptyState>No appointments are scheduled today.</EmptyState>;
+    return <EmptyState className="mx-4 mb-4">No appointments are scheduled today.</EmptyState>;
   }
   return (
     <div className="flex flex-col gap-2">
@@ -122,7 +122,7 @@ export function RecentActivityList({
   emptyMessage: string;
 }) {
   if (items.length === 0) {
-    return <EmptyState>{emptyMessage}</EmptyState>;
+    return <EmptyState className="mx-4 mb-4">{emptyMessage}</EmptyState>;
   }
   return (
     <ul aria-label={label} className={LIST_CLASS}>

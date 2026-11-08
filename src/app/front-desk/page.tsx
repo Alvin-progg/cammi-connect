@@ -1,3 +1,4 @@
+import { CalendarPlus } from "lucide-react";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
@@ -10,7 +11,9 @@ import {
   RecentActivityList,
   TodayScheduleList,
 } from "@/components/front-desk/overview-sections";
-import { Button } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
+import { CONTROL_CLASS } from "@/components/ui/field";
+import { cn } from "@/lib/cn";
 import {
   OVERVIEW_SCHEDULE_LIMIT,
   OVERVIEW_SEARCH_MAX_LENGTH,
@@ -35,9 +38,6 @@ export const instant = false;
 
 export const metadata: Metadata = { title: "Front desk" };
 
-const CONTROL_CLASS =
-  "min-h-11 w-full rounded-lg border border-control-line bg-surface px-3 text-sm text-ink focus-ring sm:w-80";
-
 function Section({
   id,
   title,
@@ -48,8 +48,11 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section aria-labelledby={id} className="flex min-w-0 flex-col gap-3">
-      <h2 id={id} className="text-lg font-semibold tracking-tight text-ink">
+    <section
+      aria-labelledby={id}
+      className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-soft"
+    >
+      <h2 id={id} className="px-5 pb-3 pt-4 text-lg font-semibold leading-7 text-ink">
         {title}
       </h2>
       {children}
@@ -82,8 +85,14 @@ export default async function FrontDeskPage({ searchParams }: PageProps<"/front-
       staffName={session.staff.fullName}
       active="overview"
       crumbs={[{ label: "Overview" }]}
+      actions={
+        <LinkButton size="sm" href="/front-desk/book">
+          <CalendarPlus aria-hidden="true" />
+          New appointment
+        </LinkButton>
+      }
     >
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-6">
         <form
           method="get"
           action="/front-desk"
@@ -92,7 +101,7 @@ export default async function FrontDeskPage({ searchParams }: PageProps<"/front-
           className="flex flex-wrap items-end gap-3"
         >
           <div className="flex w-full flex-col gap-1 sm:w-auto">
-            <label htmlFor="overview-search" className="text-xs font-medium text-ink-muted">
+            <label htmlFor="overview-search" className="text-sm font-medium text-ink">
               Patient name or phone
             </label>
             <input
@@ -101,10 +110,10 @@ export default async function FrontDeskPage({ searchParams }: PageProps<"/front-
               name="q"
               maxLength={OVERVIEW_SEARCH_MAX_LENGTH}
               defaultValue={query ?? ""}
-              className={CONTROL_CLASS}
+              className={cn(CONTROL_CLASS, "sm:w-80")}
             />
           </div>
-          <Button type="submit" variant="secondary">
+          <Button type="submit" variant="outline" size="sm">
             Search appointments
           </Button>
         </form>
@@ -117,7 +126,7 @@ export default async function FrontDeskPage({ searchParams }: PageProps<"/front-
 
         <OverviewCards counts={counts} />
 
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Section id="overview-pending" title="Pending requests">
             <PendingRequestsList items={pending} total={counts.pending} />
           </Section>

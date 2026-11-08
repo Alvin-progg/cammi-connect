@@ -7,10 +7,9 @@ import {
 } from "@/lib/admin/dashboard";
 import { ANALYTICS_PATH } from "@/lib/analytics/filters";
 import { formatManilaMediumDate } from "@/lib/appointments/format";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 const FIELD_LABEL_CLASS = "text-xs font-medium text-ink-muted";
-const CONTROL_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
 
 type FilterOption = { id: string; name: string };
 
@@ -88,7 +87,7 @@ export function DashboardFilters({
             ))}
           </select>
         </div>
-        <button type="submit" className={buttonVariants({ variant: "primary" })}>
+        <button type="submit" className={buttonVariants({ variant: "primary", size: "sm" })}>
           Apply
         </button>
       </form>

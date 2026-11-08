@@ -26,14 +26,14 @@ export function OverviewCards({ counts }: { counts: OverviewCounts }) {
           <li
             key={card.key}
             className={clsx(
-              "flex flex-col gap-1 rounded-xl border p-5 shadow-card",
+              "flex flex-col rounded-xl border p-5 shadow-soft",
               needsAction ? "border-primary/40 bg-primary-soft" : "border-line bg-surface",
             )}
           >
-            <span className="text-sm font-medium text-ink-secondary">{card.label}</span>
+            <span className="text-sm text-ink-secondary">{card.label}</span>
             <span
               className={clsx(
-                "text-3xl font-semibold tabular-nums tracking-tight",
+                "mt-1.5 text-3xl font-semibold tabular-nums tracking-tight",
                 needsAction ? "text-primary" : "text-ink",
               )}
             >
@@ -42,12 +42,12 @@ export function OverviewCards({ counts }: { counts: OverviewCounts }) {
             {pending ? (
               <Link
                 href="/front-desk/requests"
-                className="focus-ring mt-1 self-start rounded text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline"
+                className="focus-ring mt-1 self-start rounded text-xs font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline"
               >
                 Review pending requests
               </Link>
             ) : (
-              <span className="mt-1 text-sm text-ink-muted">{card.hint}</span>
+              <span className="mt-1 text-xs text-ink-muted">{card.hint}</span>
             )}
           </li>
         );

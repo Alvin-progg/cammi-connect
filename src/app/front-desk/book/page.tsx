@@ -20,6 +20,8 @@ import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import { listBookableDoctors } from "@/server/directory/service";
 import { supabaseFrontDeskPatientsRepository } from "@/server/front-desk/repository";
 import { listBookingSlots, searchPatients } from "@/server/front-desk/service";
+import { CONTROL_CLASS } from "@/components/ui/field";
+import { cn } from "@/lib/cn";
 
 export const instant = false;
 
@@ -27,11 +29,9 @@ export const metadata: Metadata = { title: "New appointment" };
 
 const BOOK_PATH = "/front-desk/book";
 const FIELD_LABEL_CLASS = "text-xs font-medium text-ink-muted";
-const CONTROL_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
-const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "secondary" });
+const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "outline", size: "sm" });
 const LINK_CLASS =
-  "focus-ring inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline";
+  "focus-ring inline-flex h-9 items-center rounded-md px-2 text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline";
 
 /**
  * Staff-assisted booking for walk-in and phone-in patients (SPEC-frontdesk
@@ -201,7 +201,7 @@ async function PatientStep({ search }: { search: string | null }) {
               minLength={2}
               maxLength={PATIENT_SEARCH_MAX_LENGTH}
               required
-              className={`${CONTROL_CLASS} w-72 max-w-full`}
+              className={cn(CONTROL_CLASS, "w-72 max-w-full")}
             />
           </div>
           <button type="submit" className={SECONDARY_BUTTON_CLASS}>

@@ -18,15 +18,14 @@ import { getFrontDeskSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import { supabaseFrontDeskScheduleRepository } from "@/server/front-desk/repository";
 import { listDailySchedule } from "@/server/front-desk/service";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 export const instant = false;
 
 export const metadata: Metadata = { title: "Daily schedule" };
 
 const FIELD_LABEL_CLASS = "text-xs font-medium text-ink-muted";
-const CONTROL_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
-const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "secondary" });
+const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "outline", size: "sm" });
 
 export default async function FrontDeskSchedulePage({
   searchParams,
@@ -52,11 +51,9 @@ export default async function FrontDeskSchedulePage({
       staffName={session.staff.fullName}
       active="schedule"
       crumbs={[{ label: "Daily schedule" }]}
+      lead={`Appointments on ${formatManilaMediumDate(filters.date)} from every booking source. Record check-in, completion, or no-show from the appointment day onward.`}
     >
       <div className="flex flex-col gap-6">
-        <p className="text-sm leading-6 text-ink-secondary">
-          {`Appointments on ${formatManilaMediumDate(filters.date)} from every booking source. Record check-in, completion, or no-show from the appointment day onward.`}
-        </p>
         <form
           method="get"
           action="/front-desk/schedule"
@@ -129,7 +126,7 @@ export default async function FrontDeskSchedulePage({
           </button>
           <Link
             href="/front-desk/schedule"
-            className="focus-ring inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline"
+            className="focus-ring inline-flex h-9 items-center rounded-md px-2 text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline"
           >
             Clear filters
           </Link>

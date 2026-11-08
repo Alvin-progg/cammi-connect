@@ -28,7 +28,7 @@ function Section({
   return (
     <section
       aria-labelledby={headingId}
-      className="rounded-xl border border-line bg-surface p-4 shadow-card sm:p-6"
+      className="rounded-xl border border-line bg-surface p-6 shadow-soft"
     >
       <h2 id={headingId} className="text-lg font-semibold text-ink">
         {title}
@@ -64,7 +64,7 @@ export function RequestDetailsView({
   const manilaDate = todayInManila(new Date(request.scheduledAt));
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid gap-4 lg:grid-cols-2">
       <Section id="patient" title="Patient">
         <dl className="grid gap-4 sm:grid-cols-2">
           <Field label="Name">{request.patientName}</Field>

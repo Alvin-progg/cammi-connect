@@ -15,15 +15,14 @@ import { getFrontDeskSession } from "@/server/auth/dal";
 import { supabaseFrontDeskRequestsRepository } from "@/server/front-desk/repository";
 import { getRequestDetails, listRescheduleSlots } from "@/server/front-desk/service";
 import { supabaseDoctorSchedulesRepository } from "@/server/schedules/repository";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 export const instant = false;
 
 export const metadata: Metadata = { title: "Reschedule appointment" };
 
 const FIELD_LABEL_CLASS = "text-xs font-medium text-ink-muted";
-const CONTROL_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
-const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "secondary" });
+const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "outline", size: "sm" });
 
 export default async function FrontDeskReschedulePage({
   params,
@@ -90,11 +89,9 @@ export default async function FrontDeskReschedulePage({
         },
         { label: "Reschedule" },
       ]}
+      lead={`${request.patientName} with ${request.doctorName}. Choose a free slot with the same doctor.`}
     >
       <div className="flex max-w-2xl flex-col gap-6">
-        <p className="text-sm leading-6 text-ink-secondary">
-          {`${request.patientName} with ${request.doctorName}. Choose a free slot with the same doctor.`}
-        </p>
         {canReschedule ? (
           <>
             <form

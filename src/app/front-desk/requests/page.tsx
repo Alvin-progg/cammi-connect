@@ -1,10 +1,11 @@
+import { CalendarPlus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AccessDenied } from "@/components/auth/access-denied";
 import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
 import { RequestQueue } from "@/components/front-desk/request-queue";
-import { buttonVariants } from "@/components/ui/button";
+import { LinkButton, buttonVariants } from "@/components/ui/button";
 import {
   REQUEST_STATUS_FILTERS,
   REQUEST_STATUS_FILTER_LABELS,
@@ -14,15 +15,14 @@ import { getFrontDeskSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import { supabaseFrontDeskRequestsRepository } from "@/server/front-desk/repository";
 import { listRequestQueue } from "@/server/front-desk/service";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 export const instant = false;
 
 export const metadata: Metadata = { title: "Appointment requests" };
 
 const FIELD_LABEL_CLASS = "text-xs font-medium text-ink-muted";
-const CONTROL_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
-const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "secondary" });
+const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "outline", size: "sm" });
 
 export default async function FrontDeskRequestsPage({
   searchParams,
@@ -48,12 +48,15 @@ export default async function FrontDeskRequestsPage({
       staffName={session.staff.fullName}
       active="requests"
       crumbs={[{ label: "Requests" }]}
+      lead="Appointment requests submitted through Cami. Pending requests wait for front desk confirmation."
+      actions={
+        <LinkButton size="sm" href="/front-desk/book">
+          <CalendarPlus aria-hidden="true" />
+          New appointment
+        </LinkButton>
+      }
     >
       <div className="flex flex-col gap-6">
-        <p className="text-sm leading-6 text-ink-secondary">
-          Appointment requests submitted through Cami. Pending requests wait
-          for front desk confirmation.
-        </p>
         <form
           method="get"
           action="/front-desk/requests"
@@ -130,7 +133,7 @@ export default async function FrontDeskRequestsPage({
           </button>
           <Link
             href="/front-desk/requests"
-            className="focus-ring inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline"
+            className="focus-ring inline-flex h-9 items-center rounded-md px-2 text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline"
           >
             Clear filters
           </Link>

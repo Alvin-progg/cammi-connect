@@ -7,11 +7,10 @@ import { buttonVariants } from "@/components/ui/button";
 import { formatManilaDateTime, formatManilaShortDate } from "@/lib/appointments/format";
 import { USER_ROLE_LABELS, USER_ROLES } from "@/lib/auth/roles";
 import type { AdminUserRow, UserListFilters } from "@/lib/users/types";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 const USERS_PATH = "/admin/users";
 const FIELD_LABEL_CLASS = "text-xs font-medium text-ink-muted";
-const CONTROL_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
 
 /** The users list URL for a page, keeping the active filters. */
 function usersListHref(filters: UserListFilters, page: number): string {
@@ -76,7 +75,7 @@ export function UsersFilters({ filters }: { filters: UserListFilters }) {
           <option value="inactive">Inactive</option>
         </select>
       </div>
-      <button type="submit" className={buttonVariants({ variant: "secondary" })}>
+      <button type="submit" className={buttonVariants({ variant: "outline", size: "sm" })}>
         Filter
       </button>
     </form>

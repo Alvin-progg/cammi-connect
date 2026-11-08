@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { AccessDenied } from "@/components/auth/access-denied";
 import { AttendanceActions } from "@/components/front-desk/attendance-actions";
+import { SplitLayout } from "@/components/shell/staff-shell";
 import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
 import {
   CancelAppointment,
@@ -28,7 +29,7 @@ export const instant = false;
 
 export const metadata: Metadata = { title: "Appointment request" };
 
-const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "secondary" });
+const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "outline" });
 
 export default async function FrontDeskRequestPage({
   params,
@@ -55,6 +56,11 @@ export default async function FrontDeskRequestPage({
   const slotCheck = isPending
     ? await checkRequestSlot(request, supabaseDoctorSchedulesRepository)
     : null;
+  const hasActions =
+    isPending ||
+    canFrontDeskReschedule(request.status) ||
+    canFrontDeskCancel(request.status) ||
+    attendanceActions.length > 0;
   // todayInManila gives the Manila calendar date of any instant.
   const whenLabel = `${formatManilaMediumDate(todayInManila(new Date(request.scheduledAt)))}, ${formatManilaTime(request.scheduledAt)}`;
 
@@ -74,42 +80,60 @@ export default async function FrontDeskRequestPage({
             ]
       }
     >
-      <div className="flex flex-col gap-6">
-        {isPending ? (
-          <RequestDecision
-            appointmentId={request.id}
-            patientName={request.patientName}
-            doctorName={request.doctorName}
-            whenLabel={whenLabel}
-          />
-        ) : null}
-        {canFrontDeskReschedule(request.status) || canFrontDeskCancel(request.status) ? (
-          <div className="flex flex-wrap gap-2">
-            {canFrontDeskReschedule(request.status) ? (
-              <Link
-                href={`/front-desk/requests/${request.id}/reschedule`}
-                className={SECONDARY_BUTTON_CLASS}
-              >
-                Reschedule
-              </Link>
-            ) : null}
-            {canFrontDeskCancel(request.status) ? (
-              <CancelAppointment
+      <SplitLayout
+        main={<RequestDetailsView request={request} slotCheck={slotCheck} />}
+        side={
+          <section
+            aria-labelledby="request-actions-heading"
+            className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-6 shadow-card"
+          >
+            <div>
+              <h2 id="request-actions-heading" className="text-lg font-semibold leading-7 text-ink">
+                Actions
+              </h2>
+              <p className="mt-0.5 text-sm text-ink-muted">
+                The patient sees your decision in CamiConnect right away.
+              </p>
+            </div>
+            {isPending ? (
+              <RequestDecision
                 appointmentId={request.id}
                 patientName={request.patientName}
                 doctorName={request.doctorName}
                 whenLabel={whenLabel}
               />
             ) : null}
-          </div>
-        ) : null}
-        <AttendanceActions
-          appointmentId={request.id}
-          patientName={request.patientName}
-          actions={attendanceActions}
-        />
-        <RequestDetailsView request={request} slotCheck={slotCheck} />
-      </div>
+            {canFrontDeskReschedule(request.status) || canFrontDeskCancel(request.status) ? (
+              <div className="flex flex-wrap gap-2">
+                {canFrontDeskReschedule(request.status) ? (
+                  <Link
+                    href={`/front-desk/requests/${request.id}/reschedule`}
+                    className={SECONDARY_BUTTON_CLASS}
+                  >
+                    Reschedule
+                  </Link>
+                ) : null}
+                {canFrontDeskCancel(request.status) ? (
+                  <CancelAppointment
+                    appointmentId={request.id}
+                    patientName={request.patientName}
+                    doctorName={request.doctorName}
+                    whenLabel={whenLabel}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+            <AttendanceActions
+              appointmentId={request.id}
+              patientName={request.patientName}
+              actions={attendanceActions}
+            />
+            {hasActions ? null : (
+              <p className="text-sm text-ink-muted">No actions are available for this appointment.</p>
+            )}
+          </section>
+        }
+      />
     </FrontDeskShell>
   );
 }

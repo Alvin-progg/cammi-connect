@@ -22,12 +22,9 @@ export default async function AdminInviteStaffPage() {
       adminName={session.admin.fullName}
       active="users"
       crumbs={[{ label: "Users", href: "/admin/users" }, { label: "Invite staff" }]}
+      lead="The person receives an email to set their own password. Patients register themselves and are not invited here."
     >
       <div className="flex flex-col gap-4">
-        <p className="max-w-2xl text-sm leading-6 text-ink-secondary">
-          The person receives an email to set their own password. Patients register themselves and
-          are not invited here.
-        </p>
         <InviteStaffForm />
       </div>
     </AdminShell>

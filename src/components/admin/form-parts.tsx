@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 /** The status shape every admin form action returns. */
 export type AdminFormState =
@@ -8,8 +9,7 @@ export type AdminFormState =
   | { status: "error"; message: string }
   | { status: "success"; message: string };
 
-export const FIELD_CLASS =
-  "min-h-11 w-full rounded-lg border border-control-line bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus-ring";
+export const FIELD_CLASS = CONTROL_CLASS;
 export const LABEL_CLASS = "text-sm font-medium text-ink";
 
 export function Field({ id, label, children }: { id: string; label: string; children: ReactNode }) {
@@ -64,7 +64,7 @@ export function TaskCard({
   return (
     <section
       aria-labelledby={headingId}
-      className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-5 shadow-card"
+      className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-6 shadow-soft"
     >
       <div>
         <h2 id={headingId} className="text-lg font-semibold text-ink">

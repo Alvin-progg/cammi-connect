@@ -105,7 +105,9 @@ export function EmptyState({
   description,
   action,
   children,
+  className,
 }: {
+  className?: string;
   icon?: ReactNode;
   title?: string;
   description?: ReactNode;
@@ -114,13 +116,18 @@ export function EmptyState({
 }) {
   if (!title) {
     return (
-      <p className="rounded-xl border border-dashed border-line-strong px-4 py-6 text-sm text-ink-muted">
+      <p className={cn("rounded-xl border border-dashed border-line-strong px-4 py-6 text-sm text-ink-muted", className)}>
         {children ?? description}
       </p>
     );
   }
   return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-line-strong px-6 py-10 text-center">
+    <div
+      className={cn(
+        "flex flex-col items-center gap-2 rounded-xl border border-dashed border-line-strong px-6 py-10 text-center",
+        className,
+      )}
+    >
       {icon ? (
         <span className="mb-1 inline-flex size-9 items-center justify-center rounded-lg bg-primary-soft text-primary [&_svg]:size-4.5">
           {icon}

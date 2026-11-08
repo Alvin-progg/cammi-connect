@@ -31,6 +31,7 @@ import {
   saveSchedulePeriodAction,
   type ScheduleActionState,
 } from "@/server/schedules/actions";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 /**
  * "doctor" edits the signed-in doctor's own schedule (the server takes the
@@ -68,8 +69,6 @@ const EXCEPTION_ACTIONS = {
 
 const IDLE_STATE: ScheduleActionState = { status: "idle" };
 
-const FIELD_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
 const LABEL_CLASS = "text-xs font-medium text-ink-muted";
 const PRIMARY_BUTTON_CLASS =
   "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-primary-ink pressable hover:bg-primary-hover disabled:pointer-events-none disabled:opacity-60";
@@ -157,7 +156,7 @@ function PeriodFields({
           type="time"
           required
           defaultValue={period?.startTime ?? "09:00"}
-          className={FIELD_CLASS}
+          className={CONTROL_CLASS}
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -170,7 +169,7 @@ function PeriodFields({
           type="time"
           required
           defaultValue={period?.endTime ?? "12:00"}
-          className={FIELD_CLASS}
+          className={CONTROL_CLASS}
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -181,7 +180,7 @@ function PeriodFields({
           id={`${idPrefix}-duration`}
           name="slotDurationMinutes"
           defaultValue={String(period?.slotDurationMinutes ?? defaultSlotMinutes)}
-          className={FIELD_CLASS}
+          className={CONTROL_CLASS}
         >
           {SLOT_DURATIONS.map((duration) => (
             <option key={duration} value={duration}>
@@ -200,7 +199,7 @@ function PeriodFields({
           type="date"
           required
           defaultValue={period?.effectiveFrom ?? defaultEffectiveFrom}
-          className={FIELD_CLASS}
+          className={CONTROL_CLASS}
         />
       </div>
       <div className="flex flex-col gap-1">
@@ -212,7 +211,7 @@ function PeriodFields({
           name="effectiveUntil"
           type="date"
           defaultValue={period?.effectiveUntil ?? ""}
-          className={FIELD_CLASS}
+          className={CONTROL_CLASS}
         />
       </div>
       <label className="flex min-h-11 items-center gap-2 self-end text-sm text-ink-secondary">
@@ -345,7 +344,7 @@ function AddPeriodForm({
             id="new-period-day"
             name="dayOfWeek"
             defaultValue="1"
-            className={FIELD_CLASS}
+            className={CONTROL_CLASS}
           >
             {WEEKDAY_LABELS.map((label, dayOfWeek) => (
               <option key={label} value={dayOfWeek}>
@@ -490,7 +489,7 @@ function AddExceptionForm(editorProps: ExceptionEditorProps) {
                 id="exception-type"
                 name="exceptionType"
                 defaultValue="blocked_period"
-                className={FIELD_CLASS}
+                className={CONTROL_CLASS}
               >
                 {DOCTOR_EXCEPTION_TYPES.map((type) => (
                   <option key={type} value={type}>
@@ -509,7 +508,7 @@ function AddExceptionForm(editorProps: ExceptionEditorProps) {
               name="startDate"
               type="date"
               required
-              className={FIELD_CLASS}
+              className={CONTROL_CLASS}
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -520,7 +519,7 @@ function AddExceptionForm(editorProps: ExceptionEditorProps) {
               id="exception-end-date"
               name="endDate"
               type="date"
-              className={FIELD_CLASS}
+              className={CONTROL_CLASS}
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -531,7 +530,7 @@ function AddExceptionForm(editorProps: ExceptionEditorProps) {
               id="exception-start-time"
               name="startTime"
               type="time"
-              className={FIELD_CLASS}
+              className={CONTROL_CLASS}
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -542,7 +541,7 @@ function AddExceptionForm(editorProps: ExceptionEditorProps) {
               id="exception-end-time"
               name="endTime"
               type="time"
-              className={FIELD_CLASS}
+              className={CONTROL_CLASS}
             />
           </div>
           <div className="flex flex-col gap-1">

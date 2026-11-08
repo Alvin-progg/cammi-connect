@@ -12,13 +12,12 @@ import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import { supabaseDoctorAdminRepository } from "@/server/doctors/repository";
 
 import { ADMIN_ACCESS_DENIED_MESSAGE } from "../_shared/placeholder-page";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 export const instant = false;
 
 export const metadata: Metadata = { title: "Doctors" };
 
-const SELECT_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
 const FILTER_LABEL_CLASS = "text-xs font-medium text-ink-muted";
 
 export default async function AdminDoctorsPage({ searchParams }: PageProps<"/admin/doctors">) {
@@ -56,7 +55,7 @@ export default async function AdminDoctorsPage({ searchParams }: PageProps<"/adm
                 id="filter-department"
                 name="department"
                 defaultValue={departmentId ?? ""}
-                className={SELECT_CLASS}
+                className={CONTROL_CLASS}
               >
                 <option value="">All departments</option>
                 {departments.map((department) => (
@@ -74,7 +73,7 @@ export default async function AdminDoctorsPage({ searchParams }: PageProps<"/adm
                 id="filter-specialty"
                 name="specialty"
                 defaultValue={specialtyId ?? ""}
-                className={SELECT_CLASS}
+                className={CONTROL_CLASS}
               >
                 <option value="">All specialties</option>
                 {specialties.map((specialty) => (
@@ -88,13 +87,13 @@ export default async function AdminDoctorsPage({ searchParams }: PageProps<"/adm
               <label htmlFor="filter-status" className={FILTER_LABEL_CLASS}>
                 Status
               </label>
-              <select id="filter-status" name="status" defaultValue={status} className={SELECT_CLASS}>
+              <select id="filter-status" name="status" defaultValue={status} className={CONTROL_CLASS}>
                 <option value="all">All statuses</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
             </div>
-            <Button type="submit" variant="secondary">
+            <Button type="submit" variant="outline" size="sm">
               Filter
             </Button>
           </form>

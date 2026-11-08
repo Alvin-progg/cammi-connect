@@ -10,6 +10,12 @@ import { cn } from "@/lib/cn";
 const CONTROL =
   "w-full rounded-md border border-control-line bg-surface px-3 text-sm text-ink shadow-soft placeholder:text-ink-muted outline-none transition-[border-color,box-shadow] focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/25 disabled:bg-surface-muted disabled:text-ink-muted aria-invalid:border-2 aria-invalid:border-danger";
 
+/**
+ * Class string for a native control a component renders itself (filters,
+ * forms with their own markup). Same look as `Input`/`Select`.
+ */
+export const CONTROL_CLASS = `${CONTROL} min-h-9`;
+
 export function Input({ className, ...props }: ComponentProps<"input">) {
   return <input className={cn(CONTROL, "h-9", className)} {...props} />;
 }
