@@ -949,3 +949,19 @@ user create · role change · activate/deactivate · doctor change · department
 
 ## Done when
 Every checkbox in spec §20 maps to at least one passing test (keep a `docs/acceptance-traceability.md` table: criterion → test file).
+
+## Status as built (2026-11-08)
+- Scope agreed for this PR: Part A, Part B as static checks, the static parts of Part C, and the traceability doc. The RLS matrix, PostgREST escalation tests, and Playwright E2E stay open as gaps (no local database, no Playwright).
+- Part A: `/admin/audit-log` (the existing nav path, not `/admin/audit`). It has URL filters for actor (current admins), action prefix, target type, and a Manila date range; 25 entries per page, newest first; links to the target's admin page.
+  - `/admin/audit-log/[id]` shows changed values side by side and keeps unchanged values in a disclosure.
+  - CSV export at `/api/admin/audit-log/export` (formula-safe `toCsv`, audited as `audit.export` with the filters and row count). Exports are capped at 10,000 rows; a larger selection gets 413 and must be narrowed.
+  - No migration. The viewer is read-only.
+- Part B: `tests/unit/audit/required-events.test.ts` checks that each required event's action string is written by an audited SQL function or by a `recordAdminAudit` call. This is a static check standing in for per-event integration tests.
+- Part C (static):
+  - Route inventory: every admin page and admin API route calls `getAdminSession`.
+  - Server Actions: every exported action calls a session guard, followed through same-file helpers. Four auth actions are deliberately public, each with a reason.
+  - Audit payloads: SQL audit writers name no password/token/secret key; TS writers go through `redactSensitive`.
+  - Analytics: no patient columns are selected or exported.
+  - Bundle: `npm run check:bundle` scans `.next/static` for server secret names and values.
+- Not done: the per-role RLS matrix (under ADR-0003 no role except service_role has table access, so the static guard checks carry authorization), escalation tests, and E2E.
+- `docs/acceptance-traceability.md` maps every slice's tests to test files, manual smoke steps, or gaps.
