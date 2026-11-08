@@ -5,16 +5,16 @@ import {
   computeKpis,
   dailyVolume,
   dashboardCards,
+  DAYTIME_SLOTS,
   deriveAnalyticsRow,
   heatmap,
-  HOUR_BUCKETS,
   monthlyVolume,
+  outcomesByMonth,
   rate,
-  ratesBySlot,
-  statusByMonth,
+  ratesByWeekday,
+  shortDoctorNames,
   statusDistribution,
   trendPercent,
-  WEEKDAYS,
   type AnalyticsAppointment,
 } from "@/lib/analytics/metrics";
 import type { AppointmentStatus } from "@/lib/appointments/status";
@@ -109,16 +109,15 @@ describe("rate", () => {
 });
 
 describe("deriveAnalyticsRow", () => {
-  it("buckets 23:30 Manila on October 31 into October, Saturday, 22–24", () => {
+  it("buckets 23:30 Manila on October 31 into October, Saturday, outside the daytime slots", () => {
     const row = appointment(DOCTOR_B, OCT_31_LATE, "completed", CONFIRMED);
 
     expect(deriveAnalyticsRow(row, NOW)).toEqual({
       schedDateMnl: "2026-10-31",
       schedMonth: "2026-10",
       weekday: "Sat",
-      hourBucket: "22–24",
-      wasConfirmed: true,
-      isDue: true,
+      slot: null,
+      isOutcome: true,
     });
   });
 
@@ -128,59 +127,74 @@ describe("deriveAnalyticsRow", () => {
     expect(derived.schedDateMnl).toBe("2026-11-01");
     expect(derived.schedMonth).toBe("2026-11");
     expect(derived.weekday).toBe("Sun");
-    expect(derived.hourBucket).toBe("00–02");
+    expect(derived.slot).toBeNull();
   });
 
-  it("treats confirmation evidence from confirmed_at, the audit log, or an attended status", () => {
-    expect(deriveAnalyticsRow(appointment(DOCTOR_A, A_OCT, "cancelled", CONFIRMED), NOW).wasConfirmed).toBe(true);
+  it("puts Manila start hours into the four daytime slots", () => {
+    // 09:00, 10:59, 11:00, 13:00, 15:00, and 16:59 Manila on Monday 2026-10-05.
+    const slotAt = (utc: string) => deriveAnalyticsRow(appointment(DOCTOR_A, utc, "completed"), NOW).slot;
+    expect(slotAt("2026-10-05T01:00:00.000Z")).toBe("9–11 AM");
+    expect(slotAt("2026-10-05T02:59:00.000Z")).toBe("9–11 AM");
+    expect(slotAt("2026-10-05T03:00:00.000Z")).toBe("11 AM–1 PM");
+    expect(slotAt("2026-10-05T05:00:00.000Z")).toBe("1–3 PM");
+    expect(slotAt("2026-10-05T07:00:00.000Z")).toBe("3–5 PM");
+    expect(slotAt("2026-10-05T08:59:00.000Z")).toBe("3–5 PM");
+    expect(slotAt("2026-10-05T00:59:00.000Z")).toBeNull();
+    expect(slotAt("2026-10-05T09:00:00.000Z")).toBeNull();
+  });
+
+  it("is an outcome only once the appointment has ended as completed, cancelled, or no-show", () => {
     expect(
-      deriveAnalyticsRow(appointment(DOCTOR_A, A_OCT, "cancelled", { confirmedInAudit: true }), NOW).wasConfirmed,
+      deriveAnalyticsRow(appointment(DOCTOR_A, "2026-11-05T03:30:00.000Z", "completed"), NOW).isOutcome,
+    ).toBe(false);
+    expect(
+      deriveAnalyticsRow(appointment(DOCTOR_A, "2026-11-05T03:29:00.000Z", "completed"), NOW).isOutcome,
     ).toBe(true);
-    for (const status of ["checked_in", "completed", "no_show"] as const) {
-      expect(deriveAnalyticsRow(appointment(DOCTOR_A, A_OCT, status), NOW).wasConfirmed).toBe(true);
+    for (const status of ["completed", "cancelled", "no_show"] as const) {
+      expect(deriveAnalyticsRow(appointment(DOCTOR_A, A_OCT, status), NOW).isOutcome).toBe(true);
     }
-    expect(deriveAnalyticsRow(appointment(DOCTOR_A, A_OCT, "cancelled"), NOW).wasConfirmed).toBe(false);
-  });
-
-  it("is due only once the appointment has ended", () => {
-    const endsAtNow = appointment(DOCTOR_A, "2026-11-05T03:30:00.000Z", "confirmed", CONFIRMED);
-    const endsAfterNow = appointment(DOCTOR_A, "2026-11-05T03:31:00.000Z", "confirmed", CONFIRMED);
-
-    expect(deriveAnalyticsRow(endsAtNow, NOW).isDue).toBe(false);
-    expect(deriveAnalyticsRow(endsAfterNow, NOW).isDue).toBe(false);
-    expect(
-      deriveAnalyticsRow(appointment(DOCTOR_A, "2026-11-05T03:29:00.000Z", "confirmed", CONFIRMED), NOW).isDue,
-    ).toBe(true);
-  });
-
-  it("never puts pending or rejected appointments in the due cohort", () => {
-    expect(deriveAnalyticsRow(appointment(DOCTOR_A, A_OCT, "requested", CONFIRMED), NOW).isDue).toBe(false);
-    expect(deriveAnalyticsRow(appointment(DOCTOR_A, A_OCT, "rejected", CONFIRMED), NOW).isDue).toBe(false);
+    for (const status of ["requested", "rejected", "confirmed", "checked_in"] as const) {
+      expect(deriveAnalyticsRow(appointment(DOCTOR_A, A_OCT, status, CONFIRMED), NOW).isOutcome).toBe(false);
+    }
   });
 });
 
 describe("computeKpis", () => {
-  it("returns the exact fixture KPIs", () => {
+  it("returns the exact fixture KPIs over the outcome cohort", () => {
     expect(computeKpis(FIXTURE, NOW)).toEqual({
       total: 33,
-      dueCount: 25,
-      completionRate: 64,
-      noShowRate: 16,
-      cancellationRate: 12,
+      outcomeCount: 24,
+      completed: 16,
+      cancelled: 4,
+      noShow: 4,
+      completionRate: 66.67,
+      cancellationRate: 16.67,
+      noShowRate: 16.67,
+      outcomeMonths: { first: "2026-10", last: "2026-11" },
+      busiestMonth: { month: "2026-10", total: 26 },
+      peakSlot: { weekday: "Mon", slot: "9–11 AM", count: 23 },
     });
   });
 
-  it("returns null rates when nothing is due", () => {
+  it("adds completed, cancelled, and no-show up to the outcome count", () => {
+    const kpis = computeKpis(FIXTURE, NOW);
+    expect(kpis.completed + kpis.cancelled + kpis.noShow).toBe(kpis.outcomeCount);
+  });
+
+  it("returns null rates and no outcome months when nothing has an outcome yet", () => {
     const futureOnly = FIXTURE.filter((row) => row.scheduledAt === A_NOV_FUTURE);
 
-    expect(computeKpis(futureOnly, NOW)).toEqual({
+    expect(computeKpis(futureOnly, NOW)).toMatchObject({
       total: 5,
-      dueCount: 0,
+      outcomeCount: 0,
       completionRate: null,
-      noShowRate: null,
       cancellationRate: null,
+      noShowRate: null,
+      outcomeMonths: null,
+      busiestMonth: { month: "2026-11", total: 5 },
+      peakSlot: { weekday: "Mon", slot: "9–11 AM", count: 5 },
     });
-    expect(computeKpis([], NOW).total).toBe(0);
+    expect(computeKpis([], NOW)).toMatchObject({ total: 0, busiestMonth: null, peakSlot: null });
   });
 
   it("is unaffected by pending and rejected appointments", () => {
@@ -198,7 +212,7 @@ describe("computeKpis", () => {
     expect(noisy.completionRate).toBe(base.completionRate);
     expect(noisy.noShowRate).toBe(base.noShowRate);
     expect(noisy.cancellationRate).toBe(base.cancellationRate);
-    expect(noisy.dueCount).toBe(base.dueCount);
+    expect(noisy.outcomeCount).toBe(base.outcomeCount);
   });
 });
 
@@ -213,10 +227,10 @@ describe("monthlyVolume", () => {
 });
 
 describe("byDoctor", () => {
-  it("returns volume and due-cohort rates per doctor, busiest first", () => {
+  it("returns volume and outcome-cohort rates per doctor, busiest first", () => {
     expect(byDoctor(FIXTURE, NOW)).toEqual([
-      { ...DOCTOR_A, total: 23, dueCount: 16, cancellationRate: 12.5, noShowRate: 18.75 },
-      { ...DOCTOR_B, total: 10, dueCount: 9, cancellationRate: 11.11, noShowRate: 11.11 },
+      { ...DOCTOR_A, shortName: "Alpha", total: 23, outcomeCount: 16, cancellationRate: 18.75, noShowRate: 18.75 },
+      { ...DOCTOR_B, shortName: "Beta", total: 10, outcomeCount: 8, cancellationRate: 12.5, noShowRate: 12.5 },
     ]);
   });
 
@@ -230,46 +244,57 @@ describe("byDoctor", () => {
   });
 });
 
-describe("heatmap", () => {
-  it("returns a full weekday × hour grid of non-rejected counts", () => {
-    const cells = heatmap(FIXTURE);
-    const count = (weekday: string, hourBucket: string) =>
-      cells.find((cell) => cell.weekday === weekday && cell.hourBucket === hourBucket)?.count;
-
-    expect(cells).toHaveLength(WEEKDAYS.length * HOUR_BUCKETS.length);
-    expect(cells[0]).toEqual({ weekday: "Mon", hourBucket: "00–02", count: 0 });
-    expect(count("Mon", "08–10")).toBe(18);
-    expect(count("Wed", "14–16")).toBe(7);
-    expect(count("Sat", "22–24")).toBe(1);
-    expect(count("Mon", "10–12")).toBe(5);
-    expect(count("Sun", "00–02")).toBe(1);
-    expect(count("Fri", "08–10")).toBe(1);
-    expect(cells.reduce((sum, cell) => sum + cell.count, 0)).toBe(33);
+describe("shortDoctorNames", () => {
+  it("uses the surname, adding the first initial when surnames repeat", () => {
+    expect(
+      shortDoctorNames(["Dr. Ana Reyes", "Dr. Grace Lim", "Dr. Joy Lim", "Dr. Carlo Villanueva", "Mendoza"]),
+    ).toEqual(["Reyes", "G. Lim", "J. Lim", "Villanueva", "Mendoza"]);
   });
 });
 
-describe("statusByMonth", () => {
-  it("counts each non-rejected status per Manila month", () => {
-    expect(statusByMonth(FIXTURE, ["2026-10", "2026-11"])).toEqual([
-      {
-        month: "2026-10",
-        counts: { requested: 1, confirmed: 1, cancelled: 4, checked_in: 1, completed: 15, no_show: 4 },
-      },
-      {
-        month: "2026-11",
-        counts: { requested: 2, confirmed: 4, cancelled: 0, checked_in: 0, completed: 1, no_show: 0 },
-      },
+describe("heatmap", () => {
+  it("counts non-rejected appointments per weekday and daytime slot, Mon–Fri always shown", () => {
+    const { cells, outsideHours } = heatmap(FIXTURE);
+    const count = (weekday: string, slot: string) =>
+      cells.find((cell) => cell.weekday === weekday && cell.slot === slot)?.count;
+
+    expect(cells).toHaveLength(5 * DAYTIME_SLOTS.length);
+    expect(cells[0]).toEqual({ weekday: "Mon", slot: "9–11 AM", count: 23 });
+    expect(count("Wed", "1–3 PM")).toBe(7);
+    expect(count("Fri", "9–11 AM")).toBe(1);
+    expect(count("Tue", "9–11 AM")).toBe(0);
+    // Saturday 23:30 and Sunday 00:30 fall outside the daytime slots.
+    expect(outsideHours).toBe(2);
+    expect(cells.reduce((sum, cell) => sum + cell.count, 0) + outsideHours).toBe(33);
+  });
+
+  it("adds Saturday or Sunday rows only when they have daytime appointments", () => {
+    // Saturday 2026-10-10, 10:00 Manila.
+    const { cells } = heatmap([appointment(DOCTOR_A, "2026-10-10T02:00:00.000Z", "completed")]);
+    expect([...new Set(cells.map((cell) => cell.weekday))]).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
+  });
+});
+
+describe("outcomesByMonth", () => {
+  it("counts completed, cancelled, and no-show per month across the outcome months", () => {
+    expect(outcomesByMonth(FIXTURE, ["2026-09", "2026-10", "2026-11", "2026-12"], NOW)).toEqual([
+      { month: "2026-10", completed: 15, cancelled: 4, noShow: 4 },
+      { month: "2026-11", completed: 1, cancelled: 0, noShow: 0 },
     ]);
   });
+
+  it("is empty when nothing has an outcome", () => {
+    expect(outcomesByMonth([], ["2026-10"], NOW)).toEqual([]);
+  });
 });
 
-describe("ratesBySlot", () => {
-  it("returns due-cohort rates for each weekday and hour bucket that has due appointments", () => {
-    expect(ratesBySlot(FIXTURE, NOW)).toEqual([
-      { weekday: "Mon", hourBucket: "08–10", dueCount: 16, cancellationRate: 12.5, noShowRate: 18.75 },
-      { weekday: "Wed", hourBucket: "14–16", dueCount: 7, cancellationRate: 14.29, noShowRate: 14.29 },
-      { weekday: "Sat", hourBucket: "22–24", dueCount: 1, cancellationRate: 0, noShowRate: 0 },
-      { weekday: "Sun", hourBucket: "00–02", dueCount: 1, cancellationRate: 0, noShowRate: 0 },
+describe("ratesByWeekday", () => {
+  it("returns outcome-cohort rates for each weekday that has outcomes, Monday first", () => {
+    expect(ratesByWeekday(FIXTURE, NOW)).toEqual([
+      { weekday: "Mon", outcomeCount: 16, cancellationRate: 18.75, noShowRate: 18.75 },
+      { weekday: "Wed", outcomeCount: 6, cancellationRate: 16.67, noShowRate: 16.67 },
+      { weekday: "Sat", outcomeCount: 1, cancellationRate: 0, noShowRate: 0 },
+      { weekday: "Sun", outcomeCount: 1, cancellationRate: 0, noShowRate: 0 },
     ]);
   });
 });

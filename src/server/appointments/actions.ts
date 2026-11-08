@@ -54,7 +54,7 @@ async function runDoctorMutation(
   if (!result.ok) {
     return { status: "error", message: result.message };
   }
-  revalidatePath("/doctor");
+  revalidatePath("/doctor", "layout");
   return { status: "success", message: successMessage };
 }
 
@@ -196,7 +196,7 @@ export async function bookAppointmentAction(
   if (!result.ok) {
     return { status: "error", message: result.message };
   }
-  revalidatePath("/doctor");
+  revalidatePath("/doctor", "layout");
   return {
     status: "success",
     message: "Appointment requested. It is not confirmed until the doctor confirms it.",
@@ -233,6 +233,6 @@ export async function cancelPatientAppointmentAction(
     return { status: "error", message: result.message };
   }
   revalidatePath("/chat");
-  revalidatePath("/doctor");
+  revalidatePath("/doctor", "layout");
   return { status: "success", message: "Appointment cancelled." };
 }

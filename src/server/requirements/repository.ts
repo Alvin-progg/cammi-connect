@@ -1,6 +1,9 @@
 import "server-only";
 
+import { cacheLife, cacheTag } from "next/cache";
+
 import type { AppointmentRequirement, RequirementTarget } from "@/lib/requirements/types";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 import type { Database } from "@/server/db/database.types";
 
@@ -81,46 +84,66 @@ async function toRequirements(rows: RequirementRow[]): Promise<AppointmentRequir
   }));
 }
 
-export const supabaseRequirementAdminRepository: RequirementAdminStore = {
-  async listRequirements({ status, kind, serviceId }) {
-    let query = getSupabaseAdminClient()
-      .from("service_requirements")
-      .select(REQUIREMENT_COLUMNS)
-      .order("effective_from", { ascending: false })
-      .order("title", { ascending: true });
-    if (status !== "all") {
-      query = query.eq("status", status);
-    }
-    if (kind === "service") {
-      query = query.not("service_id", "is", null);
-    } else if (kind === "specialty") {
-      query = query.not("specialty_id", "is", null);
-    }
-    if (serviceId) {
-      query = query.eq("service_id", serviceId);
-    }
-    const { data, error } = await query;
-    if (error) {
-      throw new Error("Unable to load requirements.");
-    }
-    return toRequirements(data ?? []);
-  },
+/**
+ * Appointment requirement list and detail.
+ * Cached until a write action calls `updateTag(REFERENCE_CACHE_TAG)`.
+ */
+async function cachedListRequirements(
+  { status, kind, serviceId }: Parameters<RequirementAdminStore["listRequirements"]>[0],
+): ReturnType<RequirementAdminStore["listRequirements"]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
 
-  async getRequirement(requirementId) {
-    const { data, error } = await getSupabaseAdminClient()
-      .from("service_requirements")
-      .select(REQUIREMENT_COLUMNS)
-      .eq("id", requirementId)
-      .maybeSingle();
-    if (error) {
-      throw new Error("Unable to load the requirement.");
-    }
-    if (!data) {
-      return null;
-    }
-    const [requirement] = await toRequirements([data]);
-    return requirement;
-  },
+  let query = getSupabaseAdminClient()
+    .from("service_requirements")
+    .select(REQUIREMENT_COLUMNS)
+    .order("effective_from", { ascending: false })
+    .order("title", { ascending: true });
+  if (status !== "all") {
+    query = query.eq("status", status);
+  }
+  if (kind === "service") {
+    query = query.not("service_id", "is", null);
+  } else if (kind === "specialty") {
+    query = query.not("specialty_id", "is", null);
+  }
+  if (serviceId) {
+    query = query.eq("service_id", serviceId);
+  }
+  const { data, error } = await query;
+  if (error) {
+    throw new Error("Unable to load requirements.");
+  }
+  return toRequirements(data ?? []);
+}
+
+async function cachedGetRequirement(
+  requirementId: Parameters<RequirementAdminStore["getRequirement"]>[0],
+): ReturnType<RequirementAdminStore["getRequirement"]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
+
+  const { data, error } = await getSupabaseAdminClient()
+    .from("service_requirements")
+    .select(REQUIREMENT_COLUMNS)
+    .eq("id", requirementId)
+    .maybeSingle();
+  if (error) {
+    throw new Error("Unable to load the requirement.");
+  }
+  if (!data) {
+    return null;
+  }
+  const [requirement] = await toRequirements([data]);
+  return requirement;
+}
+
+export const supabaseRequirementAdminRepository: RequirementAdminStore = {
+  listRequirements: cachedListRequirements,
+
+  getRequirement: cachedGetRequirement,
 
   async save({ actorId, requirementId, target, ...input }) {
     const { data, error } = await getSupabaseAdminClient().rpc(

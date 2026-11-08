@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   LabelList,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -19,10 +19,10 @@ import { formatDay, formatMonth } from "@/lib/analytics/display";
 import type {
   DailyVolume,
   DoctorAnalytics,
-  MonthlyStatusCounts,
+  MonthlyOutcomes,
   MonthlyVolume,
-  SlotRates,
   VolumeStatus,
+  WeekdayRates,
 } from "@/lib/analytics/metrics";
 import { VOLUME_STATUSES } from "@/lib/analytics/metrics";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
@@ -35,22 +35,27 @@ import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
  * beside it in ChartCard.
  */
 
-const AXIS_TICK = { fill: "var(--ink-secondary)", fontSize: 12 };
+// Reference chart styling: recessive axis text, one axis per chart, direct
+// labels in ink, 4px rounded bar ends, animation off.
+const AXIS_TICK = { fill: "var(--ink-muted)", fontSize: 11 };
+const LABEL_FILL = "var(--ink)";
 const GRID_STROKE = "var(--line)";
 const TOOLTIP_STYLE = {
   backgroundColor: "var(--surface)",
   border: "1px solid var(--line)",
-  borderRadius: 8,
+  borderRadius: 10,
+  boxShadow: "0 12px 28px -18px rgb(15 35 66 / 0.4)",
   color: "var(--ink)",
-  fontSize: 13,
+  fontSize: 12,
 };
+const BAR_CURSOR = { fill: "rgb(26 98 242 / 0.06)" };
 const CHART_HEIGHT = 288;
 
-const SERIES = {
-  volume: "var(--chart-1)",
-  completed: "var(--chart-1)",
-  cancelled: "var(--chart-5)",
-  noShow: "var(--chart-4)",
+export const SERIES = {
+  volume: "var(--series-completed)",
+  completed: "var(--series-completed)",
+  cancelled: "var(--series-cancelled)",
+  noShow: "var(--series-noshow)",
   requested: "var(--chart-6)",
   confirmed: "var(--chart-2)",
 } as const;
@@ -72,25 +77,41 @@ function ChartFrame({ label, height = CHART_HEIGHT, children }: { label: string;
 
 export function MonthlyVolumeChart({ data }: { data: MonthlyVolume[] }) {
   const points = data.map((point) => ({ month: formatMonth(point.month), total: point.total }));
+  const peak = Math.max(0, ...points.map((point) => point.total));
+  // Label the first, last, and busiest months only; the table has every value.
+  const labelled = (index: number) =>
+    index === 0 || index === points.length - 1 || points[index]?.total === peak;
   return (
-    <ChartFrame label="Line chart of appointments per month">
-      <LineChart data={points} margin={{ top: 16, right: 16, bottom: 0, left: 0 }}>
+    <ChartFrame label="Area chart of appointments per month" height={300}>
+      <AreaChart data={points} margin={{ top: 22, right: 16, bottom: 0, left: -8 }}>
         <CartesianGrid stroke={GRID_STROKE} vertical={false} />
-        <XAxis dataKey="month" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID_STROKE }} />
+        <XAxis dataKey="month" tick={AXIS_TICK} tickLine={false} axisLine={false} />
         <YAxis allowDecimals={false} tick={AXIS_TICK} tickLine={false} axisLine={false} width={40} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} />
-        <Line
-          type="monotone"
+        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(value) => [`${value} appointments`, ""]} />
+        <Area
+          type="linear"
           dataKey="total"
           name="Appointments"
           stroke={SERIES.volume}
           strokeWidth={2}
-          dot={{ r: 4, fill: SERIES.volume }}
+          fill={SERIES.volume}
+          fillOpacity={0.07}
+          dot={{ r: 4, strokeWidth: 2, stroke: "var(--surface)", fill: SERIES.volume }}
+          activeDot={{ r: 6 }}
           isAnimationActive={false}
         >
-          <LabelList dataKey="total" position="top" fill="var(--ink-secondary)" fontSize={12} />
-        </Line>
-      </LineChart>
+          <LabelList
+            dataKey="total"
+            content={({ x, y, value, index }) =>
+              typeof index === "number" && labelled(index) ? (
+                <text x={Number(x)} y={Number(y) - 10} textAnchor="middle" fontSize={12} fontWeight={600} fill={LABEL_FILL}>
+                  {String(value)}
+                </text>
+              ) : null
+            }
+          />
+        </Area>
+      </AreaChart>
     </ChartFrame>
   );
 }
@@ -143,135 +164,142 @@ export function StatusDistributionChart({ data }: { data: Record<VolumeStatus, n
 export function DoctorVolumeChart({ data }: { data: DoctorAnalytics[] }) {
   const rows = data.map((doctor) => ({ name: doctor.doctorName, total: doctor.total }));
   return (
-    <ChartFrame label="Bar chart of appointments per doctor" height={Math.max(160, rows.length * 40 + 40)}>
-      <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 0 }}>
-        <CartesianGrid stroke={GRID_STROKE} horizontal={false} />
-        <XAxis type="number" allowDecimals={false} tick={AXIS_TICK} tickLine={false} axisLine={false} />
-        <YAxis type="category" dataKey="name" tick={AXIS_TICK} tickLine={false} axisLine={false} width={140} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--surface-muted)" }} />
+    <ChartFrame label="Bar chart of appointments per doctor" height={Math.max(160, rows.length * 50 + 20)}>
+      <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 0 }} barCategoryGap={10}>
+        <XAxis type="number" hide allowDecimals={false} />
+        <YAxis
+          type="category"
+          dataKey="name"
+          tick={{ ...AXIS_TICK, fontSize: 13, fill: LABEL_FILL }}
+          tickLine={false}
+          axisLine={false}
+          width={150}
+        />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={BAR_CURSOR} formatter={(value) => [`${value} appointments`, ""]} />
         <Bar dataKey="total" name="Appointments" fill={SERIES.volume} radius={[0, 4, 4, 0]} isAnimationActive={false}>
-          <LabelList dataKey="total" position="right" fill="var(--ink-secondary)" fontSize={12} />
+          <LabelList dataKey="total" position="right" fill={LABEL_FILL} fontSize={13} fontWeight={500} />
         </Bar>
       </BarChart>
     </ChartFrame>
   );
 }
 
-const OUTCOME_SERIES: { status: VolumeStatus; color: string }[] = [
-  { status: "completed", color: SERIES.completed },
-  { status: "cancelled", color: SERIES.cancelled },
-  { status: "no_show", color: SERIES.noShow },
-];
-const OPEN_SERIES: { status: VolumeStatus; color: string }[] = [
-  { status: "requested", color: SERIES.requested },
-  { status: "confirmed", color: SERIES.confirmed },
-];
+const OUTCOME_SERIES = [
+  { key: "completed", label: "Completed", color: SERIES.completed },
+  { key: "cancelled", label: "Cancelled", color: SERIES.cancelled },
+  { key: "noShow", label: "No-show", color: SERIES.noShow },
+] as const;
 
-export function StatusByMonthChart({ data }: { data: MonthlyStatusCounts[] }) {
-  const [showOpen, setShowOpen] = useState(false);
-  const series = showOpen ? [...OUTCOME_SERIES, ...OPEN_SERIES] : OUTCOME_SERIES;
-  const rows = data.map((month) => ({ month: formatMonth(month.month), ...month.counts }));
-
+/** Completed, cancelled, and no-show per month, stacked, with each month's total above the bar. */
+export function OutcomesChart({ data }: { data: MonthlyOutcomes[] }) {
+  const rows = data.map((month) => ({
+    month: formatMonth(month.month),
+    completed: month.completed,
+    cancelled: month.cancelled,
+    noShow: month.noShow,
+    total: month.completed + month.cancelled + month.noShow,
+  }));
   return (
-    <div className="flex flex-col gap-3">
-      <label className="flex items-center gap-2 text-sm text-ink-secondary">
-        <input
-          type="checkbox"
-          checked={showOpen}
-          onChange={(event) => setShowOpen(event.target.checked)}
-          className="size-4 accent-[var(--primary)] focus-ring"
-        />
-        Show pending and confirmed
-      </label>
-      <ChartFrame label="Stacked bar chart of appointment statuses per month">
-        <BarChart data={rows} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke={GRID_STROKE} vertical={false} />
-          <XAxis dataKey="month" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID_STROKE }} />
-          <YAxis allowDecimals={false} tick={AXIS_TICK} tickLine={false} axisLine={false} width={40} />
-          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--surface-muted)" }} />
-          <Legend wrapperStyle={{ fontSize: 13 }} />
-          {series.map(({ status, color }) => (
+    <ChartFrame label="Stacked bar chart of completed, cancelled, and no-show appointments per month" height={300}>
+      <BarChart data={rows} margin={{ top: 22, right: 8, bottom: 0, left: -12 }} barCategoryGap="28%">
+        <CartesianGrid stroke={GRID_STROKE} vertical={false} />
+        <XAxis dataKey="month" tick={AXIS_TICK} tickLine={false} axisLine={false} />
+        <YAxis allowDecimals={false} tick={AXIS_TICK} tickLine={false} axisLine={false} width={40} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={BAR_CURSOR} />
+        {OUTCOME_SERIES.map(({ key, label, color }, index) => {
+          const top = index === OUTCOME_SERIES.length - 1;
+          return (
             <Bar
-              key={status}
-              dataKey={status}
-              name={APPOINTMENT_STATUS_LABELS[status]}
-              stackId="status"
+              key={key}
+              dataKey={key}
+              name={label}
+              stackId="outcomes"
               fill={color}
-              // A surface-coloured edge separates stacked segments without relying on hue.
+              // A 2px surface gap separates stacked segments without relying on hue.
               stroke="var(--surface)"
-              strokeWidth={1}
+              strokeWidth={2}
+              radius={top ? [4, 4, 0, 0] : undefined}
               isAnimationActive={false}
-            />
-          ))}
-        </BarChart>
-      </ChartFrame>
-    </div>
+            >
+              {top ? <LabelList dataKey="total" position="top" fontSize={11} fontWeight={500} fill={LABEL_FILL} /> : null}
+            </Bar>
+          );
+        })}
+      </BarChart>
+    </ChartFrame>
   );
 }
+
+/** Up to this many categories fit as columns; more switch to horizontal bars. */
+const MAX_COLUMN_CATEGORIES = 6;
 
 function RatesChart({
   label,
   rows,
-  categoryWidth,
 }: {
   label: string;
   rows: { name: string; cancellation: number | null; noShow: number | null }[];
-  categoryWidth: number;
 }) {
+  const columns = rows.length <= MAX_COLUMN_CATEGORIES;
+  const tooltip = (
+    <Tooltip
+      contentStyle={TOOLTIP_STYLE}
+      cursor={BAR_CURSOR}
+      formatter={(value) => (typeof value === "number" ? `${value.toFixed(2)}%` : "—")}
+    />
+  );
+  const bars = (position: "top" | "right") => [
+    <Bar key="cancellation" dataKey="cancellation" name="Cancellation rate" fill={SERIES.cancelled} radius={columns ? [4, 4, 0, 0] : [0, 4, 4, 0]} isAnimationActive={false}>
+      <LabelList dataKey="cancellation" position={position} formatter={labelPercent} fill={LABEL_FILL} fontSize={11} />
+    </Bar>,
+    <Bar key="noShow" dataKey="noShow" name="No-show rate" fill={SERIES.noShow} radius={columns ? [4, 4, 0, 0] : [0, 4, 4, 0]} isAnimationActive={false}>
+      <LabelList dataKey="noShow" position={position} formatter={labelPercent} fill={LABEL_FILL} fontSize={11} />
+    </Bar>,
+  ];
+
+  if (columns) {
+    return (
+      <ChartFrame label={label} height={280}>
+        <BarChart data={rows} margin={{ top: 22, right: 8, bottom: 0, left: -12 }} barGap={2} barCategoryGap="22%">
+          <CartesianGrid stroke={GRID_STROKE} vertical={false} />
+          <XAxis dataKey="name" tick={AXIS_TICK} tickLine={false} axisLine={false} interval={0} />
+          <YAxis domain={[0, "auto"]} tickFormatter={percentTick} tick={AXIS_TICK} tickLine={false} axisLine={false} width={44} />
+          {tooltip}
+          {bars("top")}
+        </BarChart>
+      </ChartFrame>
+    );
+  }
   return (
-    <ChartFrame label={label} height={Math.max(180, rows.length * 48 + 60)}>
-      <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 48, bottom: 0, left: 0 }}>
+    <ChartFrame label={label} height={Math.max(200, rows.length * 44 + 40)}>
+      <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 44, bottom: 0, left: 0 }} barGap={2}>
         <CartesianGrid stroke={GRID_STROKE} horizontal={false} />
-        <XAxis
-          type="number"
-          domain={[0, 100]}
-          tickFormatter={percentTick}
-          tick={AXIS_TICK}
-          tickLine={false}
-          axisLine={false}
-        />
-        <YAxis type="category" dataKey="name" tick={AXIS_TICK} tickLine={false} axisLine={false} width={categoryWidth} />
-        <Tooltip
-          contentStyle={TOOLTIP_STYLE}
-          cursor={{ fill: "var(--surface-muted)" }}
-          formatter={(value) => (typeof value === "number" ? `${value.toFixed(2)}%` : "—")}
-        />
-        <Legend wrapperStyle={{ fontSize: 13 }} />
-        <Bar dataKey="cancellation" name="Cancellation rate" fill={SERIES.cancelled} isAnimationActive={false}>
-          <LabelList dataKey="cancellation" position="right" formatter={labelPercent} fill="var(--ink-secondary)" fontSize={12} />
-        </Bar>
-        <Bar
-          dataKey="noShow"
-          name="No-show rate"
-          fill={SERIES.noShow}
-          // Hatched edge distinguishes no-shows from cancellations without hue.
-          stroke="var(--ink-secondary)"
-          strokeDasharray="3 2"
-          isAnimationActive={false}
-        >
-          <LabelList dataKey="noShow" position="right" formatter={labelPercent} fill="var(--ink-secondary)" fontSize={12} />
-        </Bar>
+        <XAxis type="number" domain={[0, "auto"]} tickFormatter={percentTick} tick={AXIS_TICK} tickLine={false} axisLine={false} />
+        <YAxis type="category" dataKey="name" tick={{ ...AXIS_TICK, fill: LABEL_FILL }} tickLine={false} axisLine={false} width={130} />
+        {tooltip}
+        {bars("right")}
       </BarChart>
     </ChartFrame>
   );
 }
 
 function labelPercent(value: unknown) {
-  return typeof value === "number" ? `${value}%` : "";
+  // Whole percents on the bars; the tooltip and table keep two decimals.
+  return typeof value === "number" ? `${Math.round(value)}%` : "";
 }
 
-export function SlotRatesChart({ data }: { data: SlotRates[] }) {
-  const rows = data.map((slot) => ({
-    name: `${slot.weekday} ${slot.hourBucket}`,
-    cancellation: slot.cancellationRate,
-    noShow: slot.noShowRate,
+export function WeekdayRatesChart({ data }: { data: WeekdayRates[] }) {
+  const rows = data.map((day) => ({
+    name: day.weekday,
+    cancellation: day.cancellationRate,
+    noShow: day.noShowRate,
   }));
-  return <RatesChart label="Grouped bar chart of cancellation and no-show rates by day and time" rows={rows} categoryWidth={96} />;
+  return <RatesChart label="Grouped bar chart of cancellation and no-show rates by weekday" rows={rows} />;
 }
 
 export function DoctorRatesChart({ data }: { data: DoctorAnalytics[] }) {
   const rows = data
-    .filter((doctor) => doctor.dueCount > 0)
-    .map((doctor) => ({ name: doctor.doctorName, cancellation: doctor.cancellationRate, noShow: doctor.noShowRate }));
-  return <RatesChart label="Grouped bar chart of cancellation and no-show rates by doctor" rows={rows} categoryWidth={140} />;
+    .filter((doctor) => doctor.outcomeCount > 0)
+    .map((doctor) => ({ name: doctor.shortName, cancellation: doctor.cancellationRate, noShow: doctor.noShowRate }));
+  return <RatesChart label="Grouped bar chart of cancellation and no-show rates by doctor" rows={rows} />;
 }

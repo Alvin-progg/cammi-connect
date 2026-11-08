@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-import { ActiveBadge } from "@/components/admin/active-badge";
-import { EmptyState } from "@/components/admin/empty-state";
-import { CELL, HEADER_CELL, ROW, TableFrame } from "@/components/front-desk/table-frame";
+import { ActiveBadge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/data";
+import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
 import type { DoctorSummary } from "@/lib/directory/types";
 import { formatScheduleSummary, type WeeklySchedule } from "@/lib/schedules/types";
 
@@ -24,7 +24,7 @@ export function SchedulesOverview({
   }
 
   return (
-    <TableFrame label="Doctor schedules" minWidthClass="min-w-[40rem]">
+    <Table label="Doctor schedules" minWidthClass="min-w-[40rem]">
       <thead>
         <tr>
           <th scope="col" className={HEADER_CELL}>Doctor</th>
@@ -57,6 +57,6 @@ export function SchedulesOverview({
           </tr>
         ))}
       </tbody>
-    </TableFrame>
+    </Table>
   );
 }

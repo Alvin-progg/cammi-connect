@@ -41,14 +41,17 @@ describe("NotificationsDialog", () => {
       screen.getByRole("dialog", { name: "Notifications" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Synthetic notification feed")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Notifications, 2 unread" }),
+    ).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("closes from the close button", async () => {
+  it("closes when the backdrop is clicked", async () => {
     const user = userEvent.setup();
     renderWithBell(0);
 
     await user.click(screen.getByRole("button", { name: "Notifications" }));
-    await user.click(screen.getByRole("button", { name: "Close notifications" }));
+    await user.click(screen.getByRole("dialog", { name: "Notifications" }));
 
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByText("Synthetic notification feed")).toBeNull();

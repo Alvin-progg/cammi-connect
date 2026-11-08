@@ -94,7 +94,7 @@ export function AttendanceActions({
           ? submitButton("checked_in", ATTENDANCE_ACTION_LABELS.checked_in, "primary")
           : null}
         {actions.includes("completed")
-          ? submitButton("completed", ATTENDANCE_ACTION_LABELS.completed, "secondary")
+          ? submitButton("completed", ATTENDANCE_ACTION_LABELS.completed, "outline")
           : null}
         {actions.includes("no_show") ? (
           <AlertDialog.Root
@@ -106,7 +106,7 @@ export function AttendanceActions({
           >
             <AlertDialog.Trigger
               disabled={pending}
-              className={buttonVariants({ variant: "outlineDanger", size: "sm" })}
+              className={buttonVariants({ variant: "ghost", size: "sm" })}
             >
               {ATTENDANCE_ACTION_LABELS.no_show}
             </AlertDialog.Trigger>

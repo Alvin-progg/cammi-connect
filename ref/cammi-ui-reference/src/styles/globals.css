@@ -1,0 +1,421 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+
+  /* Reference app only: next/font defines these in the real repo. */
+  --font-geist-sans: "Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-geist-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+
+  /* Surfaces */
+  --canvas: #ffffff;
+  --surface: #ffffff;
+  --surface-muted: #f3f7fe;
+
+  /* Text */
+  --ink: #0f2342;
+  --ink-secondary: #3b5275;
+  --ink-muted: #587093;
+
+  /* Structure */
+  --line: #e3eaf6;
+  --line-strong: #c9d6ec;
+  --control-line: #7a8fb0;
+  --grid-line: rgb(29 78 216 / 0.06);
+  --grid-cell: 3rem;
+  --page-padding: 1rem;
+  --overlay: rgb(15 35 66 / 0.45);
+
+  /* Brand and interaction */
+  --primary: #1a62f2;
+  --primary-hover: #1450cc;
+  --primary-soft: #e9f1ff;
+  --primary-ink: #ffffff;
+  --accent: #0369a1;
+  --accent-soft: #e0f2fe;
+  --accent-ink: #ffffff;
+  --focus: #2563eb;
+
+  /* Status */
+  --success: #166534;
+  --success-soft: #dcfce7;
+  --success-soft-ink: #166534;
+  --warning: #92400e;
+  --warning-soft: #fef3c7;
+  --warning-soft-ink: #92400e;
+  --danger: #991b1b;
+  --danger-hover: #7f1d1d;
+  --danger-ink: #ffffff;
+  --danger-soft: #fee2e2;
+  --danger-soft-ink: #991b1b;
+
+  /* Week-grid appointment slots, tinted by status (ink text on top) */
+  --slot-pending: #f2eefe;
+  --slot-pending-edge: #ded3fb;
+  --slot-confirmed: #eaf2ff;
+  --slot-confirmed-edge: #cfe0ff;
+  --slot-completed: #e9f8ee;
+  --slot-completed-edge: #c9ecd5;
+  --slot-cancelled: #fdecee;
+  --slot-cancelled-edge: #f7cdd3;
+  --slot-noshow: #f0f4fa;
+  --slot-noshow-edge: #d9e2ef;
+
+  /* Charts */
+  --chart-1: #1d4ed8;
+  --chart-2: #0369a1;
+  --chart-3: #6d28d9;
+  --chart-4: #b45309;
+  --chart-5: #be123c;
+  --chart-6: #475569;
+
+  /* Header wash */
+  --wash: linear-gradient(to bottom, #f7faff, #ffffff);
+
+  /* Elevation */
+  --elevation-card: 0 1px 2px rgb(15 35 66 / 0.04), 0 4px 12px -4px rgb(29 78 216 / 0.08);
+  --elevation-overlay: 0 24px 56px -24px rgb(15 35 66 / 0.35);
+}
+
+@media (min-width: 40rem) {
+  :root {
+    --page-padding: 1.5rem;
+  }
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --grid-cell: 4rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  :root {
+    --page-padding: 2rem;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --grid-line: rgb(29 78 216 / 0.14);
+  }
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+
+  --color-ink: var(--ink);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-muted: var(--ink-muted);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-control-line: var(--control-line);
+  --color-overlay: var(--overlay);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-ink: var(--primary-ink);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-focus: var(--focus);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-soft-ink: var(--success-soft-ink);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-ink: var(--warning-soft-ink);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-ink: var(--danger-ink);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-soft-ink: var(--danger-soft-ink);
+
+  --color-slot-pending: var(--slot-pending);
+  --color-slot-pending-edge: var(--slot-pending-edge);
+  --color-slot-confirmed: var(--slot-confirmed);
+  --color-slot-confirmed-edge: var(--slot-confirmed-edge);
+  --color-slot-completed: var(--slot-completed);
+  --color-slot-completed-edge: var(--slot-completed-edge);
+  --color-slot-cancelled: var(--slot-cancelled);
+  --color-slot-cancelled-edge: var(--slot-cancelled-edge);
+  --color-slot-noshow: var(--slot-noshow);
+  --color-slot-noshow-edge: var(--slot-noshow-edge);
+
+  /* Strong ease-out for UI entrances and press feedback */
+  --ease-snappy: cubic-bezier(0.23, 1, 0.32, 1);
+
+  /* Content that appears after a chat reply finishes typing out */
+  --animate-fade-in: fade-in 200ms var(--ease-snappy);
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+
+  /* Occasional eye blink for the decorative auth illustration */
+  --animate-blink: blink 6s ease-in-out infinite;
+  @keyframes blink {
+    0%,
+    94%,
+    100% {
+      transform: scaleY(1);
+    }
+    97% {
+      transform: scaleY(0.1);
+    }
+  }
+
+  /* One-shot "no, no" shake when the auth mascots disapprove */
+  --animate-head-shake: head-shake 400ms ease-in-out;
+  @keyframes head-shake {
+    20%,
+    60% {
+      transform: translateX(-4px);
+    }
+    40%,
+    80% {
+      transform: translateX(4px);
+    }
+  }
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+
+  --shadow-card: var(--elevation-card);
+  --shadow-overlay: var(--elevation-overlay);
+
+  /* Temporary aliases for the stock landing page until it is migrated. */
+  --color-background: var(--surface);
+  --color-foreground: var(--ink);
+}
+
+/* Full-strength grid (use only inside an opaque-card shell such as auth) */
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: var(--grid-cell) var(--grid-cell);
+}
+
+/* Grid that fades out toward the bottom of its band (hero, page header) */
+@utility bg-grid-fade {
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: var(--grid-cell) var(--grid-cell);
+  mask-image: linear-gradient(to bottom, black 30%, transparent 100%);
+}
+
+@utility bg-wash {
+  background-image: var(--wash);
+}
+
+@utility page-container {
+  width: 100%;
+  max-width: 80rem;
+  margin-inline: auto;
+  padding-inline: var(--page-padding);
+}
+
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+}
+
+@media (forced-colors: active) {
+  .bg-grid,
+  .bg-grid-fade,
+  .bg-wash {
+    background-image: none;
+  }
+}
+
+@media print {
+  .bg-grid,
+  .bg-grid-fade,
+  .bg-wash {
+    background-image: none;
+  }
+}
+
+body {
+  background-color: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-geist-sans);
+}
+
+/*
+ * Press feedback for buttons and link-buttons: colors ease on hover and the
+ * control dips to 97% while held. Reduced motion keeps the color change and
+ * drops the scale. Disabled controls use pointer-events-none, so they never dip.
+ */
+@utility pressable {
+  transition-property: color, background-color, border-color, box-shadow, transform;
+  transition-duration: 150ms;
+  transition-timing-function: --theme(--ease-snappy);
+
+  &:active {
+    transform: scale(0.97);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition-property: color, background-color, border-color, box-shadow;
+
+    &:active {
+      transform: none;
+    }
+  }
+}
+
+/*
+ * Enter/exit motion for native modal <dialog>s. Opens in 200ms and closes
+ * faster (150ms). Modals scale from the center because they are not anchored
+ * to a trigger. `allow-discrete` keeps the dialog in the top layer until the
+ * exit finishes. Browsers without @starting-style show it instantly.
+ */
+@utility dialog-motion {
+  opacity: 0;
+  transform: scale(0.96);
+  transition:
+    opacity 150ms --theme(--ease-snappy),
+    transform 150ms --theme(--ease-snappy),
+    overlay 150ms allow-discrete,
+    display 150ms allow-discrete;
+
+  &[open] {
+    opacity: 1;
+    transform: scale(1);
+    transition-duration: 200ms;
+  }
+
+  @starting-style {
+    &[open] {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+
+  &::backdrop {
+    opacity: 0;
+    transition:
+      opacity 150ms --theme(--ease-snappy),
+      overlay 150ms allow-discrete,
+      display 150ms allow-discrete;
+  }
+
+  &[open]::backdrop {
+    opacity: 1;
+    transition-duration: 200ms;
+  }
+
+  @starting-style {
+    &[open]::backdrop {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    &[open] {
+      transform: none;
+    }
+  }
+}
+
+/*
+ * Body of a native <details> disclosure: when it opens, it fades in and drops
+ * 4px from its summary so the content reads as coming out of the row that was
+ * clicked. A keyframe animation keyed on `[open]` is used rather than
+ * @starting-style, because browsers may keep closed <details> content styled
+ * (content-visibility), which would skip a starting style. Closing is instant,
+ * like the browser's own <details>. Reduced motion keeps only the fade.
+ */
+@keyframes disclosure-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes disclosure-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@utility disclosure-motion {
+  details[open] > & {
+    animation: disclosure-in 150ms --theme(--ease-snappy);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    details[open] > & {
+      animation-name: disclosure-fade-in;
+    }
+  }
+}
+
+
+/* ---------------------------------------------------------------------------
+ * Redesign additions (design.md v0.4 proposal). Copy these into the repo's
+ * globals.css when the kit lands. shadcn/ui variable names, mapped to the
+ * existing Calm Care tokens so generated components pick up the palette.
+ * ------------------------------------------------------------------------- */
+:root {
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary-foreground: var(--primary-ink);
+  --secondary: var(--surface-muted);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-muted);
+  --muted-foreground: var(--ink-muted);
+  --accent-foreground: var(--accent-ink);
+  --destructive: var(--danger);
+  --border: var(--line);
+  /* shadcn's --input is a light border; ours must meet 3:1, so it is control-line. */
+  --input: var(--control-line);
+  --ring: var(--focus);
+  --radius: 0.5rem;
+
+  /* Analytics categorical order (validated: CVD and normal-vision separation). */
+  --series-completed: #1a62f2;
+  --series-cancelled: #b45309;
+  --series-noshow: #7c3aed;
+}
+
+@theme inline {
+  --shadow-soft: 0 1px 2px rgb(15 35 66 / 0.05);
+  --shadow-lift: 0 1px 2px rgb(15 35 66 / 0.05), 0 24px 48px -32px rgb(15 35 66 / 0.25);
+  --color-series-completed: var(--series-completed);
+  --color-series-cancelled: var(--series-cancelled);
+  --color-series-noshow: var(--series-noshow);
+}
+
+/* Soft grid that fades out at the bottom of a band (hero, auth panel). */
+@utility bg-grid-soft {
+  background-image:
+    linear-gradient(to right, rgb(29 78 216 / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(29 78 216 / 0.06) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, black 25%, transparent 90%);
+}

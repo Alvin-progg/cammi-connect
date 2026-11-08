@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getAdminSession } from "@/server/auth/dal";
@@ -20,7 +20,7 @@ import {
 } from "@/server/users/service";
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/server/auth/dal", () => ({ getAdminSession: vi.fn() }));
 vi.mock("@/server/users/repository", () => ({ supabaseUserAdminRepository: {} }));
@@ -99,6 +99,7 @@ describe("user admin actions", () => {
       expect.anything(),
     );
     expect(revalidatePath).toHaveBeenCalledWith("/admin/users", "layout");
+    expect(updateTag).toHaveBeenCalledWith("reference");
   });
 
   it("returns validation errors without calling the service", async () => {
@@ -115,6 +116,7 @@ describe("user admin actions", () => {
       changeUserRoleAction(IDLE, formData({ profileId: TARGET_ID, role: "admin", reason: "x" })),
     ).resolves.toEqual({ status: "error", message: "Nothing to change." });
     expect(revalidatePath).not.toHaveBeenCalled();
+    expect(updateTag).not.toHaveBeenCalled();
   });
 
   it("reads the requested status from the form", async () => {

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import { EmptyState } from "@/components/admin/empty-state";
-import { CELL, HEADER_CELL, ROW, TableFrame } from "@/components/front-desk/table-frame";
+import { EmptyState } from "@/components/ui/data";
+import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
 import { formatManilaDateTime } from "@/lib/appointments/format";
 import { knowledgeCoverage } from "@/lib/knowledge/coverage";
 import { KNOWLEDGE_CATEGORY_LABELS, type KnowledgeDocumentSummary } from "@/lib/knowledge/types";
@@ -21,7 +21,7 @@ export function KnowledgeList({ documents }: { documents: KnowledgeDocumentSumma
   }
 
   return (
-    <TableFrame label="Knowledge documents" minWidthClass="min-w-[52rem]">
+    <Table label="Knowledge documents" minWidthClass="min-w-[52rem]">
       <thead>
         <tr>
           <th scope="col" className={HEADER_CELL}>Title</th>
@@ -52,7 +52,7 @@ export function KnowledgeList({ documents }: { documents: KnowledgeDocumentSumma
           </tr>
         ))}
       </tbody>
-    </TableFrame>
+    </Table>
   );
 }
 
@@ -86,7 +86,7 @@ export function FailedDocumentsPanel({ documents }: { documents: KnowledgeDocume
 /** Per-category counts of what Cami can answer from (ADM-14). */
 export function KnowledgeCoveragePanel({ documents }: { documents: KnowledgeDocumentSummary[] }) {
   return (
-    <TableFrame label="Knowledge coverage by category" minWidthClass="min-w-[40rem]">
+    <Table label="Knowledge coverage by category" minWidthClass="min-w-[40rem]">
       <thead>
         <tr>
           <th scope="col" className={HEADER_CELL}>Category</th>
@@ -113,6 +113,6 @@ export function KnowledgeCoveragePanel({ documents }: { documents: KnowledgeDocu
           </tr>
         ))}
       </tbody>
-    </TableFrame>
+    </Table>
   );
 }

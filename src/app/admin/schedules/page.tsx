@@ -8,7 +8,7 @@ import {
   SchedulePeriodsSection,
 } from "@/components/schedules/schedule-editor";
 import { SchedulesOverview } from "@/components/schedules/schedules-overview";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { parseRecordIdParam } from "@/lib/admin/dashboard";
 import { manilaDayRange, todayInManila } from "@/lib/appointments/filters";
 import { getAdminSession } from "@/server/auth/dal";
@@ -22,6 +22,7 @@ import { supabaseSettingsRepository } from "@/server/settings/repository";
 import { getSettings } from "@/server/settings/service";
 
 import { ADMIN_ACCESS_DENIED_MESSAGE } from "../_shared/placeholder-page";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 export const instant = false;
 
@@ -31,10 +32,7 @@ export const metadata: Metadata = { title: "Schedules" };
 const EXCEPTION_WINDOW_DAYS = 180;
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
 
-const SELECT_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
-const SECONDARY_BUTTON_CLASS =
-  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink pressable hover:bg-surface-muted";
+const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "outline", size: "sm" });
 
 export default async function AdminSchedulesPage({
   searchParams,
@@ -66,7 +64,7 @@ export default async function AdminSchedulesPage({
           id="schedule-doctor"
           name="doctor"
           defaultValue={selected?.id ?? ""}
-          className={SELECT_CLASS}
+          className={CONTROL_CLASS}
         >
           <option value="" disabled>
             Choose a doctor
@@ -124,7 +122,7 @@ export default async function AdminSchedulesPage({
                 id="schedule-department"
                 name="department"
                 defaultValue={departmentId ?? ""}
-                className={SELECT_CLASS}
+                className={CONTROL_CLASS}
               >
                 <option value="">All departments</option>
                 {departments.map((department) => (
@@ -134,7 +132,7 @@ export default async function AdminSchedulesPage({
                 ))}
               </select>
             </div>
-            <Button type="submit" variant="secondary">
+            <Button type="submit" variant="outline" size="sm">
               Filter
             </Button>
           </form>

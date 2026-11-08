@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BrandMark } from "@/components/ui/brand-mark";
 
 export default function AdminError({
   reset,
@@ -13,8 +14,9 @@ export default function AdminError({
       <div className="page-container flex flex-1 flex-col items-center justify-center py-12 lg:py-24">
         <Link
           href="/"
-          className="mb-6 w-full max-w-md rounded-lg text-base font-semibold tracking-tight text-ink focus-ring"
+          className="mb-6 flex w-full max-w-md items-center gap-2.5 rounded-lg text-base font-semibold tracking-tight text-ink focus-ring"
         >
+          <BrandMark className="size-7" />
           CamiConnect
         </Link>
         <div

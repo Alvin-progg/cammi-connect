@@ -1,5 +1,5 @@
-import { EmptyState } from "@/components/admin/empty-state";
-import { CELL, HEADER_CELL, TableFrame } from "@/components/front-desk/table-frame";
+import { EmptyState } from "@/components/ui/data";
+import { CELL, HEADER_CELL, Table } from "@/components/ui/data";
 import { diffAuditValues, type AuditValueRow } from "@/lib/audit/log";
 import type { JsonValue } from "@/lib/audit/redact";
 
@@ -10,7 +10,7 @@ function formatValue(value: JsonValue | undefined): string {
 
 function ValuesTable({ label, rows }: { label: string; rows: AuditValueRow[] }) {
   return (
-    <TableFrame label={label} minWidthClass="min-w-[40rem]">
+    <Table label={label} minWidthClass="min-w-[40rem]">
       <thead>
         <tr>
           <th scope="col" className={HEADER_CELL}>Field</th>
@@ -31,7 +31,7 @@ function ValuesTable({ label, rows }: { label: string; rows: AuditValueRow[] }) 
           </tr>
         ))}
       </tbody>
-    </TableFrame>
+    </Table>
   );
 }
 

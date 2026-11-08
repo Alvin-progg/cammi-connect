@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-import { useActionState } from "react";
+import { useActionState, useEffect, useTransition } from "react";
 import { toast } from "sonner";
 
+import { buttonVariants } from "@/components/ui/button";
 import {
   markAllNotificationsReadAction,
   markNotificationReadAction,
@@ -20,34 +20,17 @@ function useNotificationToast(state: NotificationActionState) {
   }, [state]);
 }
 
-export function MarkReadButton({ notificationId }: { notificationId: string }) {
-  const [state, formAction, pending] = useActionState(
-    markNotificationReadAction,
-    IDLE_STATE,
-  );
-  useNotificationToast(state);
-
-  return (
-    <form action={formAction} className="flex items-center gap-2">
-      <input type="hidden" name="notificationId" value={notificationId} />
-      <button
-        type="submit"
-        disabled={pending}
-        aria-busy={pending}
-        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-primary pressable hover:bg-primary-soft disabled:pointer-events-none disabled:opacity-60"
-      >
-        {pending ? "Updating…" : "Mark read"}
-      </button>
-      {state.status === "error" ? (
-        <p role="alert" className="text-sm text-danger-soft-ink">
-          {state.message}
-        </p>
-      ) : null}
-    </form>
-  );
-}
-
-export function MarkAllReadButton() {
+/**
+ * `onOptimistic` runs inside the submit transition, so a `useOptimistic`
+ * update made there reverts by itself if the action fails.
+ */
+export function MarkAllReadButton({
+  disabled = false,
+  onOptimistic,
+}: {
+  disabled?: boolean;
+  onOptimistic?: () => void;
+}) {
   const [state, formAction, pending] = useActionState(
     markAllNotificationsReadAction,
     IDLE_STATE,
@@ -55,12 +38,18 @@ export function MarkAllReadButton() {
   useNotificationToast(state);
 
   return (
-    <form action={formAction} className="flex items-center gap-2">
+    <form
+      action={() => {
+        onOptimistic?.();
+        formAction();
+      }}
+      className="flex items-center gap-2"
+    >
       <button
         type="submit"
-        disabled={pending}
+        disabled={disabled || pending}
         aria-busy={pending}
-        className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink pressable hover:bg-surface-muted disabled:pointer-events-none disabled:opacity-60"
+        className={buttonVariants({ variant: "ghost", size: "sm" })}
       >
         {pending ? "Updating…" : "Mark all as read"}
       </button>
@@ -71,4 +60,25 @@ export function MarkAllReadButton() {
       ) : null}
     </form>
   );
+}
+
+/**
+ * Marks one notification read in the background (opening its details does
+ * this). Success is silent; `/doctor` revalidates and the badge updates.
+ */
+export function useMarkNotificationRead(
+  onOptimistic?: (notificationId: string) => void,
+): (notificationId: string) => void {
+  const [, startTransition] = useTransition();
+  return (notificationId) => {
+    const formData = new FormData();
+    formData.set("notificationId", notificationId);
+    startTransition(async () => {
+      onOptimistic?.(notificationId);
+      const state = await markNotificationReadAction(IDLE_STATE, formData);
+      if (state.status === "error") {
+        toast.error(state.message);
+      }
+    });
+  };
 }

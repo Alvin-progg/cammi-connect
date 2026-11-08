@@ -9,19 +9,28 @@ import {
   type ReactNode,
 } from "react";
 
-import { BellIcon } from "./icons";
+import { BellIcon } from "lucide-react";
 
-const OpenNotificationsContext = createContext<(() => void) | null>(null);
+import { cn } from "@/lib/cn";
+
+const NotificationsContext = createContext<{
+  open: () => void;
+  isOpen: boolean;
+} | null>(null);
 
 /** Opens the notifications modal; both the header bell and the rail use it. */
 export function useOpenNotifications(): () => void {
-  const openNotifications = useContext(OpenNotificationsContext);
-  if (!openNotifications) {
+  return useNotificationsContext().open;
+}
+
+function useNotificationsContext() {
+  const context = useContext(NotificationsContext);
+  if (!context) {
     throw new Error(
       "useOpenNotifications must be used inside NotificationsDialogProvider.",
     );
   }
-  return openNotifications;
+  return context;
 }
 
 function notificationsLabel(unreadCount: number): string {
@@ -32,9 +41,10 @@ function notificationsLabel(unreadCount: number): string {
 
 
 /**
- * Hosts the notifications modal for the doctor workspace. The panel is
+ * Hosts the notifications popover for the doctor workspace, anchored under
+ * the header bell. Esc or a click outside closes it. The panel is
  * server-rendered with the page, so marking items read revalidates `/doctor`
- * and refreshes the open modal in place.
+ * and refreshes the open popover in place.
  */
 export function NotificationsDialogProvider({
   panel,
@@ -53,12 +63,14 @@ export function NotificationsDialogProvider({
   const closeNotifications = () => dialogRef.current?.close();
 
   return (
-    <OpenNotificationsContext.Provider value={openNotifications}>
+    <NotificationsContext.Provider
+      value={{ open: openNotifications, isOpen }}
+    >
       {children}
       <dialog
         ref={dialogRef}
-        aria-labelledby="notifications-dialog-title"
-        className="dialog-motion m-auto max-h-[min(48rem,calc(100dvh-2rem))] w-[calc(100%-2rem)] max-w-2xl rounded-2xl border border-line bg-surface p-0 text-ink shadow-overlay backdrop:bg-overlay"
+        aria-label="Notifications"
+        className="dialog-motion fixed top-[4.5rem] right-4 bottom-auto left-auto m-0 max-h-[min(40rem,calc(100dvh-5rem))] w-[420px] max-w-[calc(100%-2rem)] overflow-y-auto rounded-xl border border-line bg-surface p-0 text-ink shadow-overlay backdrop:bg-transparent sm:right-6"
         onClose={() => setIsOpen(false)}
         onClick={(event) => {
           if (event.target === dialogRef.current) {
@@ -66,30 +78,9 @@ export function NotificationsDialogProvider({
           }
         }}
       >
-        {isOpen ? (
-          <>
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-line bg-surface px-5 py-4 sm:px-6">
-              <h2
-                id="notifications-dialog-title"
-                className="text-xl font-semibold text-ink"
-              >
-                Notifications
-              </h2>
-              <button
-                type="button"
-                autoFocus
-                onClick={closeNotifications}
-                aria-label="Close notifications"
-                className="focus-ring inline-flex min-h-9 items-center justify-center rounded-lg border border-line-strong bg-surface px-3 text-sm font-medium text-ink pressable hover:bg-surface-muted"
-              >
-                Close
-              </button>
-            </div>
-            <div className="px-5 py-5 sm:px-6">{panel}</div>
-          </>
-        ) : null}
+        {isOpen ? panel : null}
       </dialog>
-    </OpenNotificationsContext.Provider>
+    </NotificationsContext.Provider>
   );
 }
 
@@ -98,22 +89,28 @@ export function NotificationsBellButton({
 }: {
   unreadCount: number;
 }) {
-  const openNotifications = useOpenNotifications();
+  const { open: openNotifications, isOpen } = useNotificationsContext();
 
   return (
     <button
       type="button"
       onClick={openNotifications}
       aria-haspopup="dialog"
+      aria-expanded={isOpen}
       aria-label={notificationsLabel(unreadCount)}
-      className="focus-ring relative inline-flex size-10 shrink-0 items-center justify-center rounded-full text-ink-secondary transition-[color,background-color,transform] duration-150 ease-snappy hover:bg-surface-muted hover:text-ink active:scale-[0.95] motion-reduce:transition-none"
+      className={cn(
+        "focus-ring relative inline-flex size-10 shrink-0 items-center justify-center rounded-lg border bg-surface transition-[color,background-color,transform] duration-150 ease-snappy hover:bg-surface-muted hover:text-ink active:scale-[0.95] motion-reduce:transition-none",
+        isOpen ? "border-primary text-primary" : "border-line text-ink-secondary",
+      )}
     >
-      <BellIcon className="size-5" />
+      <BellIcon aria-hidden="true" className="size-4.5" />
       {unreadCount > 0 ? (
         <span
           aria-hidden="true"
-          className="absolute right-2.5 top-2 size-2 rounded-full bg-danger ring-2 ring-surface"
-        />
+          className="absolute -right-1.5 -top-1.5 inline-flex size-4.5 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-ink ring-2 ring-surface"
+        >
+          {unreadCount > 9 ? "9+" : unreadCount}
+        </span>
       ) : null}
     </button>
   );

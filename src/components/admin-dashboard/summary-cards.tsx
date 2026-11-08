@@ -72,7 +72,7 @@ export function SummaryCards({
           key={card.label}
           role="group"
           aria-label={card.label}
-          className="relative flex flex-col gap-1 rounded-xl border border-line bg-surface p-5 shadow-card transition-colors duration-150 ease-snappy hover:bg-surface-muted motion-reduce:transition-none"
+          className="relative flex flex-col gap-1 rounded-xl border border-line bg-surface p-5 shadow-soft transition-colors duration-150 ease-snappy hover:bg-surface-muted motion-reduce:transition-none"
         >
           <Link
             href={cardHref(filters, card)}

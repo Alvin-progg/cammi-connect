@@ -8,7 +8,7 @@ import {
   type AppointmentStatus,
 } from "@/lib/appointments/status";
 
-import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "./icons";
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "lucide-react";
 
 const PRESSABLE =
   "focus-ring pressable";
@@ -106,7 +106,7 @@ export function AppointmentsCard({
         />
 
         <Link
-          href="/doctor?view=calendar"
+          href="/doctor/schedule"
           className={`${PRESSABLE} inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-primary-ink hover:bg-primary-hover`}
         >
           <PlusIcon className="size-4" />

@@ -35,7 +35,7 @@ Next.js 16 (App Router, `cacheComponents`), React 19, TypeScript, Tailwind v4 (v
   - `service.ts`: business rules. It defines a repository interface type (e.g. `DoctorAppointmentsReader`) and receives the repository as an argument, so tests pass in a `vi.fn()` fake instead of mocking Supabase.
   - `actions.ts`: `"use server"` Server Actions. Each one resolves the session, validates input with a `src/lib` schema, calls the service with the concrete repository, `revalidatePath`s, and returns a discriminated `{ status: "idle" | "error" | "success" }` state for `useActionState`.
 - `src/components/<domain>/`: UI. Client components call Server Actions; they never touch Supabase directly.
-- `src/app/`: routes. `/doctor/page.tsx` is a single server page. Its sub-views (board, list, schedule, notifications, stats, profile) are selected by search params parsed in `src/lib/appointments/dashboard.ts`, not by nested routes.
+- `src/app/`: routes. Doctor views are separate routes (`/doctor` week schedule, `/doctor/schedule` availability, `/doctor/stats`, `/doctor/profile`; paths in `DOCTOR_VIEW_PATHS`, `src/lib/appointments/dashboard.ts`), each with its own body-only `loading.tsx`. `src/app/doctor/layout.tsx` holds the rail and header, so they stay mounted between views; they read the active view from the URL (`doctorViewForPath`). Every page still runs `getDoctorSession` itself. Old `/doctor?view=` URLs redirect. Doctor actions call `revalidatePath("/doctor", "layout")` to refresh all of them. Notifications are a modal, not a view.
 
 ### Auth and authorization
 

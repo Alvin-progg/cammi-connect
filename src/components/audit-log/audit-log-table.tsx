@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import { EmptyState } from "@/components/admin/empty-state";
-import { CELL, HEADER_CELL, ROW, TableFrame } from "@/components/front-desk/table-frame";
+import { EmptyState } from "@/components/ui/data";
+import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
 import { buttonVariants } from "@/components/ui/button";
 import { formatManilaDateTime } from "@/lib/appointments/format";
 import {
@@ -17,10 +17,9 @@ import {
   type AuditLogFilters as AuditLogFilterValues,
 } from "@/lib/audit/log";
 import { formatRequestId } from "@/lib/front-desk/requests";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 const FIELD_LABEL_CLASS = "text-xs font-medium text-ink-muted";
-const CONTROL_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
 const LINK_CLASS =
   "rounded font-medium text-primary underline-offset-4 focus-ring hover:text-primary-hover hover:underline";
 
@@ -105,7 +104,7 @@ export function AuditLogFilters({
         <Link href={AUDIT_LOG_PATH} className={buttonVariants({ variant: "ghost" })}>
           Clear
         </Link>
-        <button type="submit" className={buttonVariants({ variant: "secondary" })}>
+        <button type="submit" className={buttonVariants({ variant: "outline", size: "sm" })}>
           Filter
         </button>
       </div>
@@ -158,7 +157,7 @@ export function AuditLogTable({
           Export CSV
         </a>
       </div>
-      <TableFrame label="Audit log" minWidthClass="min-w-[56rem]">
+      <Table label="Audit log" minWidthClass="min-w-[56rem]">
         <thead>
           <tr>
             <th scope="col" className={HEADER_CELL}>Time</th>
@@ -185,7 +184,7 @@ export function AuditLogTable({
             </tr>
           ))}
         </tbody>
-      </TableFrame>
+      </Table>
       <nav aria-label="Pagination" className="flex items-center justify-between gap-3 text-sm">
         <span className="text-ink-secondary">{`Page ${page} of ${pageCount}`}</span>
         <div className="flex gap-2">

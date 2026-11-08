@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { z } from "zod";
 
-import { ActiveBadge } from "@/components/admin/active-badge";
+import { ActiveBadge } from "@/components/ui/badge";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { TaskCard } from "@/components/admin/form-parts";
 import { AccessDenied } from "@/components/auth/access-denied";

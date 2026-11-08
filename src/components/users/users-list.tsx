@@ -1,17 +1,16 @@
 import Link from "next/link";
 
-import { ActiveBadge } from "@/components/admin/active-badge";
-import { EmptyState } from "@/components/admin/empty-state";
-import { CELL, HEADER_CELL, ROW, TableFrame } from "@/components/front-desk/table-frame";
+import { ActiveBadge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/data";
+import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
 import { buttonVariants } from "@/components/ui/button";
 import { formatManilaDateTime, formatManilaShortDate } from "@/lib/appointments/format";
 import { USER_ROLE_LABELS, USER_ROLES } from "@/lib/auth/roles";
 import type { AdminUserRow, UserListFilters } from "@/lib/users/types";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 const USERS_PATH = "/admin/users";
 const FIELD_LABEL_CLASS = "text-xs font-medium text-ink-muted";
-const CONTROL_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
 
 /** The users list URL for a page, keeping the active filters. */
 function usersListHref(filters: UserListFilters, page: number): string {
@@ -76,7 +75,7 @@ export function UsersFilters({ filters }: { filters: UserListFilters }) {
           <option value="inactive">Inactive</option>
         </select>
       </div>
-      <button type="submit" className={buttonVariants({ variant: "secondary" })}>
+      <button type="submit" className={buttonVariants({ variant: "outline", size: "sm" })}>
         Filter
       </button>
     </form>
@@ -106,7 +105,7 @@ export function UsersTable({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-ink-secondary">{total === 1 ? "1 account" : `${total} accounts`}</p>
-      <TableFrame label="Accounts" minWidthClass="min-w-[52rem]">
+      <Table label="Accounts" minWidthClass="min-w-[52rem]">
         <thead>
           <tr>
             <th scope="col" className={HEADER_CELL}>Name</th>
@@ -137,7 +136,7 @@ export function UsersTable({
             </tr>
           ))}
         </tbody>
-      </TableFrame>
+      </Table>
       <nav aria-label="Pagination" className="flex items-center justify-between gap-3 text-sm">
         <span className="text-ink-secondary">{`Page ${page} of ${pageCount}`}</span>
         <div className="flex gap-2">

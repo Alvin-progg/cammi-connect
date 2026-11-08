@@ -366,3 +366,63 @@ body {
     }
   }
 }
+
+
+/* ---------------------------------------------------------------------------
+ * Redesign additions (design.md v0.4 proposal). Copy these into the repo's
+ * globals.css when the kit lands. shadcn/ui variable names, mapped to the
+ * existing Calm Care tokens so generated components pick up the palette.
+ * ------------------------------------------------------------------------- */
+:root {
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary-foreground: var(--primary-ink);
+  --secondary: var(--surface-muted);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-muted);
+  --muted-foreground: var(--ink-muted);
+  --accent-foreground: var(--accent-ink);
+  --destructive: var(--danger);
+  --border: var(--line);
+  /* shadcn's --input is a light border; ours must meet 3:1, so it is control-line. */
+  --input: var(--control-line);
+  --ring: var(--focus);
+  --radius: 0.5rem;
+
+  /* Analytics categorical order (validated: CVD and normal-vision separation). */
+  --series-completed: #1a62f2;
+  --series-cancelled: #b45309;
+  --series-noshow: #7c3aed;
+}
+
+@theme inline {
+  --shadow-soft: 0 1px 2px rgb(15 35 66 / 0.05);
+  --shadow-lift: 0 1px 2px rgb(15 35 66 / 0.05), 0 24px 48px -32px rgb(15 35 66 / 0.25);
+  --color-series-completed: var(--series-completed);
+  --color-series-cancelled: var(--series-cancelled);
+  --color-series-noshow: var(--series-noshow);
+}
+
+/* Soft grid that fades out at the bottom of a band (hero, auth panel). */
+@utility bg-grid-soft {
+  background-image:
+    linear-gradient(to right, rgb(29 78 216 / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(29 78 216 / 0.06) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, black 25%, transparent 90%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* The sticky landing header must not cover the top of an anchored section. */
+section[id] {
+  scroll-margin-top: 4.5rem;
+}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { EmptyState } from "@/components/admin/empty-state";
+import { EmptyState } from "@/components/ui/data";
 import { DataTable } from "@/components/analytics/data-table";
 import { AUDIT_ACTION_LABELS } from "@/components/appointments/appointment-timeline";
 import { formatRate } from "@/lib/analytics/display";
@@ -19,7 +19,7 @@ function Section({ id, title, description, children }: { id: string; title: stri
   return (
     <section
       aria-labelledby={headingId}
-      className="flex min-w-0 flex-col gap-4 rounded-xl border border-line bg-surface p-5 shadow-card"
+      className="flex min-w-0 flex-col gap-4 rounded-xl border border-line bg-surface p-6 shadow-soft"
     >
       <header className="flex flex-col gap-1">
         <h2 id={headingId} className="text-base font-semibold text-ink">
@@ -64,15 +64,15 @@ export function DoctorPerformance({ doctors }: { doctors: DoctorAnalytics[] }) {
     <Section
       id="doctor-performance"
       title="Doctor performance"
-      description="Top 5 doctors by appointments in range, with their no-show rate over due visits."
+      description="Top 5 doctors by appointments in range, with their no-show rate over finished visits."
     >
       {doctors.length === 0 ? (
         <EmptyState>No appointments were scheduled in this period.</EmptyState>
       ) : (
         <DataTable
           label="Doctor performance"
-          columns={["Doctor", "Appointments", "Due visits", "No-show rate"]}
-          rows={doctors.map((doctor) => [doctor.doctorName, doctor.total, doctor.dueCount, formatRate(doctor.noShowRate)])}
+          columns={["Doctor", "Appointments", "Finished visits", "No-show rate"]}
+          rows={doctors.map((doctor) => [doctor.doctorName, doctor.total, doctor.outcomeCount, formatRate(doctor.noShowRate)])}
         />
       )}
     </Section>

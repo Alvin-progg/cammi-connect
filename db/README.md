@@ -90,7 +90,10 @@ then `db/migrations/0021_admin_services.sql` once, then
 `db/migrations/0025_admin_knowledge_documents.sql` once, then rerun
 `npm run kb:ingest` so the corpus documents get their content and category, then
 `db/migrations/0026_admin_knowledge_ingestion.sql` once, then
-`db/migrations/0027_admin_system_settings.sql` once.
+`db/migrations/0027_admin_system_settings.sql` once, then
+`db/migrations/0028_doctor_notification_confirmed.sql` on its own, then
+`db/migrations/0029_doctor_notification_trigger.sql` once, then
+`db/migrations/0030_query_indexes.sql` once.
 After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
@@ -457,6 +460,28 @@ now fail.
   offers no slot in the next 24 hours. "Send cancellation policy to knowledge base"
   opens a new draft document. A patient account is denied at `/admin/settings`.
 
+`0028_doctor_notification_confirmed.sql` and `0029_doctor_notification_trigger.sql`
+(doctor notifications):
+
+- 0028 adds `confirmed` to `doctor_notification_type`. Run it on its own; a new enum
+  value cannot be used in the transaction that adds it.
+- 0029 adds the `appointments_notify_doctor` trigger. Every appointment insert or update
+  writes at most one `doctor_notifications` row: a new request, a front desk booking or
+  confirmation, a reschedule, or a cancellation not made by the doctor. Rejections,
+  check-ins, completions, and no-shows do not notify. Before this, only the seed wrote
+  notifications. Re-running `npm run db:seed` now also creates trigger notifications for
+  the seeded appointments.
+- Smoke test: book through Cami as a patient, then open the bell on `/doctor` as that
+  doctor; a "New request" item is there. Confirm it at `/front-desk/requests` and a
+  "Confirmed by the front desk" item appears. Reschedule and cancel it from the front
+  desk and check a notification for each. Open one: it is marked read and the badge drops.
+
+`0030_query_indexes.sql` (query indexes): plain indexes for queries that filter only by
+date, status, or actor (front desk queue and schedule, admin monitoring, analytics,
+dashboard feeds, audit log filters). No data change; safe to re-run. Optional check:
+`explain select id from appointments where scheduled_at >= now() and scheduled_at < now() + interval '1 day';`
+On a small table the planner may still choose a sequential scan, which is expected.
+
 Audit log (ADM-16, no migration): as an admin, open `/admin/audit-log`, filter by
 "Settings (settings.*)", open an entry and check its previous and new values, then use
 **Export CSV**. A new `audit.export` row appears at the top of the log. A patient
@@ -538,6 +563,12 @@ or admin screen for front desk accounts.
 ```bash
 npm run db:seed
 ```
+
+The app caches admin reference data (departments, specialties, doctors, services,
+requirements, schedules, knowledge documents) for up to an hour; the app's own save
+actions clear that cache at once. The seed, `npm run kb:ingest`, and edits in the SQL
+editor do not, so after running them restart `npm run dev` (or wait an hour) to see
+the new data.
 
 The seed:
 

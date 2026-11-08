@@ -56,7 +56,7 @@ function findField(target: EventTarget): FocusedField | null {
 /**
  * Tracks focus and typing inside the auth page through bubbling events, so the
  * form fields only need data attributes, and shares the resulting mascot mood
- * with the illustration.
+ * with the nurse. `data-mood` exposes the current mood on the stage.
  */
 export function MascotStage({
   className,
@@ -136,6 +136,7 @@ export function MascotStage({
     <MascotContext value={value}>
       <div
         className={className}
+        data-mood={value.mood}
         onFocus={handleFocus}
         onBlur={handleBlur}
         onChange={handleChange}

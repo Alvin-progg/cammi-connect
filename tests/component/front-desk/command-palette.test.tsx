@@ -36,7 +36,7 @@ describe("CommandPalette", () => {
     const user = userEvent.setup();
     render(<CommandPalette />);
 
-    const trigger = screen.getByRole("button", { name: "Search" });
+    const trigger = screen.getByRole("button", { name: "Find patient" });
     expect(trigger).toHaveAttribute("aria-keyshortcuts", "Meta+K Control+K");
     await user.click(trigger);
 

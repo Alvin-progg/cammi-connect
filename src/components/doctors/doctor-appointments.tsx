@@ -1,5 +1,5 @@
-import { EmptyState } from "@/components/admin/empty-state";
-import { CELL, HEADER_CELL, ROW, TableFrame } from "@/components/front-desk/table-frame";
+import { EmptyState } from "@/components/ui/data";
+import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
 import { formatManilaDateTime } from "@/lib/appointments/format";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
 import type { DoctorAppointmentRow } from "@/lib/doctors/types";
@@ -11,7 +11,7 @@ export function DoctorAppointments({ appointments }: { appointments: DoctorAppoi
   }
 
   return (
-    <TableFrame label="Appointment history" minWidthClass="min-w-[32rem]">
+    <Table label="Appointment history" minWidthClass="min-w-[32rem]">
       <thead>
         <tr>
           <th scope="col" className={HEADER_CELL}>Date and time</th>
@@ -28,6 +28,6 @@ export function DoctorAppointments({ appointments }: { appointments: DoctorAppoi
           </tr>
         ))}
       </tbody>
-    </TableFrame>
+    </Table>
   );
 }

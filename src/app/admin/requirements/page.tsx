@@ -1,11 +1,11 @@
+import { Plus } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { connection } from "next/server";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AccessDenied } from "@/components/auth/access-denied";
 import { RequirementsList } from "@/components/requirements/requirements-list";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { todayInManila } from "@/lib/appointments/filters";
 import {
   parseRequirementKindFilter,
@@ -17,13 +17,12 @@ import { supabaseRequirementAdminRepository } from "@/server/requirements/reposi
 import { listRequirements } from "@/server/requirements/service";
 
 import { ADMIN_ACCESS_DENIED_MESSAGE } from "../_shared/placeholder-page";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 export const instant = false;
 
 export const metadata: Metadata = { title: "Requirements" };
 
-const SELECT_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
 const FILTER_LABEL_CLASS = "text-xs font-medium text-ink-muted";
 
 export default async function AdminRequirementsPage({
@@ -49,6 +48,12 @@ export default async function AdminRequirementsPage({
       adminName={session.admin.fullName}
       active="requirements"
       crumbs={[{ label: "Requirements" }]}
+      actions={
+        <LinkButton size="sm" href="/admin/requirements/new">
+          <Plus aria-hidden="true" />
+          New requirement
+        </LinkButton>
+      }
     >
       <div className="flex flex-col gap-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -62,7 +67,7 @@ export default async function AdminRequirementsPage({
               <label htmlFor="filter-kind" className={FILTER_LABEL_CLASS}>
                 Applies to
               </label>
-              <select id="filter-kind" name="kind" defaultValue={kind} className={SELECT_CLASS}>
+              <select id="filter-kind" name="kind" defaultValue={kind} className={CONTROL_CLASS}>
                 <option value="all">Services and specialties</option>
                 <option value="service">Services</option>
                 <option value="specialty">Specialties</option>
@@ -72,7 +77,7 @@ export default async function AdminRequirementsPage({
               <label htmlFor="filter-status" className={FILTER_LABEL_CLASS}>
                 Status
               </label>
-              <select id="filter-status" name="status" defaultValue={status} className={SELECT_CLASS}>
+              <select id="filter-status" name="status" defaultValue={status} className={CONTROL_CLASS}>
                 <option value="all">All statuses</option>
                 {REQUIREMENT_STATUSES.map((value) => (
                   <option key={value} value={value}>
@@ -81,13 +86,10 @@ export default async function AdminRequirementsPage({
                 ))}
               </select>
             </div>
-            <Button type="submit" variant="secondary">
+            <Button type="submit" variant="outline" size="sm">
               Filter
             </Button>
           </form>
-          <Link href="/admin/requirements/new" className={buttonVariants()}>
-            New requirement
-          </Link>
         </div>
         <RequirementsList requirements={requirements} today={todayInManila()} />
       </div>

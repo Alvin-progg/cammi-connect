@@ -1,5 +1,6 @@
 export const NOTIFICATION_TYPES = [
   "new_request",
+  "confirmed",
   "cancelled",
   "rescheduled",
   "reminder",
@@ -9,6 +10,7 @@ export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
 export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   new_request: "New request",
+  confirmed: "Confirmed",
   cancelled: "Cancellation",
   rescheduled: "Reschedule",
   reminder: "Reminder",

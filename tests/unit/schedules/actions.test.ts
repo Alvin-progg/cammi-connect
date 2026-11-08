@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 
 import { getAdminSession, getDoctorSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
@@ -17,7 +17,7 @@ import {
 } from "@/server/schedules/actions";
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("@/server/auth/dal", () => ({
   getDoctorSession: vi.fn(),
   getAdminSession: vi.fn(),
@@ -207,6 +207,7 @@ describe("doctor schedule actions", () => {
     ).resolves.toMatchObject({ status: "error", conflicts: [conflict] });
     expect(store.addException).not.toHaveBeenCalled();
     expect(revalidatePath).not.toHaveBeenCalled();
+    expect(updateTag).not.toHaveBeenCalled();
   });
 
   it("denies accounts without the doctor role", async () => {
@@ -255,6 +256,7 @@ describe("admin schedule actions", () => {
       expect.objectContaining({ actorId: ADMIN_SESSION.admin.id, doctorId: OTHER_DOCTOR_ID }),
     );
     expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");
+    expect(updateTag).toHaveBeenCalledWith("reference");
   });
 
   it("denies doctors and patients, who have no admin session", async () => {
@@ -328,7 +330,8 @@ describe("hospital holiday actions", () => {
     });
     expect(getAdminSession).toHaveBeenCalledWith("/admin/schedules/exceptions");
     expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");
-    expect(revalidatePath).toHaveBeenCalledWith("/doctor");
+    expect(updateTag).toHaveBeenCalledWith("reference");
+    expect(revalidatePath).toHaveBeenCalledWith("/doctor", "layout");
   });
 
   it("removes a holiday as the admin", async () => {

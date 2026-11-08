@@ -40,11 +40,9 @@ export default async function AdminAppointmentsPage({
       adminName={session.admin.fullName}
       active="appointments"
       crumbs={[{ label: "Appointments" }]}
+      lead="Read-only. Confirmations, cancellations, and reschedules are handled by the front desk."
     >
       <div className="flex flex-col gap-6">
-        <p className="text-sm text-ink-secondary">
-          Read-only. Confirmations, cancellations, and reschedules are handled by the front desk.
-        </p>
         <MonitoringFilters
           filters={filters}
           doctors={doctors.map((doctor) => ({ id: doctor.id, name: doctor.fullName }))}

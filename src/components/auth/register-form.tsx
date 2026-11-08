@@ -9,7 +9,8 @@ import type { AuthFormState } from "@/lib/auth/form-state";
 import { PASSWORD_MIN_LENGTH } from "@/lib/auth/schemas";
 import { REGISTER_ERROR_TOAST_ID } from "@/lib/auth/toast-ids";
 
-import { CheckCircleIcon } from "./auth-icons";
+import { Alert } from "@/components/ui/data";
+
 import { FormField } from "./form-field";
 import { useMascot } from "./mascot-stage";
 import { SubmitButton } from "./submit-button";
@@ -46,13 +47,7 @@ export function RegisterForm({ next }: { next?: string }) {
 
   if (state.success) {
     return (
-      <div
-        role="status"
-        className="flex items-start gap-3 rounded-xl bg-success-soft px-4 py-4 text-sm leading-6 text-success-soft-ink text-pretty"
-      >
-        <CheckCircleIcon className="mt-0.5 size-5 shrink-0" />
-        <p>{state.success}</p>
-      </div>
+      <Alert tone="success">{state.success}</Alert>
     );
   }
 
@@ -104,17 +99,20 @@ export function RegisterForm({ next }: { next?: string }) {
           autoComplete="new-password"
           error={state.fieldErrors?.confirmPassword}
         />
+        <p className="text-xs text-ink-muted">
+          Cami&apos;s answers are AI-generated and not medical advice.
+        </p>
         <SubmitButton
           pending={pending}
           label="Create account"
           pendingLabel="Creating account…"
         />
       </form>
-      <p className="pt-2 text-center text-sm leading-6 text-ink-secondary">
+      <p className="text-center text-sm text-ink-secondary">
         Already have an account?{" "}
         <Link
           href="/login"
-          className="rounded-sm font-medium text-primary underline decoration-primary/40 underline-offset-4 transition-colors hover:text-primary-hover hover:decoration-current focus-ring motion-reduce:transition-none"
+          className="focus-ring rounded-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Sign in
         </Link>

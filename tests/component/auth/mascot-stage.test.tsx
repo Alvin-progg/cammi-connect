@@ -21,11 +21,10 @@ function renderLoginPage() {
       <LoginForm />
     </AuthCard>,
   );
-  const illustration = view.container.querySelector(
-    '[data-testid="hospital-illustration"]',
-  );
-  if (!illustration) throw new Error("illustration not rendered");
-  return illustration;
+  // The stage exposes the shared mood that poses the nurse.
+  const stage = view.container.querySelector("[data-mood]");
+  if (!stage) throw new Error("mascot stage not rendered");
+  return stage;
 }
 
 function nurse() {

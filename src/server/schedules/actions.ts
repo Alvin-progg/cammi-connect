@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 
 import {
   doctorIdSchema,
@@ -12,6 +12,7 @@ import {
 } from "@/lib/schedules/schemas";
 import type { ScheduleConflict } from "@/lib/schedules/types";
 import { getAdminSession, getDoctorSession } from "@/server/auth/dal";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 
 import { supabaseDoctorSchedulesRepository } from "./repository";
@@ -78,7 +79,8 @@ function toActionState(result: ScheduleResult): ScheduleActionState {
   if (!result.ok) {
     return { status: "error", message: result.message, conflicts: result.conflicts };
   }
-  revalidatePath("/doctor");
+  updateTag(REFERENCE_CACHE_TAG);
+  revalidatePath("/doctor", "layout");
   revalidatePath("/admin", "layout");
   return { status: "success", message: result.message };
 }

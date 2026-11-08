@@ -1,5 +1,5 @@
+import { Plus } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AccessDenied } from "@/components/auth/access-denied";
@@ -8,7 +8,7 @@ import {
   KnowledgeCoveragePanel,
   KnowledgeList,
 } from "@/components/knowledge/knowledge-list";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { parseKnowledgeCategoryFilter, parseKnowledgeStatusFilter } from "@/lib/knowledge/params";
 import {
   KNOWLEDGE_CATEGORIES,
@@ -21,13 +21,12 @@ import { supabaseKnowledgeAdminRepository } from "@/server/knowledge/admin-repos
 import { listKnowledgeDocuments } from "@/server/knowledge/admin-service";
 
 import { ADMIN_ACCESS_DENIED_MESSAGE } from "../_shared/placeholder-page";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 export const instant = false;
 
 export const metadata: Metadata = { title: "Knowledge Base" };
 
-const SELECT_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
 const FILTER_LABEL_CLASS = "text-xs font-medium text-ink-muted";
 
 export default async function AdminKnowledgeBasePage({
@@ -53,6 +52,12 @@ export default async function AdminKnowledgeBasePage({
       adminName={session.admin.fullName}
       active="knowledge-base"
       crumbs={[{ label: "Knowledge Base" }]}
+      actions={
+        <LinkButton size="sm" href="/admin/knowledge-base/new">
+          <Plus aria-hidden="true" />
+          New document
+        </LinkButton>
+      }
     >
       <div className="flex flex-col gap-6">
         <FailedDocumentsPanel documents={failed} />
@@ -71,7 +76,7 @@ export default async function AdminKnowledgeBasePage({
                 id="filter-category"
                 name="category"
                 defaultValue={category}
-                className={SELECT_CLASS}
+                className={CONTROL_CLASS}
               >
                 <option value="all">All categories</option>
                 {KNOWLEDGE_CATEGORIES.map((value) => (
@@ -85,7 +90,7 @@ export default async function AdminKnowledgeBasePage({
               <label htmlFor="filter-status" className={FILTER_LABEL_CLASS}>
                 Status
               </label>
-              <select id="filter-status" name="status" defaultValue={status} className={SELECT_CLASS}>
+              <select id="filter-status" name="status" defaultValue={status} className={CONTROL_CLASS}>
                 <option value="all">All statuses</option>
                 {KNOWLEDGE_STATUSES.map((value) => (
                   <option key={value} value={value}>
@@ -94,13 +99,10 @@ export default async function AdminKnowledgeBasePage({
                 ))}
               </select>
             </div>
-            <Button type="submit" variant="secondary">
+            <Button type="submit" variant="outline" size="sm">
               Filter
             </Button>
           </form>
-          <Link href="/admin/knowledge-base/new" className={buttonVariants()}>
-            New document
-          </Link>
         </div>
         <KnowledgeList documents={documents} />
         <section aria-labelledby="knowledge-coverage-heading" className="flex flex-col gap-2">

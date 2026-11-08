@@ -1,12 +1,13 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { departmentFormSchema } from "@/lib/departments/schemas";
 import type { DepartmentConflict } from "@/lib/departments/types";
 import { getAdminSession } from "@/server/auth/dal";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 
 import { supabaseDepartmentAdminRepository } from "./repository";
 import { saveDepartment, setDepartmentActive } from "./service";
@@ -45,6 +46,7 @@ async function requireAdminActor(): Promise<string | null> {
 
 /** Doctors, chat, and the other admin pages show department names and status. */
 function refreshAdmin() {
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath("/admin", "layout");
 }
 

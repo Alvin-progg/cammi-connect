@@ -1,6 +1,9 @@
 import "server-only";
 
+import { cacheLife, cacheTag } from "next/cache";
+
 import type { KnowledgeDocumentSummary } from "@/lib/knowledge/types";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 import type { Database } from "@/server/db/database.types";
 
@@ -39,36 +42,56 @@ function toSummary(row: Omit<DocumentRow, "content" | "created_at" | "created_by
   };
 }
 
-export const supabaseKnowledgeAdminRepository: KnowledgeAdminStore = {
-  async listDocuments({ status, category }) {
-    let query = getSupabaseAdminClient()
-      .from("knowledge_documents")
-      .select(SUMMARY_COLUMNS)
-      .order("updated_at", { ascending: false });
-    if (status !== "all") {
-      query = query.eq("status", status);
-    }
-    if (category !== "all") {
-      query = query.eq("category", category);
-    }
-    const { data, error } = await query;
-    if (error) {
-      throw new Error("Unable to load knowledge documents.");
-    }
-    return (data ?? []).map(toSummary);
-  },
+/**
+ * Knowledge document list and detail.
+ * Cached until a write action calls `updateTag(REFERENCE_CACHE_TAG)`.
+ */
+async function cachedListDocuments(
+  { status, category }: Parameters<KnowledgeAdminStore["listDocuments"]>[0],
+): ReturnType<KnowledgeAdminStore["listDocuments"]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
 
-  async getDocument(documentId) {
-    const { data, error } = await getSupabaseAdminClient()
-      .from("knowledge_documents")
-      .select(`${SUMMARY_COLUMNS}, content`)
-      .eq("id", documentId)
-      .maybeSingle();
-    if (error) {
-      throw new Error("Unable to load the knowledge document.");
-    }
-    return data ? { ...toSummary(data), content: data.content } : null;
-  },
+  let query = getSupabaseAdminClient()
+    .from("knowledge_documents")
+    .select(SUMMARY_COLUMNS)
+    .order("updated_at", { ascending: false });
+  if (status !== "all") {
+    query = query.eq("status", status);
+  }
+  if (category !== "all") {
+    query = query.eq("category", category);
+  }
+  const { data, error } = await query;
+  if (error) {
+    throw new Error("Unable to load knowledge documents.");
+  }
+  return (data ?? []).map(toSummary);
+}
+
+async function cachedGetDocument(
+  documentId: Parameters<KnowledgeAdminStore["getDocument"]>[0],
+): ReturnType<KnowledgeAdminStore["getDocument"]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
+
+  const { data, error } = await getSupabaseAdminClient()
+    .from("knowledge_documents")
+    .select(`${SUMMARY_COLUMNS}, content`)
+    .eq("id", documentId)
+    .maybeSingle();
+  if (error) {
+    throw new Error("Unable to load the knowledge document.");
+  }
+  return data ? { ...toSummary(data), content: data.content } : null;
+}
+
+export const supabaseKnowledgeAdminRepository: KnowledgeAdminStore = {
+  listDocuments: cachedListDocuments,
+
+  getDocument: cachedGetDocument,
 
   async save({ actorId, documentId, title, category, content, contentHash, sourceFileName }) {
     const { data, error } = await getSupabaseAdminClient().rpc(

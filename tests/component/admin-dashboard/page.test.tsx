@@ -9,6 +9,7 @@ import { supabaseDirectoryRepository } from "@/server/directory/repository";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({ usePathname: () => "/admin" }));
+vi.mock("next/server", () => ({ connection: vi.fn(async () => undefined) }));
 vi.mock("@/server/auth/dal", () => ({ getAdminSession: vi.fn() }));
 vi.mock("@/server/analytics/repository", () => ({
   supabaseAnalyticsRepository: {

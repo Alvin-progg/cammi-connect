@@ -26,6 +26,8 @@ function renderForm(slots = SLOTS) {
     <RescheduleForm
       appointmentId={APPOINTMENT_ID}
       currentLabel="Nov 4, 2026, 10:30 AM"
+      doctorName="Dr. Synthetic Reyes"
+      dateLabel="Nov 6, 2026"
       slots={slots}
       detailsHref={DETAILS_HREF}
     />,
@@ -104,5 +106,15 @@ describe("RescheduleForm", () => {
       "That slot was just taken. Choose another time.",
     );
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("shows the picked time in the change summary", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    expect(screen.getByText("Pick a time")).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "9:30 AM" }));
+    expect(screen.getByText("Nov 6, 2026, 9:30 AM")).toBeInTheDocument();
+    expect(screen.getByText("Dr. Synthetic Reyes (same)")).toBeInTheDocument();
   });
 });

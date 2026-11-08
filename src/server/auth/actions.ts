@@ -10,7 +10,7 @@ import {
   AUTH_NOTICE_SIGNED_IN,
 } from "@/lib/auth/notice";
 import { sanitizeReturnPath } from "@/lib/auth/return-path";
-import type { UserRole } from "@/lib/auth/roles";
+import { ROLE_LANDING_PATHS } from "@/lib/auth/roles";
 import {
   loginSchema,
   registerSchema,
@@ -27,14 +27,7 @@ import {
 } from "./service";
 
 const DEFAULT_AUTH_REDIRECT = "/account";
-const PATIENT_LANDING_PATH = "/chat";
-
-const ROLE_LANDING_PATHS: Record<UserRole, string> = {
-  doctor: "/doctor",
-  admin: "/admin",
-  patient: PATIENT_LANDING_PATH,
-  front_desk: "/front-desk",
-};
+const PATIENT_LANDING_PATH = ROLE_LANDING_PATHS.patient;
 
 function readString(value: FormDataEntryValue | null): string {
   return typeof value === "string" ? value : "";

@@ -47,9 +47,9 @@ describe("ScheduleManager calendar", () => {
 
     const dayLinks = screen
       .getAllByRole("link")
-      .filter((link) => link.getAttribute("href")?.includes("view=week"));
+      .filter((link) => link.getAttribute("href")?.startsWith("/doctor?week="));
     expect(dayLinks).toHaveLength(30);
-    expect(dayLinks[0]).toHaveAttribute("href", "/doctor?view=week&week=2026-11-01");
+    expect(dayLinks[0]).toHaveAttribute("href", "/doctor?week=2026-11-01");
   });
 
   it("names the exception on blocked days, telling whole and partial days apart", () => {
@@ -57,11 +57,11 @@ describe("ScheduleManager calendar", () => {
 
     expect(screen.getByRole("link", { name: /Leave: Annual leave, all day/ })).toHaveAttribute(
       "href",
-      "/doctor?view=week&week=2026-11-02",
+      "/doctor?week=2026-11-02",
     );
     expect(
       screen.getByRole("link", { name: /Blocked period: Staff meeting, part of the day/ }),
-    ).toHaveAttribute("href", "/doctor?view=week&week=2026-11-09");
+    ).toHaveAttribute("href", "/doctor?week=2026-11-09");
   });
 
   it("includes consultation days and appointment counts in the day's name", () => {
@@ -69,7 +69,7 @@ describe("ScheduleManager calendar", () => {
 
     expect(
       screen.getByRole("link", { name: /consultation day, 2 appointments/ }),
-    ).toHaveAttribute("href", "/doctor?view=week&week=2026-11-16");
+    ).toHaveAttribute("href", "/doctor?week=2026-11-16");
   });
 
   it("offers month navigation including a jump back to today", () => {
@@ -77,15 +77,15 @@ describe("ScheduleManager calendar", () => {
 
     expect(screen.getByRole("link", { name: "Today" })).toHaveAttribute(
       "href",
-      "/doctor?view=calendar",
+      "/doctor/schedule",
     );
     expect(screen.getByRole("link", { name: "Previous month" })).toHaveAttribute(
       "href",
-      "/doctor?view=calendar&month=2026-10",
+      "/doctor/schedule?month=2026-10",
     );
     expect(screen.getByRole("link", { name: "Next month" })).toHaveAttribute(
       "href",
-      "/doctor?view=calendar&month=2026-12",
+      "/doctor/schedule?month=2026-12",
     );
   });
 

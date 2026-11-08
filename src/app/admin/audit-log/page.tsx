@@ -39,12 +39,10 @@ export default async function AdminAuditLogPage({ searchParams }: PageProps<"/ad
   ]);
 
   return (
-    <AdminShell adminName={session.admin.fullName} active="audit-log" crumbs={[{ label: "Audit Log" }]}>
+    <AdminShell adminName={session.admin.fullName} active="audit-log" crumbs={[{ label: "Audit Log" }]}
+      lead="Every admin change and export, newest first. Entries can't be edited or deleted. Appointment status history is on each appointment's page."
+    >
       <div className="flex flex-col gap-6">
-        <p className="text-sm text-ink-secondary">
-          Every admin change and export, newest first. Entries can&apos;t be edited or deleted.
-          Appointment status history is on each appointment&apos;s page.
-        </p>
         <AuditLogFilters
           filters={filters}
           actors={admins.users.map((admin) => ({ id: admin.id, name: admin.fullName }))}

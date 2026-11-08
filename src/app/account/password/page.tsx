@@ -16,10 +16,10 @@ export default async function SetPasswordPage() {
   await requireUser("/account/password");
 
   return (
-    <main id="main" className="flex flex-1 flex-col bg-canvas">
+    <main id="main" className="flex flex-1 flex-col">
       <AuthCard
         title="Set your password"
-        subtitle="Choose the password you will use to sign in to CamiConnect."
+        subtitle="Choose a password to finish setting up your account."
       >
         <SetPasswordForm />
       </AuthCard>

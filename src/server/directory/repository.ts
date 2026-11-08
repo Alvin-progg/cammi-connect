@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cacheLife, cacheTag } from "next/cache";
+
 import type {
   Department,
   DoctorSummary,
@@ -7,6 +9,7 @@ import type {
 } from "@/lib/directory/types";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 import type { DirectoryStore } from "./service";
 
 /** Specialty names per doctor id, for directory and profile displays. */
@@ -53,133 +56,171 @@ export async function loadDoctorSpecialties(
   return byDoctor;
 }
 
-export const supabaseDirectoryRepository: DirectoryStore = {
-  async listDepartments() {
-    const supabase = getSupabaseAdminClient();
+/**
+ * Department and specialty lists change only through admin saves, which call
+ * `updateTag(REFERENCE_CACHE_TAG)`, so they are cached across requests. They
+ * hold no patient data. Direct database edits (the seed script, the SQL
+ * editor) show up when the cache expires.
+ */
+async function listCachedDepartments(): Promise<Department[]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
+
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("departments")
+    .select("id, name, code, description, is_active")
+    .order("name", { ascending: true });
+
+  if (error) {
+    throw new Error("Unable to load departments.");
+  }
+  return (data ?? []).map(
+    (row): Department => ({
+      id: row.id,
+      name: row.name,
+      code: row.code,
+      description: row.description,
+      isActive: row.is_active,
+    }),
+  );
+}
+
+async function listCachedSpecialties(): Promise<Specialty[]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
+
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("specialties")
+    .select("id, name, description, is_active")
+    .order("name", { ascending: true });
+
+  if (error) {
+    throw new Error("Unable to load specialties.");
+  }
+  return (data ?? []).map(
+    (row): Specialty => ({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      isActive: row.is_active,
+    }),
+  );
+}
+
+/**
+ * Doctor directory reads (no contact details).
+ * Cached until a write action calls `updateTag(REFERENCE_CACHE_TAG)`.
+ */
+async function cachedListDoctors(
+  { departmentId, specialtyId, activeOnly }: Parameters<DirectoryStore["listDoctors"]>[0],
+): ReturnType<DirectoryStore["listDoctors"]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
+
+  const supabase = getSupabaseAdminClient();
+
+  let doctorIdsForSpecialty: string[] | null = null;
+  if (specialtyId) {
     const { data, error } = await supabase
-      .from("departments")
-      .select("id, name, code, description, is_active")
-      .order("name", { ascending: true });
-
-    if (error) {
-      throw new Error("Unable to load departments.");
-    }
-    return (data ?? []).map(
-      (row): Department => ({
-        id: row.id,
-        name: row.name,
-        code: row.code,
-        description: row.description,
-        isActive: row.is_active,
-      }),
-    );
-  },
-
-  async listSpecialties() {
-    const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("specialties")
-      .select("id, name, description, is_active")
-      .order("name", { ascending: true });
-
-    if (error) {
-      throw new Error("Unable to load specialties.");
-    }
-    return (data ?? []).map(
-      (row): Specialty => ({
-        id: row.id,
-        name: row.name,
-        description: row.description,
-        isActive: row.is_active,
-      }),
-    );
-  },
-
-  async listDoctors({ departmentId, specialtyId, activeOnly }) {
-    const supabase = getSupabaseAdminClient();
-
-    let doctorIdsForSpecialty: string[] | null = null;
-    if (specialtyId) {
-      const { data, error } = await supabase
-        .from("doctor_specialties")
-        .select("doctor_id")
-        .eq("specialty_id", specialtyId);
-      if (error) {
-        throw new Error("Unable to load doctors.");
-      }
-      doctorIdsForSpecialty = (data ?? []).map((row) => row.doctor_id);
-      if (doctorIdsForSpecialty.length === 0) {
-        return [];
-      }
-    }
-
-    let query = supabase
-      .from("doctors")
-      .select("id, full_name, department_id, is_active");
-    if (departmentId) query = query.eq("department_id", departmentId);
-    if (activeOnly) query = query.eq("is_active", true);
-    if (doctorIdsForSpecialty) query = query.in("id", doctorIdsForSpecialty);
-
-    const { data: doctorRows, error } = await query
-      .order("full_name", { ascending: true })
-      .limit(200);
+      .from("doctor_specialties")
+      .select("doctor_id")
+      .eq("specialty_id", specialtyId);
     if (error) {
       throw new Error("Unable to load doctors.");
     }
-    const rows = doctorRows ?? [];
-
-    const departmentIds = [
-      ...new Set(rows.flatMap((row) => (row.department_id ? [row.department_id] : []))),
-    ];
-    const [specialtiesByDoctor, departmentNames] = await Promise.all([
-      loadDoctorSpecialties(rows.map((row) => row.id)),
-      loadDepartmentNames(departmentIds),
-    ]);
-
-    return rows.map(
-      (row): DoctorSummary => ({
-        id: row.id,
-        fullName: row.full_name,
-        departmentId: row.department_id,
-        departmentName: row.department_id
-          ? (departmentNames.get(row.department_id) ?? null)
-          : null,
-        isActive: row.is_active,
-        specialties: specialtiesByDoctor.get(row.id) ?? [],
-      }),
-    );
-  },
-
-  async getDoctor(doctorId) {
-    const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("doctors")
-      .select("id, full_name, department_id, is_active")
-      .eq("id", doctorId)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error("Unable to load the doctor.");
+    doctorIdsForSpecialty = (data ?? []).map((row) => row.doctor_id);
+    if (doctorIdsForSpecialty.length === 0) {
+      return [];
     }
-    if (!data) {
-      return null;
-    }
+  }
 
-    const [specialtiesByDoctor, departmentNames] = await Promise.all([
-      loadDoctorSpecialties([data.id]),
-      loadDepartmentNames(data.department_id ? [data.department_id] : []),
-    ]);
-    return {
-      id: data.id,
-      fullName: data.full_name,
-      departmentId: data.department_id,
-      departmentName: data.department_id
-        ? (departmentNames.get(data.department_id) ?? null)
+  let query = supabase
+    .from("doctors")
+    .select("id, full_name, department_id, is_active");
+  if (departmentId) query = query.eq("department_id", departmentId);
+  if (activeOnly) query = query.eq("is_active", true);
+  if (doctorIdsForSpecialty) query = query.in("id", doctorIdsForSpecialty);
+
+  const { data: doctorRows, error } = await query
+    .order("full_name", { ascending: true })
+    .limit(200);
+  if (error) {
+    throw new Error("Unable to load doctors.");
+  }
+  const rows = doctorRows ?? [];
+
+  const departmentIds = [
+    ...new Set(rows.flatMap((row) => (row.department_id ? [row.department_id] : []))),
+  ];
+  const [specialtiesByDoctor, departmentNames] = await Promise.all([
+    loadDoctorSpecialties(rows.map((row) => row.id)),
+    loadDepartmentNames(departmentIds),
+  ]);
+
+  return rows.map(
+    (row): DoctorSummary => ({
+      id: row.id,
+      fullName: row.full_name,
+      departmentId: row.department_id,
+      departmentName: row.department_id
+        ? (departmentNames.get(row.department_id) ?? null)
         : null,
-      isActive: data.is_active,
-      specialties: specialtiesByDoctor.get(data.id) ?? [],
-    };
-  },
+      isActive: row.is_active,
+      specialties: specialtiesByDoctor.get(row.id) ?? [],
+    }),
+  );
+}
+
+async function cachedGetDoctor(
+  doctorId: Parameters<DirectoryStore["getDoctor"]>[0],
+): ReturnType<DirectoryStore["getDoctor"]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
+
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("doctors")
+    .select("id, full_name, department_id, is_active")
+    .eq("id", doctorId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error("Unable to load the doctor.");
+  }
+  if (!data) {
+    return null;
+  }
+
+  const [specialtiesByDoctor, departmentNames] = await Promise.all([
+    loadDoctorSpecialties([data.id]),
+    loadDepartmentNames(data.department_id ? [data.department_id] : []),
+  ]);
+  return {
+    id: data.id,
+    fullName: data.full_name,
+    departmentId: data.department_id,
+    departmentName: data.department_id
+      ? (departmentNames.get(data.department_id) ?? null)
+      : null,
+    isActive: data.is_active,
+    specialties: specialtiesByDoctor.get(data.id) ?? [],
+  };
+}
+
+export const supabaseDirectoryRepository: DirectoryStore = {
+  listDepartments: listCachedDepartments,
+
+  listSpecialties: listCachedSpecialties,
+
+  listDoctors: cachedListDoctors,
+
+  getDoctor: cachedGetDoctor,
 };
 
 /** Department names by id, for directory displays. */

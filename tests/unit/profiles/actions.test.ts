@@ -1,12 +1,13 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { updateTag } from "next/cache";
 
 import { getDoctorSession } from "@/server/auth/dal";
 import { updateDoctorProfileAction } from "@/server/profiles/actions";
 import { updateDoctorContact } from "@/server/profiles/service";
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("@/server/auth/dal", () => ({ getDoctorSession: vi.fn() }));
 vi.mock("@/server/profiles/service", () => ({ updateDoctorContact: vi.fn() }));
 
@@ -41,6 +42,7 @@ describe("updateDoctorProfileAction", () => {
 
     expect(updateDoctorContact).toHaveBeenCalledTimes(1);
     expect(updateDoctorContact).toHaveBeenCalledWith(expect.objectContaining({ doctorId: DOCTOR_A }));
+    expect(updateTag).toHaveBeenCalledWith("reference");
   });
 
   it("denies anyone without a doctor session", async () => {
@@ -50,5 +52,6 @@ describe("updateDoctorProfileAction", () => {
       updateDoctorProfileAction(IDLE, formData({ phone: "0917 000 0000", clinicNote: "" })),
     ).resolves.toEqual({ status: "error", message: "You are not authorized to update this profile." });
     expect(updateDoctorContact).not.toHaveBeenCalled();
+    expect(updateTag).not.toHaveBeenCalled();
   });
 });

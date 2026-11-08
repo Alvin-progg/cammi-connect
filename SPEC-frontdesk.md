@@ -63,18 +63,19 @@ The front desk dashboard should provide an overview of current appointment activ
 
 ### Dashboard Summary Cards
 
-1. **Pending Requests** — Appointment requests waiting for staff review.
-2. **Confirmed Today** — Appointments confirmed for the current day.
-3. **Completed Today** — Appointments marked as completed.
-4. **Cancelled Today** — Appointments cancelled on the current day.
+Amended 2026-11-08 (owner decision, UI redesign):
+
+1. **Pending Confirmation** — Appointment requests waiting for staff review, with how many have waited 24 hours or more.
+2. **Today's Appointments** — Appointments scheduled for the current Manila day, with how many are confirmed and pending.
+3. **Checked In** — Patients checked in today, with the next confirmed appointment time.
+4. **Completed Today** — Appointments marked as completed today, with the day's no-shows.
 
 ### Dashboard Sections
 
-- Pending appointment requests.
+- Pending appointment requests, oldest first, with how long each has waited.
 - Today's appointment schedule.
-- Recently confirmed appointments.
-- Recently rejected or cancelled requests.
-- Quick appointment search.
+- Recent activity: recently confirmed, rejected, and cancelled appointments in one feed, newest first.
+- Quick appointment search through the ⌘K "Find patient" search in the sidebar.
 
 The dashboard should prioritize pending requests because these require staff attention.
 
@@ -453,7 +454,7 @@ Tests: the owner and creator stay distinct, an overlapping slot is rejected, the
 
 PR 8 — feat(front-desk): dashboard overview
 
-Four summary cards, pending requests first, today’s schedule, recent confirmed, recent rejected/cancelled, and quick search.
+Four summary cards, pending requests first, today’s schedule, recent confirmed, recent rejected/cancelled, and quick search. (Amended 2026-11-08: the cards and a merged recent-activity feed follow §4; quick search moved to the ⌘K palette.)
 This comes late because it only aggregates data the earlier PRs already create.
 Tests: the “today” counts use the Asia/Manila day boundary, not UTC.
 

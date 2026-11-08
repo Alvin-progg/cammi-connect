@@ -15,15 +15,13 @@ import { getFrontDeskSession } from "@/server/auth/dal";
 import { supabaseFrontDeskRequestsRepository } from "@/server/front-desk/repository";
 import { getRequestDetails, listRescheduleSlots } from "@/server/front-desk/service";
 import { supabaseDoctorSchedulesRepository } from "@/server/schedules/repository";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 export const instant = false;
 
 export const metadata: Metadata = { title: "Reschedule appointment" };
 
-const FIELD_LABEL_CLASS = "text-xs font-medium text-ink-muted";
-const CONTROL_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
-const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "secondary" });
+const SECONDARY_BUTTON_CLASS = buttonVariants({ variant: "outline", size: "sm" });
 
 export default async function FrontDeskReschedulePage({
   params,
@@ -90,22 +88,23 @@ export default async function FrontDeskReschedulePage({
         },
         { label: "Reschedule" },
       ]}
+      title={`Reschedule ${request.patientName}`}
+      lead={`Currently ${currentLabel} with ${request.doctorName}. Rescheduling keeps the same doctor.`}
     >
-      <div className="flex max-w-2xl flex-col gap-6">
-        <p className="text-sm leading-6 text-ink-secondary">
-          {`${request.patientName} with ${request.doctorName}. Choose a free slot with the same doctor.`}
-        </p>
-        {canReschedule ? (
-          <>
-            <form
-              method="get"
-              aria-label="Choose a date"
-              className="flex flex-wrap items-end gap-3"
-            >
-              <div className="flex flex-col gap-1">
-                <label htmlFor="reschedule-date" className={FIELD_LABEL_CLASS}>
-                  Date
-                </label>
+      {canReschedule ? (
+        // Keyed by date so a new date starts from a fresh form.
+        <RescheduleForm
+          key={date}
+          appointmentId={request.id}
+          currentLabel={currentLabel}
+          doctorName={request.doctorName}
+          dateLabel={formatManilaMediumDate(date)}
+          dateControl={
+            <form method="get" aria-label="Choose a date" className="flex min-w-0 flex-col gap-1.5">
+              <label htmlFor="reschedule-date" className="text-sm font-medium text-ink">
+                Date
+              </label>
+              <div className="flex gap-2">
                 <input
                   id="reschedule-date"
                   type="date"
@@ -114,35 +113,28 @@ export default async function FrontDeskReschedulePage({
                   defaultValue={date}
                   className={CONTROL_CLASS}
                 />
+                <button type="submit" className={SECONDARY_BUTTON_CLASS}>
+                  Show slots
+                </button>
               </div>
-              <button type="submit" className={SECONDARY_BUTTON_CLASS}>
-                Show slots
-              </button>
             </form>
-            <h2 className="text-base font-semibold text-ink">
-              {`Free slots on ${formatManilaMediumDate(date)}`}
-            </h2>
-            {/* Keyed by date so a new date starts from a fresh form. */}
-            <RescheduleForm
-              key={date}
-              appointmentId={request.id}
-              currentLabel={currentLabel}
-              slots={slots}
-              detailsHref={detailsHref}
-            />
-          </>
-        ) : (
+          }
+          slots={slots}
+          detailsHref={detailsHref}
+        />
+      ) : (
+        <div className="flex flex-col gap-3">
           <p className="text-sm text-ink-muted">
             Only pending or confirmed appointments can be rescheduled.
           </p>
-        )}
-        <Link
-          href={detailsHref}
-          className="focus-ring inline-flex min-h-11 items-center self-start rounded-lg px-2 text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline"
-        >
-          Back to the appointment
-        </Link>
-      </div>
+          <Link
+            href={detailsHref}
+            className="focus-ring inline-flex h-9 items-center self-start rounded-md px-2 text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline"
+          >
+            Back to the appointment
+          </Link>
+        </div>
+      )}
     </FrontDeskShell>
   );
 }

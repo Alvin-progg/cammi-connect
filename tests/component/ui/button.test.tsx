@@ -26,15 +26,20 @@ describe("buttonVariants", () => {
     ["ghost", ["border-transparent", "bg-transparent", "text-ink", "hover:bg-surface-muted"]],
     ["danger", ["border-danger", "bg-danger", "text-danger-ink", "hover:bg-danger-hover"]],
     ["outlineDanger", ["border-line-strong", "bg-surface", "text-danger", "hover:bg-danger-soft"]],
+    ["outline", ["border-line-strong", "bg-surface", "text-ink", "hover:bg-surface-muted"]],
+    ["link", ["border-transparent", "bg-transparent", "text-primary"]],
   ] as const)("styles the %s variant with design.md tokens", (variant, expected) => {
     expect(buttonVariants({ variant }).split(" ")).toEqual(expect.arrayContaining([...expected]));
     expect(buttonVariants({ variant }).split(" ")).not.toContain("bg-primary");
   });
 
-  it("keeps the 44px target on the small size and narrows the padding", () => {
-    const classes = buttonVariants({ size: "sm" }).split(" ");
-    expect(classes).toEqual(expect.arrayContaining(["min-h-11", "px-3"]));
-    expect(classes).not.toContain("px-4");
+  // Redesign decision: `sm` is a 36px control for dense staff screens;
+  // `md` and `lg` keep the 44px patient-facing target.
+  it("uses a 36px compact small size and keeps 44px on md and lg", () => {
+    const small = buttonVariants({ size: "sm" }).split(" ");
+    expect(small).toEqual(expect.arrayContaining(["h-9", "px-3"]));
+    expect(small).not.toContain("px-4");
+    expect(buttonVariants({ size: "lg" }).split(" ")).toEqual(expect.arrayContaining(["min-h-11", "px-6"]));
   });
 
   it("appends extra classes", () => {
@@ -63,5 +68,13 @@ describe("Button", () => {
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("aria-busy", "true");
     expect(button).toHaveClass("w-full", "bg-primary");
+  });
+
+  it("lets a passed className override a conflicting variant class", () => {
+    render(<Button className="px-8">Wide</Button>);
+
+    const button = screen.getByRole("button", { name: "Wide" });
+    expect(button).toHaveClass("px-8");
+    expect(button).not.toHaveClass("px-4");
   });
 });

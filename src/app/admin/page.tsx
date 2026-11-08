@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import {
@@ -11,12 +12,9 @@ import { DashboardFilters } from "@/components/admin-dashboard/dashboard-filters
 import { SummaryCards } from "@/components/admin-dashboard/summary-cards";
 import { DailyActivityChart, StatusDistributionChart } from "@/components/analytics/analytics-charts";
 import { ChartCard } from "@/components/analytics/chart-card";
-import { DataTable } from "@/components/analytics/data-table";
 import { AccessDenied } from "@/components/auth/access-denied";
 import { DASHBOARD_PATH, parseDashboardFilters, toDashboardQuery } from "@/lib/admin/dashboard";
-import { NO_VOLUME_MESSAGE, formatDay } from "@/lib/analytics/display";
-import { VOLUME_STATUSES } from "@/lib/analytics/metrics";
-import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
+import { NO_VOLUME_MESSAGE } from "@/lib/analytics/display";
 import { supabaseAnalyticsRepository } from "@/server/analytics/repository";
 import { loadDashboard } from "@/server/analytics/service";
 import { getAdminSession } from "@/server/auth/dal";
@@ -30,6 +28,8 @@ export const metadata: Metadata = { title: "Administration" };
 
 /** Admin dashboard: operations overview with URL filters (spec-admin ADM-12). */
 export default async function AdminDashboardPage({ searchParams }: PageProps<"/admin">) {
+  // Reads the session and today's Manila date, so render at request time (cacheComponents).
+  await connection();
   const params = await searchParams;
   const session = await getAdminSession(DASHBOARD_PATH);
   if (!session) {
@@ -67,13 +67,6 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
             title="Appointment activity"
             description="Appointments scheduled each day in range, excluding rejected requests."
             emptyMessage={volumeEmpty}
-            table={
-              <DataTable
-                label="Appointment activity data"
-                columns={["Day", "Appointments"]}
-                rows={dashboard.daily.map((day) => [formatDay(day.date), day.total])}
-              />
-            }
           >
             <DailyActivityChart data={dashboard.daily} />
           </ChartCard>
@@ -83,16 +76,6 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
             title="Status distribution"
             description="Current status of the appointments scheduled in range."
             emptyMessage={volumeEmpty}
-            table={
-              <DataTable
-                label="Status distribution data"
-                columns={["Status", "Appointments"]}
-                rows={VOLUME_STATUSES.map((status) => [
-                  APPOINTMENT_STATUS_LABELS[status],
-                  dashboard.statusDistribution[status],
-                ])}
-              />
-            }
           >
             <StatusDistributionChart data={dashboard.statusDistribution} />
           </ChartCard>

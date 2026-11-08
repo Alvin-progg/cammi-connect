@@ -1,4 +1,4 @@
-import { EmptyState } from "@/components/admin/empty-state";
+import { EmptyState } from "@/components/ui/data";
 import { formatManilaDateTime } from "@/lib/appointments/format";
 import type { UserActivityEntry } from "@/lib/users/types";
 

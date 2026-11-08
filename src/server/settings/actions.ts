@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -11,6 +11,7 @@ import {
   settingsGroupSchemas,
 } from "@/lib/settings/schema";
 import { getAdminSession } from "@/server/auth/dal";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 import { supabaseKnowledgeAdminRepository } from "@/server/knowledge/admin-repository";
 import { saveKnowledgeDocument } from "@/server/knowledge/admin-service";
 
@@ -125,6 +126,7 @@ export async function sendPolicyToKnowledgeBaseAction(
   if (!result.ok) {
     return { status: "error", message: result.message };
   }
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath("/admin/knowledge-base");
   redirect(`/admin/knowledge-base/${result.documentId}`);
 }

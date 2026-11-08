@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 
-import { loginAction } from "@/server/auth/actions";
+import { LinkButton } from "@/components/ui/button";
+import { Alert } from "@/components/ui/data";
 import type { AuthFormState } from "@/lib/auth/form-state";
-import { LOGIN_ERROR_TOAST_ID } from "@/lib/auth/toast-ids";
+import { loginAction } from "@/server/auth/actions";
 
 import { FormField } from "./form-field";
 import { useMascot } from "./mascot-stage";
@@ -28,17 +27,10 @@ export function LoginForm({
 
   const errorMessage = state.formError ?? callbackError;
 
+  // Redesign: a sign-in failure shows a destructive Alert above the fields
+  // (same message for every failure) and the nurse reacts.
   useEffect(() => {
-    if (!errorMessage) return;
-    reportError();
-    toast.error("Sign-in failed", {
-      id: LOGIN_ERROR_TOAST_ID,
-      description: errorMessage,
-      duration: 8000,
-    });
-    return () => {
-      toast.dismiss(LOGIN_ERROR_TOAST_ID);
-    };
+    if (errorMessage) reportError();
   }, [errorMessage, reportError]);
 
   useEffect(() => {
@@ -50,13 +42,14 @@ export function LoginForm({
   }, [state.fieldErrors, reportError]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5.5">
       <form
         ref={formRef}
         action={formAction}
         noValidate
         className="flex flex-col gap-5"
       >
+        {errorMessage ? <Alert tone="danger">{errorMessage}</Alert> : null}
         {next ? <input type="hidden" name="next" value={next} /> : null}
         <FormField
           id="email"
@@ -80,14 +73,14 @@ export function LoginForm({
         />
         <SubmitButton pending={pending} label="Sign in" pendingLabel="Signing in…" />
       </form>
-      <p className="pt-2 text-center text-sm leading-6 text-ink-secondary">
-        No account yet?{" "}
-        <Link
-          href="/register"
-          className="rounded-sm font-medium text-primary underline decoration-primary/40 underline-offset-4 transition-colors hover:text-primary-hover hover:decoration-current focus-ring motion-reduce:transition-none"
-        >
-          Create one
-        </Link>
+      <p className="flex items-center gap-3 text-xs text-ink-muted before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line">
+        or
+      </p>
+      <LinkButton variant="outline" size="lg" href="/register" className="w-full">
+        Create a patient account
+      </LinkButton>
+      <p className="text-center text-xs leading-[18px] text-ink-muted">
+        Staff accounts are created by an administrator. Check your invite email to set your password.
       </p>
     </div>
   );

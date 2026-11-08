@@ -1,11 +1,11 @@
-import { VOLUME_STATUSES, type AnalyticsDatasets } from "./metrics";
+import type { AnalyticsDatasets } from "./metrics";
 
 /**
  * CSV export of the analytics datasets (ADM-11). Rows come straight from the
  * metric layer; no patient identifiers exist in any dataset.
  */
 
-export const ANALYTICS_DATASETS = ["kpis", "monthly", "doctor", "heatmap", "status", "slots"] as const;
+export const ANALYTICS_DATASETS = ["kpis", "monthly", "doctor", "heatmap", "outcomes", "weekday"] as const;
 export type AnalyticsDataset = (typeof ANALYTICS_DATASETS)[number];
 
 export const ANALYTICS_DATASET_LABELS: Record<AnalyticsDataset, string> = {
@@ -13,8 +13,8 @@ export const ANALYTICS_DATASET_LABELS: Record<AnalyticsDataset, string> = {
   monthly: "Monthly volume",
   doctor: "Per doctor",
   heatmap: "Peak days and times",
-  status: "Status by month",
-  slots: "Rates by day and time",
+  outcomes: "Outcomes by month",
+  weekday: "Rates by weekday",
 };
 
 export function isAnalyticsDataset(value: string): value is AnalyticsDataset {
@@ -51,10 +51,18 @@ export function analyticsDatasetCsv(dataset: AnalyticsDataset, analytics: Analyt
         ["metric", "value"],
         [
           ["total_appointments", kpis.total],
-          ["due_cohort", kpis.dueCount],
+          ["outcome_cohort", kpis.outcomeCount],
+          ["completed", kpis.completed],
+          ["cancelled", kpis.cancelled],
+          ["no_show", kpis.noShow],
           ["completion_rate_pct", kpis.completionRate],
-          ["no_show_rate_pct", kpis.noShowRate],
           ["cancellation_rate_pct", kpis.cancellationRate],
+          ["no_show_rate_pct", kpis.noShowRate],
+          ["outcome_months", kpis.outcomeMonths ? `${kpis.outcomeMonths.first} to ${kpis.outcomeMonths.last}` : null],
+          ["busiest_month", kpis.busiestMonth?.month ?? null],
+          ["busiest_month_total", kpis.busiestMonth?.total ?? null],
+          ["peak_slot", kpis.peakSlot ? `${kpis.peakSlot.weekday} ${kpis.peakSlot.slot}` : null],
+          ["peak_slot_total", kpis.peakSlot?.count ?? null],
           ["pending_now", kpis.pending],
         ],
       );
@@ -66,23 +74,23 @@ export function analyticsDatasetCsv(dataset: AnalyticsDataset, analytics: Analyt
       );
     case "doctor":
       return toCsv(
-        ["doctor", "total_appointments", "due_cohort", "cancellation_rate_pct", "no_show_rate_pct"],
-        analytics.byDoctor.map((row) => [row.doctorName, row.total, row.dueCount, row.cancellationRate, row.noShowRate]),
+        ["doctor", "total_appointments", "outcome_cohort", "cancellation_rate_pct", "no_show_rate_pct"],
+        analytics.byDoctor.map((row) => [row.doctorName, row.total, row.outcomeCount, row.cancellationRate, row.noShowRate]),
       );
     case "heatmap":
+      return toCsv(["weekday", "slot_manila", "total_appointments"], [
+        ...analytics.heatmap.cells.map((row): Cell[] => [row.weekday, row.slot, row.count]),
+        ["All", "Outside 9 AM–5 PM", analytics.heatmap.outsideHours],
+      ]);
+    case "outcomes":
       return toCsv(
-        ["weekday", "hour_bucket_manila", "total_appointments"],
-        analytics.heatmap.map((row) => [row.weekday, row.hourBucket, row.count]),
+        ["month", "completed", "cancelled", "no_show"],
+        analytics.outcomesByMonth.map((row) => [row.month, row.completed, row.cancelled, row.noShow]),
       );
-    case "status":
+    case "weekday":
       return toCsv(
-        ["month", ...VOLUME_STATUSES],
-        analytics.statusByMonth.map((row) => [row.month, ...VOLUME_STATUSES.map((status) => row.counts[status])]),
-      );
-    case "slots":
-      return toCsv(
-        ["weekday", "hour_bucket_manila", "due_cohort", "cancellation_rate_pct", "no_show_rate_pct"],
-        analytics.ratesBySlot.map((row) => [row.weekday, row.hourBucket, row.dueCount, row.cancellationRate, row.noShowRate]),
+        ["weekday", "outcome_cohort", "cancellation_rate_pct", "no_show_rate_pct"],
+        analytics.ratesByWeekday.map((row) => [row.weekday, row.outcomeCount, row.cancellationRate, row.noShowRate]),
       );
   }
 }

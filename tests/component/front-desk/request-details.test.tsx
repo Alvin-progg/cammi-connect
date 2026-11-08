@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { RequestDetailsView } from "@/components/front-desk/request-details";
+import { RequestDetailsView, SlotCheckAlert } from "@/components/front-desk/request-details";
 import type { RequestDetails } from "@/lib/front-desk/requests";
 
 const REQUEST: RequestDetails = {
@@ -74,22 +74,21 @@ describe("RequestDetailsView", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the schedule check for a pending request", () => {
-    render(
-      <RequestDetailsView
-        request={{ ...REQUEST, status: "requested", cancellationReason: null }}
-        slotCheck="outside_hours"
-      />,
-    );
+  it("shows the schedule check as an alert for a pending request", () => {
+    render(<SlotCheckAlert slotCheck="outside_hours" />);
 
-    const appointment = screen.getByRole("region", { name: "Appointment" });
-    expect(
-      within(appointment).getByText("Outside the doctor's current hours"),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Schedule check");
+    expect(screen.getByRole("alert")).toHaveTextContent("Outside the doctor's current hours");
   });
 
-  it("omits the schedule check once the request is decided", () => {
-    render(<RequestDetailsView request={REQUEST} slotCheck={null} />);
+  it("marks an available slot as a success status", () => {
+    render(<SlotCheckAlert slotCheck="available" />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Still available");
+  });
+
+  it("keeps the schedule check out of the appointment card", () => {
+    render(<RequestDetailsView request={REQUEST} />);
 
     expect(screen.queryByText("Schedule check")).not.toBeInTheDocument();
   });

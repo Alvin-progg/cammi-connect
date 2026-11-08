@@ -1,6 +1,9 @@
 import "server-only";
 
+import { cacheLife, cacheTag } from "next/cache";
+
 import type { HospitalService } from "@/lib/services/types";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 import type { Database } from "@/server/db/database.types";
 import { loadDepartmentNames } from "@/server/directory/repository";
@@ -40,40 +43,60 @@ async function toServices(
   }));
 }
 
-export const supabaseServiceAdminRepository: ServiceAdminStore = {
-  async listServices({ departmentId, status }) {
-    let query = getSupabaseAdminClient()
-      .from("services")
-      .select(SERVICE_COLUMNS)
-      .order("name", { ascending: true });
-    if (departmentId) {
-      query = query.eq("department_id", departmentId);
-    }
-    if (status !== "all") {
-      query = query.eq("is_active", status === "active");
-    }
-    const { data, error } = await query;
-    if (error) {
-      throw new Error("Unable to load services.");
-    }
-    return toServices(data ?? []);
-  },
+/**
+ * Hospital service list and detail.
+ * Cached until a write action calls `updateTag(REFERENCE_CACHE_TAG)`.
+ */
+async function cachedListServices(
+  { departmentId, status }: Parameters<ServiceAdminStore["listServices"]>[0],
+): ReturnType<ServiceAdminStore["listServices"]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
 
-  async getService(serviceId) {
-    const { data, error } = await getSupabaseAdminClient()
-      .from("services")
-      .select(SERVICE_COLUMNS)
-      .eq("id", serviceId)
-      .maybeSingle();
-    if (error) {
-      throw new Error("Unable to load the service.");
-    }
-    if (!data) {
-      return null;
-    }
-    const [service] = await toServices([data]);
-    return service;
-  },
+  let query = getSupabaseAdminClient()
+    .from("services")
+    .select(SERVICE_COLUMNS)
+    .order("name", { ascending: true });
+  if (departmentId) {
+    query = query.eq("department_id", departmentId);
+  }
+  if (status !== "all") {
+    query = query.eq("is_active", status === "active");
+  }
+  const { data, error } = await query;
+  if (error) {
+    throw new Error("Unable to load services.");
+  }
+  return toServices(data ?? []);
+}
+
+async function cachedGetService(
+  serviceId: Parameters<ServiceAdminStore["getService"]>[0],
+): ReturnType<ServiceAdminStore["getService"]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
+
+  const { data, error } = await getSupabaseAdminClient()
+    .from("services")
+    .select(SERVICE_COLUMNS)
+    .eq("id", serviceId)
+    .maybeSingle();
+  if (error) {
+    throw new Error("Unable to load the service.");
+  }
+  if (!data) {
+    return null;
+  }
+  const [service] = await toServices([data]);
+  return service;
+}
+
+export const supabaseServiceAdminRepository: ServiceAdminStore = {
+  listServices: cachedListServices,
+
+  getService: cachedGetService,
 
   async save({ actorId, serviceId, ...input }) {
     const { data, error } = await getSupabaseAdminClient().rpc(

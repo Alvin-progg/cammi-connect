@@ -1,7 +1,7 @@
 # CamiConnect — Visual Design System and Frontend Guidelines
 
-- **Status:** Draft v0.3 — redesign proposal, **pending owner approval** (v0.2 remains in force for the auth slice until approved). Amended 2026-10-25: white page/auth backgrounds and the doctor workspace shell were approved by the owner.
-- **Date:** 2026-10-25
+- **Status:** v0.4 — matches the UI implemented on `feat/ui-redesign` (owner-requested port of `ref/cammi-ui-reference/`, 2026-11-08). §0.1 summarizes v0.4; where a v0.4 amendment and older text in the same section disagree, the amendment wins. Earlier: v0.3 redesign proposal; 2026-10-25 white page/auth backgrounds and the doctor workspace shell approved by the owner.
+- **Date:** 2026-11-08
 - **Applies to:** all frontend work in this repository
 - **Direction:** "Calm Care" — clean clinical blue and white, soft surfaces, generous space
 - **Related requirements:** `SPEC.md` §8 (`UI-001`–`UI-006`, §8.1), `TEST.md` §6 and §10, `AGENTS.md`
@@ -27,6 +27,27 @@ v0.2 borrowed its character from a developer-tools website: a technical grid, mo
 | Decoration | No gradients | One static pale-blue "header wash" allowed on page header bands |
 
 Token **names are unchanged**, so existing components keep working. Only values (and a few new tokens: `--wash`, `--elevation-*`) change.
+
+## 0.1 What Changed in v0.4 (implemented 2026-11-08)
+
+v0.4 is the "shadcn on Calm Care" redesign from `ref/cammi-ui-reference/` (look only; behavior, data, auth, and copy still come from the repo). Token values from v0.3 are unchanged; v0.4 adds a component kit, new shells, and a public landing page.
+
+| Area | v0.3 | v0.4 (current UI) |
+|---|---|---|
+| Primitives | `Button` plus per-folder copies | One kit in `src/components/ui/`: `button`, `badge`, `card`, `field`, `navigation`, `data` (§5) |
+| Class merging | `clsx` | `cn()` = `clsx` + `tailwind-merge` (`src/lib/cn.ts`, approved 2026-11-08) |
+| Icons | Hand-drawn inline SVG sets | `lucide-react` (approved 2026-11-08), `aria-hidden` when decorative |
+| Admin / front desk nav | Shared 64px icon rail | `StaffShell`: grouped 240px sidebar + breadcrumb top bar (§5.6, §6.7, §6.10) |
+| Doctor nav | 64px rail | Unchanged 64px rail; header adds avatar, name, specialty |
+| Landing page | create-next-app stock page | Redesigned public landing with landing-only motion (§6.1, §4.8) |
+| Auth | Split page with hospital illustration | Top bar + card; sign in is a two-column login card with the nurse mascot (§6.2) |
+| Staff control height | 44px | 36px (`h-9` / `min-h-9`) for staff controls and `sm` buttons; patient and auth stay 44px |
+| Elevation | `shadow-card` on floating cards | `shadow-soft` on every card, `shadow-lift` on auth cards, `shadow-card` for prominent floating cards, `shadow-overlay` for overlays |
+| Chart colors | `chart-*` tokens | Completed / cancelled / no-show use the validated `--series-*` colors (§4.6) |
+
+Additions in `src/app/globals.css` (end of file, "Redesign additions"): shadcn variable names mapped onto the Calm Care tokens (`--background`, `--card`, `--muted`, `--input` → `control-line`, `--ring` → `focus`, `--radius: 0.5rem`), `shadow-soft` / `shadow-lift`, `--series-completed` `#1a62f2`, `--series-cancelled` `#b45309`, `--series-noshow` `#7c3aed`, and the `bg-grid-soft` utility (64px grid that fades out toward the bottom of a band).
+
+A dev-only gallery of the kit lives at `/dev/kit` (404 in production).
 
 ---
 
@@ -724,6 +745,8 @@ Rules:
 
 No radius above 16px on structural surfaces. Pills are for badges and compact toggles, not primary buttons.
 
+**Amendment 2026-11-08 (v0.4):** badges, inputs, selects, textareas, and `sm` buttons use `rounded-md` (6px); `md`/`lg` buttons stay `rounded-lg`. Tabs use a `rounded-lg` muted track with `rounded-md` triggers. Chat composer (28px) and avatars are the only fully rounded controls.
+
 **Elevation (soft, blue-tinted):**
 
 - Default: no shadow. Use borders and surface changes.
@@ -731,6 +754,7 @@ No radius above 16px on structural surfaces. Pills are for badges and compact to
 - Sticky navigation: no shadow; `border-b border-line`.
 - Dialogs, menus, popovers, toasts: `shadow-overlay`.
 - Never use a shadow to compensate for low contrast or missing spacing.
+- **Amendment 2026-11-08 (v0.4):** every card, table frame, and fieldset carries `shadow-soft` (a 1px hint). Auth cards use `shadow-lift`. `shadow-card` stays for prominent floating cards (request "Actions" card, chat suggestion cards, composer); `shadow-overlay` for dialogs, popovers, toasts.
 
 **Z-index:**
 
@@ -768,6 +792,7 @@ Rules:
 - Measured values and AI-generated explanations are visually separate. AI text gets an explicit label and a distinct surface, with a divider from measurements.
 - Charts do not imply causation.
 - Recharts is the approved chart library (2026-11-05). It is imported only by `src/components/analytics/analytics-charts.tsx`, so it stays in the analytics route's client bundle; every chart sits next to its data table.
+- **Amendment 2026-11-08 (v0.4):** completed, cancelled, and no-show always use `--series-completed` (`#1a62f2`), `--series-cancelled` (`#b45309`), and `--series-noshow` (`#7c3aed`) in every chart; this order was validated for color-blind and normal-vision separation. One axis per chart; chart animation off (`isAnimationActive={false}`).
 
 ### 4.7 Layout tokens summary
 
@@ -795,6 +820,16 @@ Rules:
 - No animated grid, background, or page transitions.
 - Under `prefers-reduced-motion: reduce`, remove non-essential transitions and animations, including decorative skeleton pulses. Functional loading text and status remain.
 - Never animate a confirmation state in a way that implies success before the server responds.
+
+**Amendment 2026-11-08 (v0.4), landing-only motion:** the public landing page (and only it) uses React Bits–style effects built with the approved `motion` package in `src/components/landing/landing-motion.tsx`:
+
+1. Blur Text — hero headline resolves word by word, once on load, ~600ms total.
+2. Fade Content — product preview rises 16px and fades in once, after the headline.
+3. Fade Content — "How it works" steps rise in order 01 → 02 → 03, once, on first scroll into view.
+4. Spotlight Card — service tiles show a soft blue radial light that follows the pointer, on hover only.
+5. Fade Content — Calm Care tiles stagger in 60ms apart, once, on first scroll.
+
+Nothing loops or autoplays; `bg-grid-soft` stays static. Under reduced motion every effect renders its final state and the spotlight is off. Auth pages get no React Bits motion: the nurse mascot is their motion.
 
 ---
 
@@ -835,6 +870,20 @@ Rules:
 - Hover is never the only affordance; define focus, active, disabled, and pending states.
 - Do not disable a button without explaining why nearby.
 
+**Amendment 2026-11-08 (v0.4):** `Button` / `LinkButton` / `buttonVariants` in `src/components/ui/button.tsx` merge classes with `cn()`, so a passed `className` overrides a conflicting variant class.
+
+| Variant | Classes (plus `shadow-soft` on bordered variants) |
+|---|---|
+| `primary` | `border-primary bg-primary text-primary-ink hover:bg-primary-hover` |
+| `secondary` | `border-line-strong bg-surface text-primary hover:bg-primary-soft` |
+| `outline` | `border-line-strong bg-surface text-ink hover:bg-surface-muted` |
+| `ghost` | `border-transparent bg-transparent text-ink hover:bg-surface-muted` |
+| `danger` | `border-danger bg-danger text-danger-ink hover:bg-danger-hover` |
+| `outlineDanger` | `border-line-strong bg-surface text-danger hover:bg-danger-soft` (trigger for a destructive dialog) |
+| `link` | `text-primary underline-offset-4 hover:underline`, no padding |
+
+Sizes: `sm` `h-9 rounded-md px-3` (36px, dense staff screens: filters, table actions, top-bar actions); `md` `min-h-11 rounded-lg px-4` (44px, default and the patient minimum); `lg` `min-h-11 rounded-lg px-6`; `icon` `size-10 rounded-lg`. Icons inside buttons are sized by the button (`[&_svg]:size-4`). Filter rows pair 36px controls with `outline` `sm` submit buttons and a 36px "Clear filters" text link.
+
 ### 5.2 Links
 
 - Inline links use `primary` and an underline with 4px offset.
@@ -865,6 +914,8 @@ Rules:
 - Checkboxes and radios have a 44px target area, a visible label, and a clear focus ring; selected state is not color-only.
 - File uploads show accepted types and size limits before selection, then file name, progress, and errors (`UI-005`).
 
+**Amendment 2026-11-08 (v0.4):** kit controls in `src/components/ui/field.tsx` (`Input`, `Select`, `Textarea`, `Label`, `Field`, `Checkbox`, `Fieldset`, `FieldGrid`, `ChoiceCard`, `FormFooter`). Look: `rounded-md border border-control-line bg-surface px-3 text-sm shadow-soft`, focus `border-primary` plus a 3px `primary/25` ring, invalid `border-2 border-danger`, disabled `bg-surface-muted text-ink-muted`. Staff screens use 36px controls (`h-9`; `CONTROL_CLASS` = `min-h-9` for components that render their own native control). Patient and auth fields stay 44px (`h-11`, `text-base` below `sm`). Labels: `text-sm font-medium text-ink` in forms; `text-xs font-medium text-ink-muted` above filter controls.
+
 **Form-level messages:**
 
 - Error summary: `role="alert"`, focusable (`tabIndex={-1}`), at the top of the form.
@@ -891,6 +942,7 @@ Rules:
 - Cards align to whole columns and share height only where comparison matters.
 - Use `min-w-0` on flex/grid children containing long text or tables.
 - Panels containing tables use `overflow-hidden` on the outer surface and a separately scrollable table region.
+- **Amendment 2026-11-08 (v0.4):** kit `Card` = `rounded-xl border border-line bg-surface p-6 shadow-soft`; `CardHeader` has an `text-lg font-semibold` title, optional muted description, and an optional right-side action. Also in `card.tsx`: `KpiCard` (label, `text-3xl` tabular value, one line of context), `IconTile` (tinted `rounded-lg` square for feature icons), `Avatar` (initials on `accent-soft`), `DetailList` (two-column definition list). Overview lists sit flush inside a card with `divide-y` rows.
 
 ### 5.5 Badges and status
 
@@ -919,6 +971,20 @@ Rules:
 - Announce status changes in tables politely if they update without a page reload.
 - Badges are not buttons. If a status is actionable, use a separate button or menu with an accessible name.
 
+**Amendment 2026-11-08 (v0.4):** kit `Badge` (`rounded-md border px-2 py-0.5 text-xs font-medium`) with tones `neutral`, `info` (primary-soft), `success`, `warning`, `danger`, `ai` (accent-soft), `outline`. Appointment status uses `StatusBadge`, the single status map; labels come from `APPOINTMENT_STATUS_LABELS` and each status has an icon:
+
+| Status | Label | Tone |
+|---|---|---|
+| `requested` | Pending confirmation | warning |
+| `confirmed` | Confirmed | info (blue — confirmed is never success-green) |
+| `checked_in` | Checked in | success |
+| `completed` | Completed | success |
+| `rejected` | Rejected | danger |
+| `cancelled` | Cancelled | danger |
+| `no_show` | No-show | neutral |
+
+`ActiveBadge` shows Active (success) / Inactive (neutral) for directory records.
+
 ### 5.6 Navigation
 
 **Global header:**
@@ -939,6 +1005,8 @@ Rules:
 - Active item: `bg-primary-soft`, `text-primary`, and a 2px left rule; not color-only.
 - The sidebar scrolls independently only when necessary.
 
+**Amendment 2026-11-08 (v0.4), staff sidebar (`StaffShell`, `src/components/shell/staff-shell.tsx`):** admin and front desk use a grouped 240px sidebar that is sticky and full height at `lg`+ and stacks above the page below `lg`. Top: "C" mark tile + "CamiConnect" wordmark (links home) and the role label. Front desk adds the ⌘K "Find patient" search field. Groups have small muted headings; items are lucide icon + text, `min-h-10 rounded-lg`; the active item is `bg-primary-soft font-medium text-primary-hover` with `aria-current="page"`. Foot: avatar, name, short role, and an icon-only "Sign out" button. The top bar (`min-h-16`, `border-b`) holds the breadcrumb (root crumb links home) and page actions; below it the page title (`text-3xl`, last breadcrumb) with an optional lead, then the content. `PageHeader` and `SplitLayout` (2:1 main/side at `xl`) are exported for pages. Link-driven view switches use `LinkTabs` (muted track, white active trigger).
+
 **Footer:**
 
 - 1px top border, `text-sm text-ink-muted`, links in a simple grid.
@@ -958,6 +1026,7 @@ Tables are the default for doctor/admin appointment lists, audit events, and ing
 - Sorting controls are buttons with `aria-sort` on the header. If sorting is not implemented, do not style headers as clickable.
 - Empty tables use the empty-state pattern (§5.10), not a blank grid.
 - Loading tables use skeleton rows matching final row height with `aria-busy="true"` on the region.
+- **Amendment 2026-11-08 (v0.4):** kit `Table` (`src/components/ui/data.tsx`): bordered `rounded-xl` card with `shadow-soft`, a labelled focusable scroll region (`max-h-[70vh]`), a visually hidden `<caption>`, `minWidthClass` (default `min-w-[640px]`), optional footer. `Th` header is sticky, white, `h-10 text-[13px] text-ink-muted`; `Td` `px-4 py-3`; `Tr` hover `bg-surface-muted/50`. `HEADER_CELL`, `CELL`, and `ROW` export the same classes for tables that build their own cells.
 
 ### 5.8 Dialogs
 
@@ -1088,6 +1157,8 @@ Copy is short, specific, and never claims more than the server has confirmed.
 
 ---
 
+**Amendment 2026-11-08 (v0.4):** kit `Alert` (`info`, `warning`, `danger`, `success`; tone icon; `role="alert"` for danger, `role="status"` otherwise), `EmptyState` (dashed `border-line-strong` box: a single sentence, or icon tile + title + description + action), `Timeline` (oldest first), and `ListRows`/`ListRow` for small feeds.
+
 ## 6. Application UI Guidelines
 
 All screens share tokens, grid, typography, focus treatment, and state patterns. Density and texture change with the task. Requirements come from `SPEC.md`; this section adds no product behavior.
@@ -1107,6 +1178,8 @@ All screens share tokens, grid, typography, focus treatment, and state patterns.
 - Footer: hospital contact/hours and approved policy links only.
 - No carousel, autoplay video, animated statistics, or decorative gradients beyond the single header wash.
 - The stock create-next-app landing page is not the final public design. Replacing it requires approval because `ADR-0008` records "keep the stock landing page" for the auth slice. Do not replace it inside an unrelated task.
+
+**Amendment 2026-11-08 (v0.4, owner-requested port):** `/` is the redesigned landing page (`src/app/page.tsx`, a server component; motion wrappers are the only client code). Sections in order: sticky translucent header (wordmark; How it works / Services / FAQ; Sign in; Create account) → hero on `bg-wash` + `bg-grid-soft` (AI badge pill, centered headline "Care that starts with a conversation", Chat with Cami + Browse services, AI disclaimer line, chat product preview) → Calm Care bento → How it works (three stair-stepped steps) → services bento (spotlight tiles) → FAQ (native `<details>`, first open, only questions whose answers are verified in the repo) → dark `bg-ink` call-to-action band → footer (hospital name, emergency note). Copy that is not verified (24/7 claims, phone, address, policy links, invented requirements) is left out until hospital settings or approved content supply it. This supersedes the "single header wash only", hero-column, and "no animated" bullets above for the landing page only.
 
 ### 6.2 Authentication pages
 
@@ -1142,6 +1215,15 @@ Applies to `/login`, `/register`, and account/session states (`UI-002`).
 - The mascots react to the form (`MascotStage` + `deriveMascotMood` in `src/lib/auth/mascot-mood.ts`): **idle** with no field focused; **curious** while a field is focused (pupils look toward the form and drift with the typed length); **look-away** while the focused password is shown; **disapprove** (frowns, angled brows, one `animate-head-shake`) after any failed submit, until the user types again. Every failure gets the same reaction, so nothing hints at whether an account exists. Under `motion-reduce` the expressions change instantly with no transitions, shake, or blink.
 - A nurse sprite mascot (`NurseMascot`, sheets in `public/mascots/nurse-*.webp`) sits above the `<h1>` on both pages and at every width. When idle she follows the pointer, and clicking her plays a heart, sparkle or delighted reaction. She looks down at the form while the user types, turns **bashful** while a password is shown, and goes **dizzy** after a failed submit (`nursePose`). Her click squash is skipped under reduced motion.
 
+**Amendment 2026-11-08 (v0.4):** supersedes the 2026-10-29 and 2026-11-03 layout bullets above for `/login`, `/register`, and `/account/password`. Mascot behavior is unchanged.
+
+- Frame (`AuthCard`): `surface-muted` page, a top bar with the "C" mark + "CamiConnect" home link and a ghost "Back to home" button, a centered card, and a muted footnote. The hospital illustration is removed; `MascotStage` exposes the mood as `data-mood` on the stage.
+- **Sign in** (`variant="split"`): a two-column login card (`rounded-2xl`, `shadow-lift`). Left: centered "Welcome back" `<h1>` and subtitle, the form, an "or" separator, an outline "Create a patient account" button, and the staff-accounts note. Right (`md`+): pale-blue gradient panel with `bg-grid-soft`, an "AI assistant" badge, a headline, and the nurse mascot (220px) with a speech bubble. Below `md` the panel is hidden.
+- **Sign-in errors:** a destructive `Alert` above the fields with the same message for every failure ("Email or password is incorrect."); no toast. The nurse still reacts.
+- **Register / set password** (`variant="single"`): one card (`max-w-[520px]`) with optional eyebrow ("New patient"), left-aligned `<h1>`, subtitle, and the nurse (72px) beside the heading.
+- Fields use kit `Input`/`Label` at 44px; the submit is a full-width `lg` primary `Button` with a spinner and pending label. Registration success and set-password errors use kit `Alert`.
+- `/account`: header with wordmark and "Back to home", a `bg-wash` band (avatar, "Your account", signed-in email), and a Security card (Change password, Sign out).
+
 ### 6.3 Patient appointment booking
 
 Applies to department/doctor browsing, availability, booking, and confirmation (`UI-003`).
@@ -1175,6 +1257,7 @@ Applies to department/doctor browsing, availability, booking, and confirmation (
 - Cancellation/reschedule actions are separate from the primary booking flow and always confirmed.
 - Empty state: explain there are no appointments and offer the booking action.
 - Error state: distinguish unavailable data from an empty list.
+- **Amendment 2026-11-08 (v0.4), `/chat?view=appointments`:** `bg-wash` header band ("Patient portal" eyebrow, "My Appointments" `text-4xl`, "Requests stay pending until the front desk confirms them", "Book with Cami" button). "Upcoming · N" cards: primary-soft month/day tile, doctor, department, `StatusBadge`, time, reason, cancel action. "Past · N" is a kit table (date, doctor, department, status). Empty: kit `EmptyState` with "Go to chat".
 
 ### 6.5 AI chatbot interface
 
@@ -1211,6 +1294,7 @@ Applies to `UI-001` and `FR-001`.
 
 - Explain what the assistant can help with using approved topics: hospital services/departments, doctor profiles, appointment procedures, consultation requirements, approved hours/policies.
 - Suggested prompts must map to approved knowledge or be omitted.
+- **Amendment 2026-11-08 (v0.4):** the empty state sits on a soft 64px grid: sparkle badge, `text-4xl` greeting, welcome message, and three suggestion cards with tinted icon tiles (primary for booking and appointments, accent for hospital information) and full-width primary (booking) or secondary buttons. Thread spacing `gap-5 py-8`. Composer: `rounded-[28px] border-line-strong`, `focus-within:border-primary`, history button, round send button.
 
 ### 6.6 Doctor dashboard
 
@@ -1242,6 +1326,7 @@ Applies to `UI-004` and `FR-005`.
 - **Amended 2026-10-29 (owner request):** the Kanban and List views are removed. The weekly time grid is the only appointments view; the card toolbar holds the week navigator and **Block time**, with the status filter below. Old `?view=board` / `?view=list` links fall back to the week grid.
 - **Amended 2026-10-29 (owner request):** the palette returns to blue and white. Neutrals are blue-tinted again (`ink` #0f2342, `ink-secondary` #3b5275, `ink-muted` #587093, `line` #e3eaf6, `line-strong` #c9d6ec, `control-line` #7a8fb0, `surface-muted` #f3f7fe); primary stays #1a62f2. The app is light-only: the `prefers-color-scheme: dark` overrides are removed so every page renders on white.
 - Motion uses `ease-snappy` (`cubic-bezier(0.23, 1, 0.32, 1)`). Popovers and tooltips enter in 150ms from `scale(0.97)` with opacity, using `@starting-style`. Pressables use `active:scale-[0.97]`, and hover effects are gated to `(hover: hover)`. Reduced motion drops the scale but keeps the fade.
+- **Amendment 2026-11-08 (v0.4):** the rail keeps its behavior; its home tile shows the "C" mark. The header has a `text-2xl` view title with the Manila date, a bordered notifications button with a primary unread-count badge (9+ cap), and the doctor's avatar, name, and specialty (`sm`+).
 
 ### 6.7 Administrator dashboard
 
@@ -1253,6 +1338,7 @@ Applies to `UI-005`, `FR-002`, and `FR-006`.
 - Mobile: sidebar becomes an accessible drawer; no hidden-only navigation.
 - `/admin` (2026-11-05): uses the doctor workspace's icon rail instead of the 240px sidebar. It is sticky and full height (it stays put while the page scrolls), 64px collapsed with tooltips and 224px expanded with labels (an overlay below `lg`), and the signed-in admin and sign-out sit at its foot. The 64px top bar keeps the breadcrumb. `/front-desk` uses the same rail (shared `WorkspaceRail`).
 - Page title, short description, and one primary action per screen. Use secondary buttons and a clearly separated danger zone for additional actions.
+- **Amendment 2026-11-08 (v0.4):** supersedes the 2026-11-05 rail bullet. `/admin` uses `StaffShell` (§5.6) with groups Overview (Dashboard, Analytics) · Operations (Appointments, Schedules) · Directory (Doctors, Departments, Specialties, Services, Requirements) · Chatbot (Knowledge base) · System (Users, Settings, Audit log). Breadcrumb root is "Admin". List pages put their create action ("New doctor", "Invite staff", …) as an `sm` primary button in the top bar. Detail-page section switches (doctor Profile/Schedule/Appointments, Settings tabs) use `LinkTabs`. Dashboard and analytics cards use `shadow-soft`.
 
 **Density:**
 
@@ -1286,6 +1372,7 @@ Applies to `UI-006` and `FR-007`.
 - Error: one clear error region with retry for reads; a single chart failure does not blank the page unless the page cannot function.
 - Date/time uses Asia/Manila by default and states the timezone.
 - Charts use Recharts (approved 2026-11-05); KPI numbers count up once on mount and render their final value under reduced motion.
+- **Amendment 2026-11-08 (v0.4):** the page follows the reference's data design (definitions v2 in `docs/analytics-definitions.md`). KPIs: "Appointments {this year}" (busiest month), "Completed, {Jan–Jun}" (n of m), "Cancelled · No-show, {Jan–Jun}" (counts), "Peak slot" ("Thu 11–1"). Demand: 1 monthly volume, 2 appointments per doctor, 3 peak consultation days and times (Mon–Fri × 9–11 / 11–1 / 1–3 / 3–5). Outcomes: 4 monthly outcomes (completed / cancelled / no-show stacked), 5 rates by weekday, 6 rates by doctor (surname labels). Each card's subtitle is a one-sentence takeaway written from the data; the default range is this year.
 
 ### 6.9 State patterns by screen
 
@@ -1313,6 +1400,14 @@ Applies to `SPEC-frontdesk.md` (FD-001). Added 2026-11-03.
 - **Doctor view:** pending appointments show "Awaiting front desk confirmation" in place of a Confirm button.
 - Density, tables, and destructive-action confirmation follow §6.7. Pending requests come first (`SPEC-frontdesk.md` §4).
 - States follow the Admin row of §6.9. A non-staff account gets the neutral access-denied state.
+- **Amendment 2026-11-08 (v0.4):** supersedes the rail bullets above. `/front-desk` uses `StaffShell` (§5.6) with Overview, Requests (pending count badge), Daily schedule, New appointment and the ⌘K "Find patient" field in the sidebar; breadcrumb root "Front desk". Each page sets its own title (`title`) separate from the breadcrumb.
+  - **Overview:** title "Good Morning, {first name}"; lead "N requests need a decision. M patients are scheduled today."; top bar shows the Manila date and "New appointment". Four `KpiCard`s: Pending confirmation ("N waiting over 24 h", danger), Today's appointments ("N confirmed · N pending"), Checked in ("Next: time"), Completed today ("N no-show"). `SplitLayout`: "Pending, oldest first" card (avatar, name, doctor · time, "Waiting X" badge — danger at 24 h — and an outline Review button) beside a "Today" card (time, patient, doctor, `StatusBadge`). Full-width "Recent activity" feed. No on-page search.
+  - **Requests:** title "Appointment requests"; `LinkTabs` Board | List (`?view=`, board default). Board: four `surface-muted` columns (Pending confirmation, Confirmed, Checked in, Cancelled or rejected) with a status dot and count; cards show patient, mono reference, doctor · specialty, date · time, a "Cami" `ai` badge, and the waiting badge or status. List: Requested for, Patient (link and contact), Doctor (and specialty), Waiting, Status, Request.
+  - **Request details:** title is the patient with a `StatusBadge`; lead "specialty with doctor · when · requested X ago in chat"; top bar "N of M" and "Next request" for pending Cami requests. Patient and Appointment cards (two-column definition lists) side by side, then Patient-provided information and Status history. Side "Decide" card (`shadow-card`): schedule-check `Alert`, then stacked full-width `lg` Confirm request, Reschedule, Reject request / Cancel appointment, and attendance actions.
+  - **Reschedule:** title "Reschedule {patient}"; a form card (disabled Doctor field, date, "Free times" slot chips, reason, Cancel / Reschedule footer) beside a "Change summary" card (From struck through, To follows the picked chip, Doctor same).
+  - **Daily schedule:** title is the long Manila date; lead counts appointments, check-ins, no-shows; top bar has Previous day, date, Next day, Today; filters plus "Print list" (`window.print()`; navigation and filters hidden in print). Table: Time, Patient (link + reference), Doctor, Status (+ source), Attendance (Check in primary, Mark completed outline, Mark no-show ghost; "Confirm first" on requested rows).
+  - **New appointment:** `Fieldset` steps "1 · Patient", "2 · Doctor and time", "3 · Visit details" on the left; a sticky "Review" card with the submit button on the right.
+  - Slot pickers everywhere use `SlotChips`: labelled radios styled as 44px chips with a 2px primary border, tint, and check icon when chosen.
 
 ---
 
@@ -1368,11 +1463,11 @@ Target **WCAG 2.1 AA** for patient-facing flows (`SPEC.md` §8.1).
 
 - Line icons with a consistent ~1.5px stroke on a 20/24px grid, with softly rounded caps and joins to match the rounded shapes. Do not mix filled and outline styles arbitrarily.
 - Icon-only buttons need accessible names. Decorative icons are `aria-hidden="true"`.
-- No icon package without approval. Inline SVG is acceptable for a small, reviewed set.
+- No icon package without approval. Inline SVG is acceptable for a small, reviewed set. **Amendment 2026-11-08 (v0.4):** `lucide-react` is approved and is the only icon set; the hand-drawn sets were removed.
 - Icons sit in `primary-soft` or `accent-soft` rounded squares (`rounded-lg`) when used as feature markers.
 - No stock photos of patients or staff presented as real hospital personnel. Approved hospital imagery only after brand/privacy review.
 - No decorative medical clip-art (crosses, heartbeat lines, DNA strands, stethoscopes) that adds no information.
-- The wordmark is text until a hospital-approved logo is supplied. Do not fabricate a logo or seal.
+- The wordmark is text until a hospital-approved logo is supplied. Do not fabricate a logo or seal. The v0.4 "C" in a `primary` tile is a placeholder mark, not a logo.
 
 ---
 
@@ -1387,7 +1482,7 @@ Target **WCAG 2.1 AA** for patient-facing flows (`SPEC.md` §8.1).
 - Use `next/font`; no external font requests at runtime.
 - Client components only for browser interactivity, state, and effects. Keep data fetching and authorization on the server.
 - Never import `src/server/*` into client components.
-- No new dependencies (icon libraries, chart libraries, UI kits, `clsx`, `tailwind-merge`, animation libraries) without approval and a documented reason.
+- No new dependencies (icon libraries, chart libraries, UI kits, `clsx`, `tailwind-merge`, animation libraries) without approval and a documented reason. Approved so far: `sonner`, `class-variance-authority`, `clsx`, `@base-ui/react`, `cmdk`, `recharts`, `motion`, and (2026-11-08) `tailwind-merge` and `lucide-react`.
 
 ### 8.2 File organization
 
@@ -1419,6 +1514,7 @@ src/
 - No data fetching, authorization, or server-only imports in UI primitives.
 - No `components/ui` abstraction for a one-off style. Use utilities until reuse is real.
 - A `PageContainer` is justified if it consistently enforces width and padding; a `Button` primitive is justified once variants are reused. Avoid a giant design-system package.
+- **As built (v0.4):** `src/components/ui/` (kit), `src/components/shell/staff-shell.tsx` (staff shell), `src/components/landing/landing-motion.tsx` (landing motion), `src/lib/cn.ts`. Do not add per-folder copies of kit primitives.
 
 ### 8.3 Styling separation
 
@@ -1532,11 +1628,14 @@ Documentation-only changes to this file still need approval when they alter an a
 | 3 | Sonner toast dependency | Single toast implementation, `sonner@^2.0.8` | Approved and installed | Do not build a custom system without approval |
 | 4 | Typography | Keep Geist Sans/Mono; no new font dependency | Approved | A hospital brand font may be required later |
 | 5 | Texture and header wash | Soft fading grid on hero/header bands only; static pale-blue wash (§3.3–3.5) | **Needs approval (v0.3)** | Too strong competes with content; too weak loses the signature |
-| 6 | Stock landing page replacement | Replace with the public design in a dedicated task | Pending | `ADR-0008` currently says keep the stock landing page |
+| 6 | Stock landing page replacement | Replace with the public design in a dedicated task | Done in v0.4 (owner request 2026-11-08); `ADR-0008` still to be updated | `ADR-0008` currently says keep the stock landing page |
 | 7 | Auth-slice visual migration | Migrate `zinc` auth components to tokens | Done (v0.2); v0.3 re-skin is a value swap plus radius changes | Two visual systems persist longer |
 | 8 | Photography/imagery | No stock patient/staff photos; line icons and approved hospital assets only | Approved | Privacy and trust risk |
-| 9 | Chart library | Not selected here; separate approval | Pending | No charts with an unapproved dependency |
+| 9 | Chart library | Recharts | Approved 2026-11-05 | No charts with an unapproved dependency |
 | 10 | Softer shape language | Radii 8 / 12 / 16px; soft blue-tinted card shadow (§4.5) | **Needs approval (v0.3)** | v0.2 radii (6 / 8 / 12px) and near-flat elevation stay |
+| 11 | v0.4 redesign port | Port `ref/cammi-ui-reference/` (kit, `StaffShell`, landing, auth) | Owner-requested 2026-11-08; implemented on `feat/ui-redesign`, pending merge | v0.3 rail shells and auth split page stay |
+| 12 | `tailwind-merge`, `lucide-react` | `cn()` class merging; single icon set | Approved 2026-11-08 | Hand-drawn icons and `clsx`-only merging |
+| 13 | Landing page motion | Five once-only effects with `motion`, landing only (§4.8) | Approved 2026-11-08 | Static landing |
 
 ### 11.2 Relationship to `ADR-0008`
 
@@ -1585,3 +1684,4 @@ Do not invent UI copy or states that depend on these decisions. Keep layouts fle
 | 0.1 | 2026-10-23 | Initial proposed visual design system, visible grid, tokens, component patterns, screen guidance, and Sonner direction |
 | 0.2 | 2026-10-23 | Approved for the auth slice; applied tokens, grid, auth page styling, Sonner `^2.0.8`, and supplementary auth toasts |
 | 0.3 | 2026-10-25 | Proposed hospital-oriented redesign: blue-and-white palette, softer radii and elevation, fading grid and header wash, sentence-case eyebrows, sky-blue accent replacing teal, contrast values marked as targets to verify; token names unchanged |
+| 0.4 | 2026-11-08 | Documents the implemented `ref/cammi-ui-reference/` port: component kit and `cn()`, lucide icons, grouped `StaffShell` for admin/front desk, redesigned landing with landing-only motion, auth top bar + two-column sign-in card with inline error Alert, 36px staff controls, `shadow-soft`/`shadow-lift`, `--series-*` chart colors, blue "confirmed" status tone |

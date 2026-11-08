@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Static redesign reference app (own toolchain), not part of the build.
+    "ref/**",
   ]),
 ]);
 

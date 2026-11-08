@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-import { EmptyState } from "@/components/admin/empty-state";
-import { AppointmentStatusBadge } from "@/components/appointments/appointment-status-badge";
-import { CELL, HEADER_CELL, ROW, TableFrame } from "@/components/front-desk/table-frame";
+import { EmptyState } from "@/components/ui/data";
+import { StatusBadge } from "@/components/ui/badge";
+import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
 import { buttonVariants } from "@/components/ui/button";
 import { formatManilaDateTime } from "@/lib/appointments/format";
 import {
@@ -17,10 +17,9 @@ import {
   BOOKING_SOURCES,
 } from "@/lib/appointments/status";
 import { BOOKING_SOURCE_LABELS, formatRequestId } from "@/lib/front-desk/requests";
+import { CONTROL_CLASS } from "@/components/ui/field";
 
 const FIELD_LABEL_CLASS = "text-xs font-medium text-ink-muted";
-const CONTROL_CLASS =
-  "min-h-11 rounded-lg border border-control-line bg-surface px-2 text-sm text-ink focus-ring";
 const LINK_CLASS =
   "rounded font-mono text-xs font-medium text-primary underline-offset-4 focus-ring hover:text-primary-hover hover:underline";
 
@@ -159,7 +158,7 @@ export function MonitoringFilters({
           <Link href={MONITORING_PATH} className={buttonVariants({ variant: "ghost" })}>
             Clear
           </Link>
-          <button type="submit" className={buttonVariants({ variant: "secondary" })}>
+          <button type="submit" className={buttonVariants({ variant: "outline", size: "sm" })}>
             Filter
           </button>
         </div>
@@ -190,7 +189,7 @@ export function MonitoringTable({
       <p className="text-sm text-ink-secondary">
         {total === 1 ? "1 appointment" : `${total} appointments`}
       </p>
-      <TableFrame label="Appointments" minWidthClass="min-w-[72rem]">
+      <Table label="Appointments" minWidthClass="min-w-[72rem]">
         <thead>
           <tr>
             <th scope="col" className={HEADER_CELL}>ID</th>
@@ -227,7 +226,7 @@ export function MonitoringTable({
               </td>
               <td className={CELL}>{formatManilaDateTime(item.scheduledAt)}</td>
               <td className={CELL}>
-                <AppointmentStatusBadge status={item.status} />
+                <StatusBadge status={item.status} />
               </td>
               <td className={CELL}>{BOOKING_SOURCE_LABELS[item.bookingSource]}</td>
               <td className={CELL}>{item.createdByName ?? "Unknown"}</td>
@@ -235,7 +234,7 @@ export function MonitoringTable({
             </tr>
           ))}
         </tbody>
-      </TableFrame>
+      </Table>
       <nav aria-label="Pagination" className="flex items-center justify-between gap-3 text-sm">
         <span className="text-ink-secondary">{`Page ${page} of ${pageCount}`}</span>
         <div className="flex gap-2">

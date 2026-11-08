@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -12,6 +12,7 @@ import {
 } from "@/lib/users/schemas";
 import { supabaseAuditLogRepository } from "@/server/audit/repository";
 import { getAdminSession } from "@/server/auth/dal";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 
 import { supabaseUserAdminRepository } from "./repository";
 import {
@@ -54,6 +55,7 @@ function toActionState(result: UserAdminResult): UserAdminActionState {
   if (!result.ok) {
     return { status: "error", message: result.message };
   }
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath(USERS_PATH, "layout");
   return { status: "success", message: result.message };
 }
@@ -83,6 +85,7 @@ export async function inviteStaffAction(
   if (!result.ok) {
     return { status: "error", message: result.message };
   }
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath(USERS_PATH, "layout");
   redirect(`${USERS_PATH}/${result.profileId}`);
 }

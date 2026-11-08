@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { EmptyState } from "@/components/admin/empty-state";
+import { EmptyState } from "@/components/ui/data";
 import { formatManilaMediumDate } from "@/lib/appointments/format";
 import { isRequirementEffective } from "@/lib/requirements/effective";
 import { groupRequirementsByTarget } from "@/lib/requirements/group";

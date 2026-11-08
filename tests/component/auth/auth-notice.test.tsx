@@ -5,7 +5,7 @@ import { AuthNotice } from "@/components/auth/auth-notice";
 const mocks = vi.hoisted(() => ({
   params: new URLSearchParams(),
   replace: vi.fn(),
-  toastSuccess: vi.fn(),
+  toastSuccess: vi.fn(),  
 }));
 
 vi.mock("next/navigation", () => ({

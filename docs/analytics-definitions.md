@@ -1,12 +1,14 @@
-# Analytics metric definitions (ADM-10, D5)
+# Analytics metric definitions (ADM-10, D5) — v2
 
-Frozen on 2026-11-05. Every number on `/admin/analytics` (ADM-11) and the admin
-dashboard (ADM-12) comes from `src/lib/analytics/metrics.ts`, which implements
-this page. Change both together, and get sign-off first.
+v1 frozen on 2026-11-05. **v2 approved by the owner on 2026-11-08** to match the
+redesigned analytics page (the reference design's datasets, computed from real
+data). Every number on `/admin/analytics` (ADM-11) and the admin dashboard
+(ADM-12) comes from `src/lib/analytics/metrics.ts`, which implements this page.
+Change both together, and get sign-off first.
 
 ## Period and cohort
 
-- A period is `[from, to)` in Manila calendar dates (`Asia/Manila`, UTC+8, no DST). `to` is excluded.
+- A period is `[from, to)` in Manila calendar dates (`Asia/Manila`, UTC+8, no DST). `to` is excluded. The page opens on **this year** (Jan 1 – Dec 31, Manila).
 - Unless stated otherwise, the cohort is every appointment whose `scheduled_at` falls in the period. A creation date is never used as a scheduled date.
 - Doctor and department filters narrow every metric. A department filter selects that department's doctors.
 
@@ -15,38 +17,42 @@ this page. Change both together, and get sign-off first.
 | Metric | Definition |
 |---|---|
 | Total | Appointments in the cohort with status ≠ `rejected`. |
-| Was confirmed | `confirmed_at` is set, OR an `appointment_audit_logs` row has `new_status = 'confirmed'`, OR the status is `checked_in`, `completed`, or `no_show`. The last case covers seed and pre-FD-001 rows that reached attendance with no recorded confirmation. |
-| Due cohort | Cohort rows that were confirmed, have status in {`confirmed`, `checked_in`, `completed`, `no_show`, `cancelled`}, and have `scheduled_end_at` before now. |
-| Completion rate | `completed` ÷ due cohort. |
-| No-show rate | `no_show` ÷ due cohort. |
-| Cancellation rate | `cancelled` ÷ due cohort. Because the cohort requires confirmation, this counts only cancellations after confirmation. |
+| Outcome cohort (finished visits) | Cohort rows whose `scheduled_end_at` is before now and whose status is `completed`, `cancelled`, or `no_show`. Replaces v1's due cohort; confirmation evidence is no longer needed. |
+| Completion rate | `completed` ÷ outcome cohort. |
+| Cancellation rate | `cancelled` ÷ outcome cohort (any cancellation of a finished visit). |
+| No-show rate | `no_show` ÷ outcome cohort. |
+| Outcome months | First to last Manila month with outcome-cohort rows (e.g. "Jan–Jun"). Labels the outcome KPIs and the outcomes chart. |
+| Busiest month | Month with the highest Total; ties go to the earliest. |
+| Peak slot | Weekday × daytime slot with the highest Total; ties go to the earliest weekday, then the earliest slot. |
 | Pending | Current count of `requested` (shown as "Pending confirmation"). A snapshot that ignores the period but respects the doctor and department filters. |
 | Cancellation date | `created_at` of the `cancelled` audit row (latest one). Used by ADM-12's Cancelled card (D4). No `cancelled_at` column exists. |
 
-Rates are percentages rounded to 2 decimals, and they are `null` (not 0) when the due cohort is empty.
+Rates are percentages rounded to 2 decimals (the page shows 1), and they are `null` (not 0) when the outcome cohort is empty. Completed + cancelled + no-show always equals the outcome cohort.
 
 ## Rules (§13.4)
 
-- Pending is never counted as completed, and pending or rejected appointments never enter the due cohort.
+- Pending is never counted as completed, and pending, confirmed, checked-in, or rejected appointments never enter the outcome cohort.
 - Rejected requests are excluded from every rate and every volume count.
 - Notification data is never used.
 
 ## Buckets
 
-- Month: the Manila `YYYY-MM` of `scheduled_at`. Monthly series list every month the period touches, with empty months as 0.
+- Month: the Manila `YYYY-MM` of `scheduled_at`. Monthly volume lists every month the period touches, with empty months as 0.
 - Weekday: Manila weekday, Monday first.
-- Hour bucket: two-hour Manila buckets `00–02`, `02–04`, … `22–24` (start hour inclusive).
+- Daytime slot: by Manila start hour — `9–11 AM` (09:00–10:59), `11 AM–1 PM`, `1–3 PM`, `3–5 PM` (15:00–16:59). Starts outside 09:00–16:59 are counted as "outside clinic hours".
 
 ## Datasets
 
 | Dataset | Shape | Basis |
 |---|---|---|
-| KPIs | total, due count, completion/no-show/cancellation rates, pending | as above |
+| KPIs | total, outcome cohort with completed/cancelled/no-show counts and rates, outcome months, busiest month, peak slot, pending | as above |
 | Monthly volume | month → total | Total per month |
-| By doctor | doctor → total, due count, cancellation and no-show rates | sorted by total desc, then name |
-| Heatmap | weekday × hour bucket → total | full 7 × 12 grid |
-| Status by month | month → count per status except `rejected` | all cancellations, by scheduled month |
-| Rates by slot | weekday × hour bucket → due count, cancellation and no-show rates | only cells with due appointments |
+| By doctor | doctor → total, short name, outcome cohort, cancellation and no-show rates | sorted by total desc, then name; short name is the surname, with the first initial when surnames repeat |
+| Heatmap | weekday × daytime slot → total, plus the outside-hours count | Mon–Fri always; Sat/Sun only when they have daytime appointments |
+| Outcomes by month | month → completed, cancelled, no-show | outcome cohort, from the first to the last outcome month |
+| Rates by weekday | weekday → outcome cohort, cancellation and no-show rates | only weekdays with outcomes |
+
+Chart takeaways (`src/lib/analytics/takeaways.ts`) restate these datasets in one sentence each and never claim a cause.
 
 ## Dashboard (ADM-12)
 

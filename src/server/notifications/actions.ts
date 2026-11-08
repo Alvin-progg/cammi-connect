@@ -41,7 +41,7 @@ export async function markNotificationReadAction(
     { doctorId: session.doctor.id, notificationId: parsed.data },
     supabaseDoctorNotificationsRepository,
   );
-  revalidatePath("/doctor");
+  revalidatePath("/doctor", "layout");
   return { status: "success", message: "Notification marked as read." };
 }
 
@@ -58,6 +58,6 @@ export async function markAllNotificationsReadAction(): Promise<NotificationActi
     session.doctor.id,
     supabaseDoctorNotificationsRepository,
   );
-  revalidatePath("/doctor");
+  revalidatePath("/doctor", "layout");
   return { status: "success", message: "All notifications marked as read." };
 }

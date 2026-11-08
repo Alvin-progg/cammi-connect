@@ -4,8 +4,8 @@ import type { AppointmentStatus } from "@/lib/appointments/status";
 
 /**
  * The analytics metric layer (ADM-10). Every number on the admin analytics and
- * dashboard pages comes from these pure functions; the definitions are frozen
- * in docs/analytics-definitions.md. Keep the two in sync.
+ * dashboard pages comes from these pure functions; the definitions live in
+ * docs/analytics-definitions.md (v2, 2026-11-08). Keep the two in sync.
  */
 
 /** One appointment plus the confirmation and cancellation evidence the metrics need. */
@@ -26,11 +26,27 @@ export type AnalyticsAppointment = {
 export const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 export type Weekday = (typeof WEEKDAYS)[number];
 
-/** Two-hour Manila time buckets: "00–02" … "22–24". */
-export const HOUR_BUCKETS = Array.from({ length: 12 }, (_, index) => {
-  const pad = (hour: number) => String(hour).padStart(2, "0");
-  return `${pad(index * 2)}–${pad(index * 2 + 2)}`;
-});
+/** Clinic weekdays always shown on the heatmap; weekends appear only with data. */
+const CLINIC_WEEKDAYS: readonly Weekday[] = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+
+/** Daytime two-hour slots by Manila start hour; other start times are "outside clinic hours". */
+export const DAYTIME_SLOTS = ["9–11 AM", "11 AM–1 PM", "1–3 PM", "3–5 PM"] as const;
+export type DaytimeSlot = (typeof DAYTIME_SLOTS)[number];
+const FIRST_SLOT_HOUR = 9;
+const SLOT_HOURS = 2;
+
+/** Compact slot labels for the peak-slot card ("Thu 11–1"). */
+export const DAYTIME_SLOT_SHORT_LABELS: Record<DaytimeSlot, string> = {
+  "9–11 AM": "9–11",
+  "11 AM–1 PM": "11–1",
+  "1–3 PM": "1–3",
+  "3–5 PM": "3–5",
+};
+
+function slotForHour(hour: number): DaytimeSlot | null {
+  const index = Math.floor((hour - FIRST_SLOT_HOUR) / SLOT_HOURS);
+  return hour >= FIRST_SLOT_HOUR ? (DAYTIME_SLOTS[index] ?? null) : null;
+}
 
 /** Statuses counted in volume metrics: everything except `rejected`. */
 export const VOLUME_STATUSES = [
@@ -43,15 +59,8 @@ export const VOLUME_STATUSES = [
 ] as const satisfies readonly AppointmentStatus[];
 export type VolumeStatus = (typeof VOLUME_STATUSES)[number];
 
-/** These statuses can only be reached through a confirmed appointment. */
-const ATTENDANCE_STATUSES: readonly AppointmentStatus[] = ["checked_in", "completed", "no_show"];
-const DUE_STATUSES: readonly AppointmentStatus[] = [
-  "confirmed",
-  "checked_in",
-  "completed",
-  "no_show",
-  "cancelled",
-];
+/** Final statuses: an ended appointment with one of these has a known outcome. */
+const OUTCOME_STATUSES: readonly AppointmentStatus[] = ["completed", "cancelled", "no_show"];
 
 const WEEKDAY_HOUR_FORMATTER = new Intl.DateTimeFormat("en-US", {
   timeZone: MANILA_TIME_ZONE,
@@ -64,19 +73,19 @@ export type DerivedAnalyticsRow = {
   schedDateMnl: string;
   schedMonth: string;
   weekday: Weekday;
-  hourBucket: string;
-  wasConfirmed: boolean;
-  /** In the due cohort: the denominator of every rate. */
-  isDue: boolean;
+  /** The daytime slot of the Manila start time, or null outside 9:00–16:59. */
+  slot: DaytimeSlot | null;
+  /** In the outcome cohort: the denominator of every rate. */
+  isOutcome: boolean;
 };
 
 function isWeekday(value: string): value is Weekday {
   return WEEKDAYS.some((weekday) => weekday === value);
 }
 
-type TimeBuckets = Pick<DerivedAnalyticsRow, "schedDateMnl" | "schedMonth" | "weekday" | "hourBucket">;
+type TimeBuckets = Pick<DerivedAnalyticsRow, "schedDateMnl" | "schedMonth" | "weekday" | "slot">;
 
-/** Manila calendar date, month, weekday, and two-hour bucket of an appointment start. */
+/** Manila calendar date, month, weekday, and daytime slot of an appointment start. */
 function bucketTime(scheduledAt: string): TimeBuckets {
   const parts = WEEKDAY_HOUR_FORMATTER.formatToParts(new Date(scheduledAt));
   const weekday = parts.find((part) => part.type === "weekday")?.value ?? "";
@@ -89,23 +98,14 @@ function bucketTime(scheduledAt: string): TimeBuckets {
     schedDateMnl,
     schedMonth: schedDateMnl.slice(0, 7),
     weekday,
-    hourBucket: HOUR_BUCKETS[Math.floor(hour / 2)],
+    slot: slotForHour(hour),
   };
 }
 
 export function deriveAnalyticsRow(row: AnalyticsAppointment, now: Date): DerivedAnalyticsRow {
-  // Seed and pre-FD-001 rows reached attendance statuses without a recorded
-  // confirmation, so the status itself is accepted as evidence.
-  const wasConfirmed =
-    row.confirmedAt !== null || row.confirmedInAudit || ATTENDANCE_STATUSES.includes(row.status);
-
   return {
     ...bucketTime(row.scheduledAt),
-    wasConfirmed,
-    isDue:
-      wasConfirmed &&
-      DUE_STATUSES.includes(row.status) &&
-      new Date(row.scheduledEndAt).getTime() < now.getTime(),
+    isOutcome: OUTCOME_STATUSES.includes(row.status) && new Date(row.scheduledEndAt).getTime() < now.getTime(),
   };
 }
 
@@ -121,40 +121,79 @@ function isVolumeStatus(status: AppointmentStatus): status is VolumeStatus {
   return status !== "rejected";
 }
 
-type DueRates = { dueCount: number; cancellationRate: number | null; noShowRate: number | null };
+type OutcomeRates = { outcomeCount: number; cancellationRate: number | null; noShowRate: number | null };
+type DerivedEntry = { row: AnalyticsAppointment; derived: DerivedAnalyticsRow };
 
-/** Rates over the due rows of a group. Callers pass rows already derived with `now`. */
-function dueRates(rows: { row: AnalyticsAppointment; derived: DerivedAnalyticsRow }[]) {
-  const due = rows.filter(({ derived }) => derived.isDue);
-  const countStatus = (status: AppointmentStatus) => due.filter(({ row }) => row.status === status).length;
+/** Outcome counts and rates over the outcome rows of a group. */
+function outcomeRates(entries: DerivedEntry[]) {
+  const outcomes = entries.filter(({ derived }) => derived.isOutcome);
+  const countStatus = (status: AppointmentStatus) => outcomes.filter(({ row }) => row.status === status).length;
+  const cancelled = countStatus("cancelled");
+  const noShow = countStatus("no_show");
   return {
-    dueCount: due.length,
+    outcomeCount: outcomes.length,
     completed: countStatus("completed"),
-    cancellationRate: rate(countStatus("cancelled"), due.length),
-    noShowRate: rate(countStatus("no_show"), due.length),
+    cancelled,
+    noShow,
+    cancellationRate: rate(cancelled, outcomes.length),
+    noShowRate: rate(noShow, outcomes.length),
   };
 }
 
-function deriveAll(rows: AnalyticsAppointment[], now: Date) {
+function deriveAll(rows: AnalyticsAppointment[], now: Date): DerivedEntry[] {
   return rows.map((row) => ({ row, derived: deriveAnalyticsRow(row, now) }));
 }
 
 export type AnalyticsKpis = {
   total: number;
-  dueCount: number;
+  outcomeCount: number;
+  completed: number;
+  cancelled: number;
+  noShow: number;
   completionRate: number | null;
-  noShowRate: number | null;
   cancellationRate: number | null;
+  noShowRate: number | null;
+  /** First and last Manila month with outcomes; labels the outcome KPIs. */
+  outcomeMonths: { first: string; last: string } | null;
+  busiestMonth: { month: string; total: number } | null;
+  peakSlot: { weekday: Weekday; slot: DaytimeSlot; count: number } | null;
 };
 
 export function computeKpis(rows: AnalyticsAppointment[], now: Date): AnalyticsKpis {
-  const { dueCount, completed, cancellationRate, noShowRate } = dueRates(deriveAll(rows, now));
+  const entries = deriveAll(rows, now);
+  const rates = outcomeRates(entries);
+  const outcomeMonthList = entries
+    .filter(({ derived }) => derived.isOutcome)
+    .map(({ derived }) => derived.schedMonth)
+    .sort();
+
+  const perMonth = new Map<string, number>();
+  for (const { row, derived } of entries) {
+    if (isVolumeStatus(row.status)) perMonth.set(derived.schedMonth, (perMonth.get(derived.schedMonth) ?? 0) + 1);
+  }
+  // Busiest month; ties go to the earliest month.
+  const busiest = [...perMonth.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  // Heatmap cells are in weekday-then-slot order, so the first maximum wins ties.
+  const peak = heatmap(rows).cells.reduce<HeatmapCell | null>(
+    (best, cell) => (cell.count > 0 && (!best || cell.count > best.count) ? cell : best),
+    null,
+  );
+
   return {
     total: rows.filter((row) => isVolumeStatus(row.status)).length,
-    dueCount,
-    completionRate: rate(completed, dueCount),
-    noShowRate,
-    cancellationRate,
+    outcomeCount: rates.outcomeCount,
+    completed: rates.completed,
+    cancelled: rates.cancelled,
+    noShow: rates.noShow,
+    completionRate: rate(rates.completed, rates.outcomeCount),
+    cancellationRate: rates.cancellationRate,
+    noShowRate: rates.noShowRate,
+    outcomeMonths:
+      outcomeMonthList.length > 0
+        ? { first: outcomeMonthList[0], last: outcomeMonthList[outcomeMonthList.length - 1] }
+        : null,
+    busiestMonth: busiest ? { month: busiest[0], total: busiest[1] } : null,
+    peakSlot: peak ? { weekday: peak.weekday, slot: peak.slot, count: peak.count } : null,
   };
 }
 
@@ -172,25 +211,42 @@ export function monthlyVolume(rows: AnalyticsAppointment[], months: string[]): M
   return months.map((month) => ({ month, total: totals.get(month) ?? 0 }));
 }
 
-export type DoctorAnalytics = { doctorId: string; doctorName: string; total: number } & DueRates;
+export type DoctorAnalytics = {
+  doctorId: string;
+  doctorName: string;
+  /** Surname for chart labels ("Reyes"; "G. Lim" when surnames repeat). */
+  shortName: string;
+  total: number;
+} & OutcomeRates;
 
-/** Volume and due-cohort rates per doctor, highest volume first, then by name. */
+/** Surname labels for a list of doctor names, adding the first initial when surnames repeat. */
+export function shortDoctorNames(names: string[]): string[] {
+  const parts = names.map((name) => name.replace(/^Dr\.?\s+/i, "").trim().split(/\s+/));
+  const surname = (words: string[]) => words[words.length - 1] ?? "";
+  const counts = new Map<string, number>();
+  for (const words of parts) counts.set(surname(words), (counts.get(surname(words)) ?? 0) + 1);
+  return parts.map((words) =>
+    (counts.get(surname(words)) ?? 0) > 1 && words.length > 1 ? `${words[0][0]}. ${surname(words)}` : surname(words),
+  );
+}
+
+/** Volume and outcome-cohort rates per doctor, highest volume first, then by name. */
 export function byDoctor(rows: AnalyticsAppointment[], now: Date): DoctorAnalytics[] {
-  const groups = new Map<string, ReturnType<typeof deriveAll>>();
+  const groups = new Map<string, DerivedEntry[]>();
   for (const entry of deriveAll(rows, now)) {
     const group = groups.get(entry.row.doctorId) ?? [];
     group.push(entry);
     groups.set(entry.row.doctorId, group);
   }
 
-  return [...groups.values()]
+  const doctors = [...groups.values()]
     .map((group) => {
-      const { dueCount, cancellationRate, noShowRate } = dueRates(group);
+      const { outcomeCount, cancellationRate, noShowRate } = outcomeRates(group);
       return {
         doctorId: group[0].row.doctorId,
         doctorName: group[0].row.doctorName,
         total: group.filter(({ row }) => isVolumeStatus(row.status)).length,
-        dueCount,
+        outcomeCount,
         cancellationRate,
         noShowRate,
       };
@@ -198,71 +254,88 @@ export function byDoctor(rows: AnalyticsAppointment[], now: Date): DoctorAnalyti
     // A doctor whose only rows in the period are rejected has no volume to show.
     .filter((doctor) => doctor.total > 0)
     .sort((a, b) => b.total - a.total || a.doctorName.localeCompare(b.doctorName));
+  const shortNames = shortDoctorNames(doctors.map((doctor) => doctor.doctorName));
+  return doctors.map((doctor, index) => ({
+    doctorId: doctor.doctorId,
+    doctorName: doctor.doctorName,
+    shortName: shortNames[index],
+    total: doctor.total,
+    outcomeCount: doctor.outcomeCount,
+    cancellationRate: doctor.cancellationRate,
+    noShowRate: doctor.noShowRate,
+  }));
 }
 
-export type HeatmapCell = { weekday: Weekday; hourBucket: string; count: number };
+export type HeatmapCell = { weekday: Weekday; slot: DaytimeSlot; count: number };
+export type Heatmap = { cells: HeatmapCell[]; outsideHours: number };
 
-function slotKey(weekday: Weekday, hourBucket: string) {
-  return `${weekday} ${hourBucket}`;
-}
-
-function everySlot() {
-  return WEEKDAYS.flatMap((weekday) => HOUR_BUCKETS.map((hourBucket) => ({ weekday, hourBucket })));
-}
-
-/** Non-rejected appointments in every weekday × hour bucket cell, Monday first. */
-export function heatmap(rows: AnalyticsAppointment[]): HeatmapCell[] {
+/**
+ * Non-rejected appointments per weekday × daytime slot, Monday first. Mon–Fri
+ * are always present; Saturday and Sunday only when they have daytime
+ * appointments. Starts outside the slots are counted in `outsideHours`.
+ */
+export function heatmap(rows: AnalyticsAppointment[]): Heatmap {
   const counts = new Map<string, number>();
+  let outsideHours = 0;
   for (const row of rows) {
-    if (isVolumeStatus(row.status)) {
-      const { weekday, hourBucket } = bucketTime(row.scheduledAt);
-      const key = slotKey(weekday, hourBucket);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
+    if (!isVolumeStatus(row.status)) continue;
+    const { weekday, slot } = bucketTime(row.scheduledAt);
+    if (slot === null) {
+      outsideHours += 1;
+      continue;
     }
+    const key = `${weekday} ${slot}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
   }
-  return everySlot().map((slot) => ({ ...slot, count: counts.get(slotKey(slot.weekday, slot.hourBucket)) ?? 0 }));
+  const hasData = (weekday: Weekday) => DAYTIME_SLOTS.some((slot) => counts.has(`${weekday} ${slot}`));
+  const weekdays = WEEKDAYS.filter((weekday) => CLINIC_WEEKDAYS.includes(weekday) || hasData(weekday));
+  return {
+    cells: weekdays.flatMap((weekday) =>
+      DAYTIME_SLOTS.map((slot) => ({ weekday, slot, count: counts.get(`${weekday} ${slot}`) ?? 0 })),
+    ),
+    outsideHours,
+  };
 }
 
-export type MonthlyStatusCounts = { month: string; counts: Record<VolumeStatus, number> };
+export type MonthlyOutcomes = { month: string; completed: number; cancelled: number; noShow: number };
 
-/** Non-rejected appointments per status and Manila month, one entry per month in `months`. */
-export function statusByMonth(rows: AnalyticsAppointment[], months: string[]): MonthlyStatusCounts[] {
-  const emptyCounts = (): Record<VolumeStatus, number> => ({
-    requested: 0,
-    confirmed: 0,
-    cancelled: 0,
-    checked_in: 0,
-    completed: 0,
-    no_show: 0,
-  });
-  const byMonth = new Map(months.map((month) => [month, emptyCounts()]));
-
-  for (const row of rows) {
-    const counts = byMonth.get(bucketTime(row.scheduledAt).schedMonth);
-    if (counts && isVolumeStatus(row.status)) {
-      counts[row.status] += 1;
-    }
-  }
-  return months.map((month) => ({ month, counts: byMonth.get(month) ?? emptyCounts() }));
-}
-
-export type SlotRates = { weekday: Weekday; hourBucket: string } & DueRates;
-
-/** Due-cohort rates per weekday × hour bucket, only for cells with due appointments. */
-export function ratesBySlot(rows: AnalyticsAppointment[], now: Date): SlotRates[] {
-  const groups = new Map<string, ReturnType<typeof deriveAll>>();
+/**
+ * Completed, cancelled, and no-show appointments per Manila month, for the
+ * months in `months` from the first to the last month that has outcomes.
+ */
+export function outcomesByMonth(rows: AnalyticsAppointment[], months: string[], now: Date): MonthlyOutcomes[] {
+  const byMonth = new Map<string, DerivedEntry[]>();
   for (const entry of deriveAll(rows, now)) {
-    const key = slotKey(entry.derived.weekday, entry.derived.hourBucket);
-    const group = groups.get(key) ?? [];
+    if (!entry.derived.isOutcome) continue;
+    const group = byMonth.get(entry.derived.schedMonth) ?? [];
     group.push(entry);
-    groups.set(key, group);
+    byMonth.set(entry.derived.schedMonth, group);
   }
+  const withOutcomes = months.filter((month) => byMonth.has(month));
+  if (withOutcomes.length === 0) return [];
+  const first = withOutcomes[0];
+  const last = withOutcomes[withOutcomes.length - 1];
+  return months
+    .filter((month) => month >= first && month <= last)
+    .map((month) => {
+      const { completed, cancelled, noShow } = outcomeRates(byMonth.get(month) ?? []);
+      return { month, completed, cancelled, noShow };
+    });
+}
 
-  return everySlot().flatMap((slot) => {
-    const { dueCount, cancellationRate, noShowRate } = dueRates(
-      groups.get(slotKey(slot.weekday, slot.hourBucket)) ?? [],
-    );
-    return dueCount > 0 ? [{ ...slot, dueCount, cancellationRate, noShowRate }] : [];
+export type WeekdayRates = { weekday: Weekday } & OutcomeRates;
+
+/** Outcome-cohort rates per Manila weekday, Monday first, only weekdays with outcomes. */
+export function ratesByWeekday(rows: AnalyticsAppointment[], now: Date): WeekdayRates[] {
+  const groups = new Map<Weekday, DerivedEntry[]>();
+  for (const entry of deriveAll(rows, now)) {
+    const group = groups.get(entry.derived.weekday) ?? [];
+    group.push(entry);
+    groups.set(entry.derived.weekday, group);
+  }
+  return WEEKDAYS.flatMap((weekday) => {
+    const { outcomeCount, cancellationRate, noShowRate } = outcomeRates(groups.get(weekday) ?? []);
+    return outcomeCount > 0 ? [{ weekday, outcomeCount, cancellationRate, noShowRate }] : [];
   });
 }
 
@@ -332,7 +405,7 @@ export type AnalyticsDatasets = {
   kpis: AnalyticsKpis & { pending: number };
   monthly: MonthlyVolume[];
   byDoctor: DoctorAnalytics[];
-  heatmap: HeatmapCell[];
-  statusByMonth: MonthlyStatusCounts[];
-  ratesBySlot: SlotRates[];
+  heatmap: Heatmap;
+  outcomesByMonth: MonthlyOutcomes[];
+  ratesByWeekday: WeekdayRates[];
 };

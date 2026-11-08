@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { redirectIfSignedIn } from "@/server/auth/dal";
 import { AuthCard } from "@/components/auth/auth-card";
 import { LoginForm } from "@/components/auth/login-form";
 
@@ -19,14 +20,20 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<LoginSearchParams>;
 }) {
+  await redirectIfSignedIn();
   const { next, error } = await searchParams;
 
   return (
-    <main id="main" className="flex flex-1 flex-col bg-canvas">
+    <main id="main" className="flex flex-1 flex-col">
       <AuthCard
-        title="Welcome back!"
-        subtitle="Please enter your details to manage your appointments."
-        note="Doctors and hospital staff sign in here with the account provided by the hospital."
+        variant="split"
+        title="Welcome back"
+        subtitle="Sign in to your CamiConnect account"
+        greeting={{
+          title: "Good to see you again!",
+          text: "I'll look away while you type your password.",
+        }}
+        note="Cami's answers are AI-generated and not medical advice."
       >
         <LoginForm
           next={typeof next === "string" ? next : undefined}

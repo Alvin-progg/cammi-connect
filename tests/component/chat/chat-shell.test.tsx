@@ -403,7 +403,7 @@ describe("ChatShell thread", () => {
       ],
     });
 
-    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector('img[src="x"]')).toBeNull();
     expect(container.querySelector("b")).toBeNull();
     expect(screen.getAllByText(markup)).toHaveLength(2);
   });
@@ -464,7 +464,7 @@ describe("ChatShell thread", () => {
       ],
     });
 
-    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector('img[src="x"]')).toBeNull();
     expect(screen.getByText(markup)).toBeInTheDocument();
   });
 
@@ -607,7 +607,8 @@ describe("ChatShell appointments view", () => {
     expect(within(past).getByText("Dr. Paolo Reyes")).toBeInTheDocument();
     expect(within(past).getByText("Completed")).toBeInTheDocument();
 
-    expect(screen.getByText(/not confirmed until the doctor confirms/i)).toBeInTheDocument();
+    // FD-001: only the front desk confirms, so the copy names the front desk.
+    expect(screen.getByText(/pending until the front desk confirms/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("Message")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Good Morning/ })).not.toBeInTheDocument();
   });
@@ -627,7 +628,7 @@ describe("ChatShell appointments view", () => {
       },
     });
 
-    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector('img[src="x"]')).toBeNull();
   });
 
   it("offers Cancel on upcoming appointments only", () => {

@@ -72,7 +72,7 @@ async function runDecision(
   revalidatePath(QUEUE_PATH);
   revalidatePath(`${QUEUE_PATH}/${appointmentId}`);
   revalidatePath(SCHEDULE_PATH);
-  revalidatePath("/doctor");
+  revalidatePath("/doctor", "layout");
   return { status: "success", message: successMessage };
 }
 
@@ -291,7 +291,7 @@ export async function bookForPatientAction(
 
   revalidatePath(QUEUE_PATH);
   revalidatePath(SCHEDULE_PATH);
-  revalidatePath("/doctor");
+  revalidatePath("/doctor", "layout");
   redirect(`${QUEUE_PATH}/${result.appointmentId}`);
 }
 

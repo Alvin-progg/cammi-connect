@@ -19,7 +19,7 @@ function KpiCard({
   detail?: string;
 }) {
   return (
-    <div className="rounded-xl border border-line bg-surface p-4 sm:p-5">
+    <div className="rounded-xl border border-line bg-surface p-4 shadow-soft sm:p-5">
       <p className="text-sm font-medium text-ink-secondary">{label}</p>
       <p className="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-ink">
         {value}
@@ -63,7 +63,7 @@ export function DoctorStatsPanel({
           return (
             <Link
               key={item}
-              href={`/doctor?view=stats&period=${item}`}
+              href={`/doctor/stats?period=${item}`}
               aria-current={active ? "true" : undefined}
               className={`focus-ring pressable rounded-md px-3 py-1.5 text-sm font-medium ${
                 active
@@ -98,7 +98,7 @@ export function DoctorStatsPanel({
 
       <section
         aria-labelledby="trend-heading"
-        className="rounded-xl border border-line bg-surface p-4 sm:p-6"
+        className="rounded-xl border border-line bg-surface p-4 shadow-soft sm:p-6"
       >
         <h2 id="trend-heading" className="text-xl font-semibold text-ink">
           Appointments per day

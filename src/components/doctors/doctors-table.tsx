@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-import { ActiveBadge } from "@/components/admin/active-badge";
-import { EmptyState } from "@/components/admin/empty-state";
-import { CELL, HEADER_CELL, ROW, TableFrame } from "@/components/front-desk/table-frame";
+import { ActiveBadge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/data";
+import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
 import type { AdminDoctorListItem } from "@/lib/doctors/types";
 
 export function DoctorsTable({ doctors }: { doctors: AdminDoctorListItem[] }) {
@@ -11,7 +11,7 @@ export function DoctorsTable({ doctors }: { doctors: AdminDoctorListItem[] }) {
   }
 
   return (
-    <TableFrame label="Doctors" minWidthClass="min-w-[48rem]">
+    <Table label="Doctors" minWidthClass="min-w-[48rem]">
       <thead>
         <tr>
           <th scope="col" className={HEADER_CELL}>Name</th>
@@ -52,6 +52,6 @@ export function DoctorsTable({ doctors }: { doctors: AdminDoctorListItem[] }) {
           </tr>
         ))}
       </tbody>
-    </TableFrame>
+    </Table>
   );
 }

@@ -1,22 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import { RAIL_ITEM_BASE as ITEM_BASE, RailLabel, initialsOf } from "@/components/ui/rail";
-import type { DoctorView } from "@/lib/appointments/dashboard";
+import { BrandMark } from "@/components/ui/brand-mark";
+import { DOCTOR_VIEW_PATHS, doctorViewForPath, type DoctorView } from "@/lib/appointments/dashboard";
 import { signOutAction } from "@/server/auth/actions";
 
-import {
-  BellIcon,
-  CalendarIcon,
-  ChartIcon,
-  ChevronRightIcon,
-  ClipboardIcon,
-  SignOutIcon,
-  StethoscopeIcon,
-} from "./icons";
-import { useOpenNotifications } from "./notifications-dialog";
+import { CalendarIcon, ChartColumnIcon, ChevronRightIcon, ClipboardListIcon, LogOutIcon } from "lucide-react";
 
 type RailItem = {
   label: string;
@@ -28,21 +21,21 @@ type RailItem = {
 const RAIL_ITEMS: RailItem[] = [
   {
     label: "Appointments",
-    href: "/doctor?view=week",
+    href: DOCTOR_VIEW_PATHS.week,
     views: ["week"],
-    icon: ClipboardIcon,
+    icon: ClipboardListIcon,
   },
   {
     label: "Availability",
-    href: "/doctor?view=calendar",
+    href: DOCTOR_VIEW_PATHS.calendar,
     views: ["calendar"],
     icon: CalendarIcon,
   },
   {
     label: "Statistics",
-    href: "/doctor?view=stats",
+    href: DOCTOR_VIEW_PATHS.stats,
     views: ["stats"],
-    icon: ChartIcon,
+    icon: ChartColumnIcon,
   },
 ];
 
@@ -52,18 +45,14 @@ const RAIL_ITEMS: RailItem[] = [
  * of squeezing it. The doctor's profile and sign-out live at the bottom.
  */
 export function DoctorRail({
-  activeView,
   doctorName,
   specialty,
-  unreadCount,
 }: {
-  activeView: DoctorView;
   doctorName: string;
   specialty: string | null;
-  unreadCount: number;
 }) {
+  const activeView = doctorViewForPath(usePathname());
   const [expanded, setExpanded] = useState(false);
-  const openNotifications = useOpenNotifications();
   const profileActive = activeView === "profile";
 
   return (
@@ -82,9 +71,9 @@ export function DoctorRail({
           <Link
             href="/doctor"
             aria-label="CamiConnect home"
-            className="focus-ring flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-ink"
+            className="focus-ring flex size-9 shrink-0 items-center justify-center rounded-xl"
           >
-            <StethoscopeIcon className="size-5" />
+            <BrandMark className="size-9" />
           </Link>
           {expanded ? (
             <span className="truncate text-base font-semibold tracking-tight text-ink">
@@ -130,41 +119,11 @@ export function DoctorRail({
               </Link>
             );
           })}
-          <button
-            type="button"
-            onClick={openNotifications}
-            aria-haspopup="dialog"
-            className={`${ITEM_BASE} text-ink-muted hover:bg-surface-muted hover:text-ink`}
-          >
-            <span className="relative shrink-0">
-              <BellIcon className="size-5" />
-              {unreadCount > 0 ? (
-                <span
-                  aria-hidden="true"
-                  className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-danger ring-2 ring-surface"
-                />
-              ) : null}
-            </span>
-            <RailLabel expanded={expanded}>
-              Notifications
-              {unreadCount > 0 ? (
-                <span className="sr-only">, {unreadCount} unread</span>
-              ) : null}
-            </RailLabel>
-            {unreadCount > 0 && expanded ? (
-              <span
-                aria-hidden="true"
-                className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold tabular-nums text-primary-ink"
-              >
-                {unreadCount}
-              </span>
-            ) : null}
-          </button>
         </nav>
 
         <div className="flex flex-col gap-1 border-t border-line px-2.5 py-3">
           <Link
-            href="/doctor?view=profile"
+            href={DOCTOR_VIEW_PATHS.profile}
             aria-current={profileActive ? "page" : undefined}
             className={`${ITEM_BASE} px-2 ${
               profileActive ? "bg-primary-soft" : "hover:bg-surface-muted"
@@ -194,7 +153,7 @@ export function DoctorRail({
               type="submit"
               className={`${ITEM_BASE} w-full text-ink-muted hover:bg-danger-soft hover:text-danger-soft-ink`}
             >
-              <SignOutIcon className="size-5 shrink-0" />
+              <LogOutIcon className="size-5 shrink-0" />
               <RailLabel expanded={expanded}>Sign out</RailLabel>
             </button>
           </form>

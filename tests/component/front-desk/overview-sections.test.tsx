@@ -2,12 +2,12 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import {
-  AppointmentSearchResults,
+  OverviewCards,
   PendingRequestsList,
-  RecentActivityList,
+  RecentActivityFeed,
   TodayScheduleList,
 } from "@/components/front-desk/overview-sections";
-import type { AppointmentSearchItem, RecentAppointment } from "@/lib/front-desk/overview";
+import type { RecentAppointment } from "@/lib/front-desk/overview";
 import type { RequestQueueItem } from "@/lib/front-desk/requests";
 import type { ScheduleItem } from "@/lib/front-desk/schedule";
 
@@ -47,123 +47,91 @@ const CANCELLED: RecentAppointment = {
   reason: "Patient request",
 };
 
+// 2026-11-04 10:00 AM in Manila: the pending request has waited 1 d 1 h.
+const NOW = new Date("2026-11-04T02:00:00.000Z");
+
+describe("OverviewCards", () => {
+  it("shows the four reference cards with their context lines", () => {
+    render(
+      <OverviewCards
+        pending={7}
+        overduePending={1}
+        today={{ total: 14, confirmed: 9, pending: 5, checkedIn: 3, completed: 1, noShow: 1, nextCheckIn: "2026-11-04T02:00:00.000Z" }}
+      />,
+    );
+
+    const cards = within(screen.getByRole("list", { name: "Summary" })).getAllByRole("listitem");
+    expect(cards.map((card) => card.querySelector("p")?.textContent)).toEqual([
+      "Pending confirmation",
+      "Today's appointments",
+      "Checked in",
+      "Completed today",
+    ]);
+    expect(within(cards[0]).getByText("7")).toBeInTheDocument();
+    expect(within(cards[0]).getByText("1 waiting over 24 h")).toBeInTheDocument();
+    expect(within(cards[1]).getByText("9 confirmed · 5 pending")).toBeInTheDocument();
+    expect(within(cards[2]).getByText("Next: 10:00 AM")).toBeInTheDocument();
+    expect(within(cards[3]).getByText("1 no-show")).toBeInTheDocument();
+  });
+});
+
 describe("PendingRequestsList", () => {
-  it("lists each pending request with its patient, doctor, time, and details link", () => {
-    render(<PendingRequestsList items={[PENDING]} total={7} />);
+  it("lists each pending request with its wait and a Review link", () => {
+    render(<PendingRequestsList items={[PENDING]} now={NOW} />);
 
     const item = screen.getByRole("listitem");
     expect(within(item).getByText("Synthetic Patient A")).toBeInTheDocument();
     expect(within(item).getByText(/Dr\. Synthetic Reyes/)).toBeInTheDocument();
     expect(within(item).getByText(/9:30 AM/)).toBeInTheDocument();
-    expect(within(item).getByRole("link", { name: /AB12CD34/ })).toHaveAttribute(
+    expect(within(item).getByText("Waiting 25 h")).toBeInTheDocument();
+    expect(within(item).getByRole("link", { name: /Review request AB12CD34/ })).toHaveAttribute(
       "href",
       `/front-desk/requests/${PENDING.id}`,
-    );
-    expect(screen.getByRole("link", { name: "View all 7 pending" })).toHaveAttribute(
-      "href",
-      "/front-desk/requests",
     );
   });
 
   it("says when nothing is pending", () => {
-    render(<PendingRequestsList items={[]} total={0} />);
+    render(<PendingRequestsList items={[]} now={NOW} />);
     expect(screen.getByText("No requests are waiting for review.")).toBeInTheDocument();
   });
 });
 
 describe("TodayScheduleList", () => {
-  it("lists today's appointments with time and status and links the full schedule", () => {
-    render(<TodayScheduleList items={[TODAY]} total={12} />);
+  it("lists today's appointments with time and status", () => {
+    render(<TodayScheduleList items={[TODAY]} />);
 
     const item = screen.getByRole("listitem");
     expect(within(item).getByText("10:00 AM")).toBeInTheDocument();
     expect(within(item).getByText("Synthetic Patient B")).toBeInTheDocument();
     expect(within(item).getByText("Checked in")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View all 12 today" })).toHaveAttribute(
+    expect(within(item).getByRole("link", { name: /Synthetic Patient B/ })).toHaveAttribute(
       "href",
-      "/front-desk/schedule",
+      `/front-desk/requests/${TODAY.id}`,
     );
   });
 
   it("says when there are no appointments today", () => {
-    render(<TodayScheduleList items={[]} total={0} />);
+    render(<TodayScheduleList items={[]} />);
     expect(screen.getByText("No appointments are scheduled today.")).toBeInTheDocument();
   });
 });
 
-describe("RecentActivityList", () => {
-  it("shows the status and the reason of a cancelled appointment", () => {
-    render(
-      <RecentActivityList
-        label="Recently rejected or cancelled"
-        items={[CANCELLED]}
-        emptyMessage="Nothing rejected or cancelled yet."
-      />,
-    );
+describe("RecentActivityFeed", () => {
+  it("describes a cancellation with its reason and links the appointment", () => {
+    render(<RecentActivityFeed items={[CANCELLED]} />);
 
-    const list = screen.getByRole("list", { name: "Recently rejected or cancelled" });
-    const item = within(list).getByRole("listitem");
+    const item = within(screen.getByRole("list", { name: "Recent activity" })).getByRole("listitem");
     expect(within(item).getByText("Synthetic Patient C")).toBeInTheDocument();
-    expect(within(item).getByText("Cancelled")).toBeInTheDocument();
-    expect(within(item).getByText("Reason: Patient request")).toBeInTheDocument();
-    expect(within(item).getByRole("link", { name: /11AA22BB/ })).toHaveAttribute(
+    expect(item).toHaveTextContent("cancelled");
+    expect(item).toHaveTextContent("Reason: Patient request");
+    expect(within(item).getByRole("link", { name: /Synthetic Patient C/ })).toHaveAttribute(
       "href",
       `/front-desk/requests/${CANCELLED.id}`,
     );
   });
 
-  it("shows the empty message", () => {
-    render(
-      <RecentActivityList
-        label="Recently confirmed"
-        items={[]}
-        emptyMessage="Nothing confirmed yet."
-      />,
-    );
-    expect(screen.getByText("Nothing confirmed yet.")).toBeInTheDocument();
-  });
-});
-
-describe("AppointmentSearchResults", () => {
-  const RESULT: AppointmentSearchItem = {
-    id: "ab12cd34-0000-4000-8000-000000000202",
-    patientName: "Synthetic Patient A",
-    patientPhone: "09171234567",
-    doctorName: "Dr. Synthetic Reyes",
-    scheduledAt: "2026-11-05T01:30:00.000Z",
-    status: "confirmed",
-    bookingSource: "ai_chatbot",
-  };
-
-  it("lists matching appointments linking to their details", () => {
-    render(<AppointmentSearchResults query="Synthetic" result={{ ok: true, items: [RESULT] }} />);
-
-    const region = screen.getByRole("region", { name: "Search results for “Synthetic”" });
-    expect(region).toHaveAttribute("tabindex", "0");
-    const table = within(region).getByRole("table", { name: "Search results for “Synthetic”" });
-    const row = within(table).getAllByRole("row")[1];
-    expect(within(row).getByText("Synthetic Patient A")).toBeInTheDocument();
-    expect(within(row).getByText("09171234567")).toBeInTheDocument();
-    expect(within(row).getByText("Confirmed")).toBeInTheDocument();
-    expect(within(row).getByText("Cami (AI assistant)")).toBeInTheDocument();
-    expect(within(row).getByRole("link", { name: /AB12CD34/ })).toHaveAttribute(
-      "href",
-      `/front-desk/requests/${RESULT.id}`,
-    );
-  });
-
-  it("says when nothing matched", () => {
-    render(<AppointmentSearchResults query="Nobody" result={{ ok: true, items: [] }} />);
-    expect(screen.getByText("No appointments match “Nobody”.")).toBeInTheDocument();
-  });
-
-  it("shows a validation message", () => {
-    render(
-      <AppointmentSearchResults
-        query="a"
-        result={{ ok: false, message: "Enter at least 2 characters." }}
-      />,
-    );
-    expect(screen.getByRole("alert")).toHaveTextContent("Enter at least 2 characters.");
+  it("shows an empty message", () => {
+    render(<RecentActivityFeed items={[]} />);
+    expect(screen.getByText("No recent confirmations, rejections, or cancellations.")).toBeInTheDocument();
   });
 });

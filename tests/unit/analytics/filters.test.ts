@@ -21,15 +21,33 @@ const THIS_MONTH: AnalyticsFilters = {
   departmentId: null,
 };
 
+const THIS_YEAR: AnalyticsFilters = {
+  range: "this_year",
+  from: "2026-01-01",
+  to: "2026-12-31",
+  doctorId: null,
+  departmentId: null,
+};
+
 describe("parseAnalyticsFilters", () => {
-  it("defaults to this Manila month", () => {
-    expect(parseAnalyticsFilters({}, NOW)).toEqual(THIS_MONTH);
+  // Redesign (2026-11-08): the page opens on the whole Manila year, like the reference.
+  it("defaults to this Manila year", () => {
+    expect(parseAnalyticsFilters({}, NOW)).toEqual(THIS_YEAR);
+  });
+
+  it("keeps this month as a preset", () => {
+    expect(parseAnalyticsFilters({ range: "this_month" }, NOW)).toEqual(THIS_MONTH);
   });
 
   it("uses Manila today, not UTC, near midnight", () => {
     // 2026-11-30T16:30Z is 00:30 on December 1 in Manila.
-    expect(parseAnalyticsFilters({}, new Date("2026-11-30T16:30:00.000Z"))).toMatchObject({
+    expect(parseAnalyticsFilters({ range: "this_month" }, new Date("2026-11-30T16:30:00.000Z"))).toMatchObject({
       from: "2026-12-01",
+      to: "2026-12-31",
+    });
+    // 2025-12-31T16:30Z is 00:30 on January 1, 2026 in Manila.
+    expect(parseAnalyticsFilters({}, new Date("2025-12-31T16:30:00.000Z"))).toMatchObject({
+      from: "2026-01-01",
       to: "2026-12-31",
     });
   });
@@ -79,7 +97,7 @@ describe("parseAnalyticsFilters", () => {
     );
   });
 
-  it("falls back to this month for an invalid custom range", () => {
+  it("falls back to this year for an invalid custom range", () => {
     for (const params of [
       { range: "custom", from: "2026-04-02", to: "2026-03-10" },
       { range: "custom", from: "2026-02-30", to: "2026-03-10" },
@@ -87,7 +105,7 @@ describe("parseAnalyticsFilters", () => {
       { range: "custom", from: "2024-01-01", to: "2026-01-01" },
       { range: "yearly" },
     ]) {
-      expect(parseAnalyticsFilters(params, NOW)).toEqual(THIS_MONTH);
+      expect(parseAnalyticsFilters(params, NOW)).toEqual(THIS_YEAR);
     }
   });
 
@@ -127,12 +145,13 @@ describe("toAnalyticsQuery", () => {
 
 describe("analyticsSearchParams and analyticsHref", () => {
   it("omits defaults so the plain page URL stays short", () => {
-    expect(analyticsSearchParams(THIS_MONTH).toString()).toBe("");
-    expect(analyticsHref(THIS_MONTH)).toBe("/admin/analytics");
+    expect(analyticsSearchParams(THIS_YEAR).toString()).toBe("");
+    expect(analyticsHref(THIS_YEAR)).toBe("/admin/analytics");
   });
 
   it("round-trips presets and custom ranges with filters", () => {
     const cases: AnalyticsFilters[] = [
+      THIS_MONTH,
       { ...THIS_MONTH, range: "last_12_months", from: "2025-12-01", doctorId: DOCTOR_ID },
       { range: "custom", from: "2026-03-10", to: "2026-04-02", doctorId: null, departmentId: DEPARTMENT_ID },
     ];

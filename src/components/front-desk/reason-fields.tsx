@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { CONTROL_CLASS } from "@/components/ui/field";
+
 /**
  * Preset reason radios plus a details box, shared by the reject, cancel, and
  * reschedule forms. Details become required when "other" is chosen; the
@@ -57,9 +59,9 @@ export function ReasonFields<Reason extends string>({
         rows={3}
         maxLength={500}
         required={reason === "other"}
-        className="mt-1 w-full rounded-lg border border-control-line bg-surface px-3 py-2 text-base text-ink focus-ring"
+        className={`mt-1.5 ${CONTROL_CLASS} py-2 leading-6`}
       />
-      <p className="mt-2 text-sm text-ink-muted">{note}</p>
+      <p className="mt-2 text-xs text-ink-muted">{note}</p>
     </>
   );
 }

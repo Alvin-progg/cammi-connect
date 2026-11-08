@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { redirectIfSignedIn } from "@/server/auth/dal";
 import { AuthCard } from "@/components/auth/auth-card";
 import { RegisterForm } from "@/components/auth/register-form";
 
@@ -16,14 +17,16 @@ export default async function RegisterPage({
 }: {
   searchParams: Promise<RegisterSearchParams>;
 }) {
+  await redirectIfSignedIn();
   const { next } = await searchParams;
 
   return (
-    <main id="main" className="flex flex-1 flex-col bg-canvas">
+    <main id="main" className="flex flex-1 flex-col">
       <AuthCard
+        eyebrow="New patient"
         title="Create your account"
-        subtitle="Register as a patient to book and follow your appointments."
-        note="Doctor and administrator accounts are provided by the hospital and cannot be created here."
+        subtitle="Use your own details so the hospital can reach you about appointments."
+        note="Doctor and staff accounts are provided by the hospital and cannot be created here."
       >
         <RegisterForm next={typeof next === "string" ? next : undefined} />
       </AuthCard>

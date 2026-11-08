@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { AppointmentStatusBadge } from "@/components/appointments/appointment-status-badge";
+import { buttonVariants } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/badge";
 import { formatManilaDate, formatManilaTime } from "@/lib/appointments/format";
 import { manilaDateOf } from "@/lib/chat/booking";
 import type { CardEvent, ChatMessagePayload, DoctorOption } from "@/lib/chat/schemas";
 
-import { CheckIcon, ChevronRightIcon } from "./icons";
+import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
 export type BookingPayload = Extract<
   ChatMessagePayload,
@@ -34,12 +35,6 @@ export type CardProps = {
   busy: boolean;
   onEvent: (event: CardEvent) => void;
 };
-
-export const BUTTON_BASE =
-  "focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none";
-export const PRIMARY_BUTTON = `${BUTTON_BASE} border-primary bg-primary text-primary-ink hover:bg-primary-hover`;
-export const SECONDARY_BUTTON = `${BUTTON_BASE} border-line-strong bg-surface text-primary hover:bg-primary-soft`;
-export const GHOST_BUTTON = `${BUTTON_BASE} border-transparent bg-transparent text-ink hover:bg-surface-muted`;
 
 /**
  * Booking cards shown under an assistant reply (AI-APT-001 S3). Every value
@@ -75,7 +70,7 @@ function SpecialtyOptions({
             type="button"
             disabled={!interactive || busy}
             onClick={() => onEvent({ type: "select_specialty", specialtyId: specialty.id })}
-            className={SECONDARY_BUTTON}
+            className={buttonVariants({ variant: "secondary" })}
           >
             {specialty.name}
           </button>
@@ -178,7 +173,7 @@ function SlotPicker({
           onClick={() => {
             if (payload.nextFromDate) onEvent({ type: "more_slots", fromDate: payload.nextFromDate });
           }}
-          className={SECONDARY_BUTTON}
+          className={buttonVariants({ variant: "secondary" })}
         >
           Show later dates
         </button>
@@ -241,7 +236,7 @@ function BookingSummary({
             setConfirming(true);
             onEvent({ type: "confirm_booking" });
           }}
-          className={PRIMARY_BUTTON}
+          className={buttonVariants({ variant: "primary" })}
         >
           {pendingConfirm ? "Booking…" : "Confirm booking"}
         </button>
@@ -249,7 +244,7 @@ function BookingSummary({
           type="button"
           disabled={disabled}
           onClick={() => onEvent({ type: "change_booking", field: "slot" })}
-          className={SECONDARY_BUTTON}
+          className={buttonVariants({ variant: "secondary" })}
         >
           Change time
         </button>
@@ -257,7 +252,7 @@ function BookingSummary({
           type="button"
           disabled={disabled}
           onClick={() => onEvent({ type: "change_booking", field: "doctor" })}
-          className={GHOST_BUTTON}
+          className={buttonVariants({ variant: "ghost" })}
         >
           Change doctor
         </button>
@@ -265,7 +260,7 @@ function BookingSummary({
           type="button"
           disabled={disabled}
           onClick={() => onEvent({ type: "cancel_booking" })}
-          className={GHOST_BUTTON}
+          className={buttonVariants({ variant: "ghost" })}
         >
           Stop booking
         </button>
@@ -283,7 +278,7 @@ function BookingResult({ payload }: { payload: Extract<BookingPayload, { kind: "
     <div className="mt-3 rounded-lg border border-line bg-surface-muted p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-ink">Request received</p>
-        <AppointmentStatusBadge status="requested" />
+        <StatusBadge status="requested" />
       </div>
       <dl className="mt-2 space-y-1.5 text-sm">
         <SummaryRow term="Doctor">{payload.doctorName}</SummaryRow>

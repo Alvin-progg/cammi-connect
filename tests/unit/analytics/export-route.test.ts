@@ -67,7 +67,7 @@ describe("GET /api/admin/analytics/export", () => {
   });
 
   it("returns the dataset as a private CSV download and audits the export", async () => {
-    const response = await GET(exportRequest(`dataset=monthly&department=${DEPARTMENT_ID}`));
+    const response = await GET(exportRequest(`dataset=monthly&range=this_month&department=${DEPARTMENT_ID}`));
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/csv; charset=utf-8");
