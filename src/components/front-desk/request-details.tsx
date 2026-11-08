@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { StatusBadge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/data";
 import { AppointmentTimeline } from "@/components/appointments/appointment-timeline";
 import { todayInManila } from "@/lib/appointments/filters";
 import {
@@ -28,9 +29,9 @@ function Section({
   return (
     <section
       aria-labelledby={headingId}
-      className="rounded-xl border border-line bg-surface p-6 shadow-soft"
+      className="min-w-0 rounded-xl border border-line bg-surface p-6 shadow-soft"
     >
-      <h2 id={headingId} className="text-lg font-semibold text-ink">
+      <h2 id={headingId} className="text-lg font-semibold leading-7 text-ink">
         {title}
       </h2>
       <div className="mt-4">{children}</div>
@@ -38,12 +39,27 @@ function Section({
   );
 }
 
+/** One term/value row of a two-column definition list (kit DetailList look). */
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1">
-      <dt className="text-xs font-medium text-ink-muted">{label}</dt>
-      <dd className="text-sm text-ink">{children}</dd>
+    <div className="contents">
+      <dt className="text-ink-muted">{label}</dt>
+      <dd className="min-w-0 break-words text-ink">{children}</dd>
     </div>
+  );
+}
+
+const DETAIL_LIST = "grid grid-cols-[7rem_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-sm";
+
+/**
+ * The pre-decision schedule check, shown in the Decide card while a request
+ * is pending.
+ */
+export function SlotCheckAlert({ slotCheck }: { slotCheck: SlotCheck }) {
+  return (
+    <Alert tone={slotCheck === "available" ? "success" : "danger"} title="Schedule check">
+      {SLOT_CHECK_LABELS[slotCheck]}
+    </Alert>
   );
 }
 
@@ -52,21 +68,15 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
  * conversation (SPEC-frontdesk §5). The chat transcript itself is not shown
  * (FD-001 decision 2026-11-03).
  */
-export function RequestDetailsView({
-  request,
-  slotCheck = null,
-}: {
-  request: RequestDetails;
-  /** The pre-decision schedule check; null once the request is decided. */
-  slotCheck?: SlotCheck | null;
-}) {
+export function RequestDetailsView({ request }: { request: RequestDetails }) {
   // todayInManila gives the Manila calendar date of any instant.
   const manilaDate = todayInManila(new Date(request.scheduledAt));
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-4 lg:grid-cols-2">
       <Section id="patient" title="Patient">
-        <dl className="grid gap-4 sm:grid-cols-2">
+        <dl className={DETAIL_LIST}>
           <Field label="Name">{request.patientName}</Field>
           <Field label="Email">{request.patientEmail ?? "Not provided"}</Field>
           <Field label="Phone">{request.patientPhone ?? "Not provided"}</Field>
@@ -74,7 +84,7 @@ export function RequestDetailsView({
       </Section>
 
       <Section id="appointment" title="Appointment">
-        <dl className="grid gap-4 sm:grid-cols-2">
+        <dl className={DETAIL_LIST}>
           <Field label="Request ID">
             <span className="font-mono text-xs">{formatRequestId(request.id)}</span>
           </Field>
@@ -91,13 +101,6 @@ export function RequestDetailsView({
           <Field label="Time">
             {`${formatManilaTime(request.scheduledAt)} · ${request.durationMinutes} minutes`}
           </Field>
-          {slotCheck ? (
-            <Field label="Schedule check">
-              <span className={slotCheck === "available" ? "text-success-soft-ink" : "text-danger-soft-ink"}>
-                {SLOT_CHECK_LABELS[slotCheck]}
-              </span>
-            </Field>
-          ) : null}
           <Field label="Booked via">{BOOKING_SOURCE_LABELS[request.bookingSource]}</Field>
           <Field label="Submitted">{formatManilaDateTime(request.createdAt)}</Field>
           {request.rejectionReason ? (
@@ -108,6 +111,7 @@ export function RequestDetailsView({
           ) : null}
         </dl>
       </Section>
+      </div>
 
       <Section id="provided" title="Patient-provided information">
         <p className="text-sm leading-6 text-ink">

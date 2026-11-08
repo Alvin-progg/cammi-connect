@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertDialog } from "@base-ui/react/alert-dialog";
+import { Check, X } from "lucide-react";
 import { Dialog } from "@base-ui/react/dialog";
 import {
   useActionState,
@@ -9,6 +10,7 @@ import {
   useRef,
   useState,
   type ComponentType,
+  type ReactNode,
   type RefObject,
 } from "react";
 import { toast } from "sonner";
@@ -58,6 +60,7 @@ function DecisionDialog({
   title,
   triggerLabel,
   triggerVariant,
+  triggerIcon,
   Form,
 }: {
   summary: Summary;
@@ -65,6 +68,7 @@ function DecisionDialog({
   title: string;
   triggerLabel: string;
   triggerVariant: "primary" | "outlineDanger";
+  triggerIcon?: ReactNode;
   Form: ComponentType<DecisionFormProps>;
 }) {
   const [open, setOpen] = useState(false);
@@ -74,7 +78,9 @@ function DecisionDialog({
 
   return (
     <Parts.Root open={open} onOpenChange={setOpen}>
-      <Parts.Trigger className={buttonVariants({ variant: triggerVariant })}>
+      {/* Full-width large triggers stack in the request's Decide card. */}
+      <Parts.Trigger className={buttonVariants({ variant: triggerVariant, size: "lg", className: "w-full" })}>
+        {triggerIcon}
         {triggerLabel}
       </Parts.Trigger>
       <Parts.Portal>
@@ -207,13 +213,14 @@ function CancelForm({ summary, close, safeActionRef }: DecisionFormProps) {
  */
 export function RequestDecision(summary: Summary) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-col gap-2">
       <DecisionDialog
         summary={summary}
         destructive={false}
         title="Confirm this appointment?"
         triggerLabel="Confirm request"
         triggerVariant="primary"
+        triggerIcon={<Check aria-hidden="true" />}
         Form={ConfirmForm}
       />
       <DecisionDialog
@@ -222,6 +229,7 @@ export function RequestDecision(summary: Summary) {
         title="Reject this request?"
         triggerLabel="Reject request"
         triggerVariant="outlineDanger"
+        triggerIcon={<X aria-hidden="true" />}
         Form={RejectForm}
       />
     </div>
