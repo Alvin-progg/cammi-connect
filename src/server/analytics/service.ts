@@ -7,8 +7,8 @@ import {
   dashboardCards,
   heatmap,
   monthlyVolume,
-  ratesBySlot,
-  statusByMonth,
+  ratesByWeekday,
+  outcomesByMonth,
   statusDistribution,
   trendPercent,
   type AnalyticsAppointment,
@@ -64,8 +64,8 @@ export async function loadAnalytics(
     monthly: monthlyVolume(rows, months),
     byDoctor: byDoctor(rows, now),
     heatmap: heatmap(rows),
-    statusByMonth: statusByMonth(rows, months),
-    ratesBySlot: ratesBySlot(rows, now),
+    outcomesByMonth: outcomesByMonth(rows, months, now),
+    ratesByWeekday: ratesByWeekday(rows, now),
   };
 }
 

@@ -1,4 +1,4 @@
-import { HOUR_BUCKETS, WEEKDAYS, type HeatmapCell } from "@/lib/analytics/metrics";
+import { DAYTIME_SLOTS, type Heatmap } from "@/lib/analytics/metrics";
 
 /**
  * Single-hue blue ramp (reference): light to dark in six steps. The darkest
@@ -13,16 +13,18 @@ function rampStep(count: number, min: number, max: number): number {
 }
 
 /**
- * Weekday × two-hour heatmap as a real table (Recharts has no heatmap), so it
- * is its own accessible alternative. Cells print their count; the tint only
- * reinforces it. Weekdays and time buckets with no appointments are left out.
+ * Weekday × daytime-slot heatmap as a real table (Recharts has no heatmap), so
+ * it is its own accessible alternative. Cells print their count; the tint
+ * only reinforces it. Rows and columns come from the metric layer (Mon–Fri,
+ * plus weekends with daytime appointments).
  */
-export function PeakHeatmap({ cells }: { cells: HeatmapCell[] }) {
-  const countAt = new Map(cells.map((cell) => [`${cell.weekday} ${cell.hourBucket}`, cell.count]));
-  const count = (weekday: string, bucket: string) => countAt.get(`${weekday} ${bucket}`) ?? 0;
-  const buckets = HOUR_BUCKETS.filter((bucket) => WEEKDAYS.some((weekday) => count(weekday, bucket) > 0));
-  const weekdays = WEEKDAYS.filter((weekday) => buckets.some((bucket) => count(weekday, bucket) > 0));
-  const shown = weekdays.flatMap((weekday) => buckets.map((bucket) => count(weekday, bucket)));
+export function PeakHeatmap({ heatmap }: { heatmap: Heatmap }) {
+  const { cells, outsideHours } = heatmap;
+  const weekdays = [...new Set(cells.map((cell) => cell.weekday))];
+  const countAt = new Map(cells.map((cell) => [`${cell.weekday} ${cell.slot}`, cell.count]));
+  const count = (weekday: string, slot: string) => countAt.get(`${weekday} ${slot}`) ?? 0;
+  const buckets = DAYTIME_SLOTS;
+  const shown = cells.map((cell) => cell.count);
   const min = Math.min(...shown);
   const max = Math.max(...shown);
 
@@ -79,6 +81,11 @@ export function PeakHeatmap({ cells }: { cells: HeatmapCell[] }) {
         />
         {max}
       </div>
+      {outsideHours > 0 ? (
+        <p className="mt-2 text-xs text-ink-muted">
+          {`${outsideHours} ${outsideHours === 1 ? "appointment starts" : "appointments start"} outside 9 AM–5 PM and ${outsideHours === 1 ? "is" : "are"} not shown.`}
+        </p>
+      ) : null}
     </div>
   );
 }

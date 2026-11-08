@@ -3,10 +3,15 @@
 import { Popover } from "@base-ui/react/popover";
 
 import { CountUp } from "@/components/ui/count-up";
-import { KPI_DEFINITIONS, SMALL_SAMPLE_NOTE, isSmallSample } from "@/lib/analytics/display";
-import type { AnalyticsDatasets } from "@/lib/analytics/metrics";
+import { KPI_DEFINITIONS, SMALL_SAMPLE_NOTE, formatMonthRange, isSmallSample } from "@/lib/analytics/display";
+import { DAYTIME_SLOT_SHORT_LABELS, type AnalyticsDatasets } from "@/lib/analytics/metrics";
 
-type Kpi = { label: string; definition: string; value: number | null; isRate: boolean };
+/** A card's value: animated numbers, or plain text (peak slot, the paired rates). */
+type KpiValue =
+  | { kind: "number"; value: number; decimals: number; suffix: string }
+  | { kind: "text"; text: string }
+  | { kind: "empty" };
+type Kpi = { label: string; definition: string; value: KpiValue; detail: string };
 
 function Definition({ label, definition }: { label: string; definition: string }) {
   return (
@@ -30,18 +35,59 @@ function Definition({ label, definition }: { label: string; definition: string }
   );
 }
 
-/** The four measured KPIs (ADM-11); 4 across at lg, 2 at md, 1 on mobile (design.md §6.8). */
-export function KpiCards({ kpis }: { kpis: AnalyticsDatasets["kpis"] }) {
+const VALUE_CLASS = "mt-1.5 text-3xl font-semibold tracking-tight tabular-nums text-ink";
+
+function rateValue(rate: number | null): KpiValue {
+  return rate === null ? { kind: "empty" } : { kind: "number", value: rate, decimals: 1, suffix: "%" };
+}
+
+/**
+ * The four reference KPIs (definitions in docs/analytics-definitions.md v2):
+ * appointments in the period, the completion rate and the cancellation and
+ * no-show rates over the finished visits of the outcome months, and the peak
+ * daytime slot. 4 across at xl, 2 at sm, 1 on mobile.
+ */
+export function KpiCards({ kpis, periodLabel }: { kpis: AnalyticsDatasets["kpis"]; periodLabel: string }) {
+  const months = kpis.outcomeMonths ? formatMonthRange(kpis.outcomeMonths.first, kpis.outcomeMonths.last) : null;
+  const finished = (label: string) => (months ? `${label}, ${months}` : label);
   const cards: Kpi[] = [
-    { label: "Total appointments", definition: KPI_DEFINITIONS.total, value: kpis.total, isRate: false },
-    { label: "Completion rate", definition: KPI_DEFINITIONS.completion, value: kpis.completionRate, isRate: true },
     {
-      label: "Cancellation rate",
-      definition: KPI_DEFINITIONS.cancellation,
-      value: kpis.cancellationRate,
-      isRate: true,
+      label: `Appointments ${periodLabel}`,
+      definition: KPI_DEFINITIONS.total,
+      value: { kind: "number", value: kpis.total, decimals: 0, suffix: "" },
+      detail: kpis.busiestMonth
+        ? `${formatMonthRange(kpis.busiestMonth.month, kpis.busiestMonth.month)} is the busiest month (${kpis.busiestMonth.total})`
+        : "Scheduled in this period",
     },
-    { label: "No-show rate", definition: KPI_DEFINITIONS.noShow, value: kpis.noShowRate, isRate: true },
+    {
+      label: finished("Completed"),
+      definition: KPI_DEFINITIONS.completion,
+      value: rateValue(kpis.completionRate),
+      detail:
+        kpis.outcomeCount > 0 ? `${kpis.completed} of ${kpis.outcomeCount} appointments` : "No visits have finished yet",
+    },
+    {
+      label: finished("Cancelled · No-show"),
+      definition: KPI_DEFINITIONS.cancellationNoShow,
+      value:
+        kpis.cancellationRate === null || kpis.noShowRate === null
+          ? { kind: "empty" }
+          : { kind: "text", text: `${kpis.cancellationRate.toFixed(1)}% · ${kpis.noShowRate.toFixed(1)}%` },
+      detail:
+        kpis.outcomeCount > 0
+          ? `${kpis.cancelled} cancelled · ${kpis.noShow} ${kpis.noShow === 1 ? "no-show" : "no-shows"}`
+          : "No visits have finished yet",
+    },
+    {
+      label: "Peak slot",
+      definition: KPI_DEFINITIONS.peakSlot,
+      value: kpis.peakSlot
+        ? { kind: "text", text: `${kpis.peakSlot.weekday} ${DAYTIME_SLOT_SHORT_LABELS[kpis.peakSlot.slot]}` }
+        : { kind: "empty" },
+      detail: kpis.peakSlot
+        ? `${kpis.peakSlot.count} ${kpis.peakSlot.count === 1 ? "appointment" : "appointments"}`
+        : "No daytime appointments",
+    },
   ];
 
   return (
@@ -58,29 +104,22 @@ export function KpiCards({ kpis }: { kpis: AnalyticsDatasets["kpis"] }) {
               <span className="text-sm text-ink-secondary">{card.label}</span>
               <Definition label={card.label} definition={card.definition} />
             </div>
-            {card.value === null ? (
-              <span className="mt-1.5 text-3xl font-semibold tracking-tight text-ink-muted">—</span>
-            ) : (
-              <CountUp
-                value={card.value}
-                decimals={card.isRate ? 2 : 0}
-                suffix={card.isRate ? "%" : ""}
-                className="mt-1.5 text-3xl font-semibold tracking-tight tabular-nums text-ink"
-              />
-            )}
-            {card.isRate ? (
-              <span className="mt-1 text-xs text-ink-muted">
-                {card.value === null ? "Nothing due yet in this period" : `of ${kpis.dueCount} due visits`}
-              </span>
-            ) : (
-              <span className="mt-1 text-xs text-ink-muted">Scheduled in this period</span>
-            )}
+            <div data-kpi-value className={card.value.kind === "empty" ? `${VALUE_CLASS} text-ink-muted` : VALUE_CLASS}>
+              {card.value.kind === "number" ? (
+                <CountUp value={card.value.value} decimals={card.value.decimals} suffix={card.value.suffix} />
+              ) : card.value.kind === "text" ? (
+                card.value.text
+              ) : (
+                "—"
+              )}
+            </div>
+            <span className="mt-1 text-xs text-ink-muted">{card.detail}</span>
           </div>
         ))}
       </div>
       <p className="text-xs text-ink-muted">
         {kpis.pending} pending confirmation now (front desk queue; not limited to this period).
-        {isSmallSample(kpis.dueCount) ? <span className="ml-2 text-warning-soft-ink">{SMALL_SAMPLE_NOTE}</span> : null}
+        {isSmallSample(kpis.outcomeCount) ? <span className="ml-2 text-warning-soft-ink">{SMALL_SAMPLE_NOTE}</span> : null}
       </p>
     </div>
   );

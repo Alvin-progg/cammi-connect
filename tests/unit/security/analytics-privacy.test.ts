@@ -15,12 +15,25 @@ import type { AnalyticsDatasets } from "@/server/analytics/service";
 const PATIENT_FIELD = /patient|email|phone|contact/i;
 
 const EMPTY: AnalyticsDatasets = {
-  kpis: { total: 0, dueCount: 0, completionRate: null, noShowRate: null, cancellationRate: null, pending: 0 },
+  kpis: {
+    total: 0,
+    outcomeCount: 0,
+    completed: 0,
+    cancelled: 0,
+    noShow: 0,
+    completionRate: null,
+    cancellationRate: null,
+    noShowRate: null,
+    outcomeMonths: null,
+    busiestMonth: null,
+    peakSlot: null,
+    pending: 0,
+  },
   monthly: [],
   byDoctor: [],
-  heatmap: [],
-  statusByMonth: [],
-  ratesBySlot: [],
+  heatmap: { cells: [], outsideHours: 0 },
+  outcomesByMonth: [],
+  ratesByWeekday: [],
 };
 
 describe("analytics privacy", () => {

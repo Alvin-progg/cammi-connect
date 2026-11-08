@@ -5,19 +5,23 @@ import type { AnalyticsQuery } from "./period";
 
 export const ANALYTICS_PATH = "/admin/analytics";
 
-export const ANALYTICS_RANGES = ["this_month", "last_3_months", "last_12_months", "custom"] as const;
+export const ANALYTICS_RANGES = ["this_year", "this_month", "last_3_months", "last_12_months", "custom"] as const;
 export type AnalyticsRange = (typeof ANALYTICS_RANGES)[number];
 type PresetRange = Exclude<AnalyticsRange, "custom">;
 
 export const ANALYTICS_RANGE_LABELS: Record<AnalyticsRange, string> = {
+  this_year: "This year",
   this_month: "This month",
   last_3_months: "Last 3 months",
   last_12_months: "Last 12 months",
   custom: "Custom",
 };
 
-/** Months each preset spans, counting the current month. */
-const PRESET_MONTHS: Record<PresetRange, number> = {
+/** The default view: the whole Manila calendar year, like the reference design. */
+const DEFAULT_RANGE: PresetRange = "this_year";
+
+/** Months each rolling preset spans, counting the current month. */
+const PRESET_MONTHS: Record<Exclude<PresetRange, "this_year">, number> = {
   this_month: 1,
   last_3_months: 3,
   last_12_months: 12,
@@ -42,7 +46,7 @@ function firstValue(value: SearchParam): string | undefined {
 }
 
 function isPresetRange(value: string | undefined): value is PresetRange {
-  return value === "this_month" || value === "last_3_months" || value === "last_12_months";
+  return value === "this_year" || value === "this_month" || value === "last_3_months" || value === "last_12_months";
 }
 
 /** Calendar arithmetic on YYYY-MM-DD dates; UTC is used only as a timezone-free calendar. */
@@ -53,6 +57,10 @@ export function shiftDate(date: string, { months = 0, days = 0 }: { months?: num
 }
 
 function presetDates(range: PresetRange, today: string): { from: string; to: string } {
+  if (range === "this_year") {
+    const year = today.slice(0, 4);
+    return { from: `${year}-01-01`, to: `${year}-12-31` };
+  }
   const monthStart = `${today.slice(0, 7)}-01`;
   return {
     from: shiftDate(monthStart, { months: 1 - PRESET_MONTHS[range] }),
@@ -70,7 +78,7 @@ export function isValidCustomRange(from: string | undefined, to: string | undefi
 
 /**
  * Analytics filters from search params. An explicit preset wins; otherwise
- * valid `from`/`to` dates make a custom range; anything else is this month.
+ * valid `from`/`to` dates make a custom range; anything else is this year.
  */
 export function parseAnalyticsFilters(
   params: { range?: SearchParam; from?: SearchParam; to?: SearchParam; doctor?: SearchParam; department?: SearchParam },
@@ -87,7 +95,7 @@ export function parseAnalyticsFilters(
   if (!isPresetRange(range) && isValidCustomRange(from, to) && from && to) {
     return { range: "custom", from, to, ...narrowing };
   }
-  const preset = isPresetRange(range) ? range : "this_month";
+  const preset = isPresetRange(range) ? range : DEFAULT_RANGE;
   return { range: preset, ...presetDates(preset, todayInManila(now)), ...narrowing };
 }
 
@@ -108,7 +116,7 @@ export function analyticsSearchParams(filters: AnalyticsFilters): URLSearchParam
     params.set("range", "custom");
     params.set("from", filters.from);
     params.set("to", filters.to);
-  } else if (filters.range !== "this_month") {
+  } else if (filters.range !== DEFAULT_RANGE) {
     params.set("range", filters.range);
   }
   if (filters.doctorId) params.set("doctor", filters.doctorId);

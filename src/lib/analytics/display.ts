@@ -6,17 +6,18 @@
 export const KPI_DEFINITIONS = {
   total: "Appointments scheduled in the period, excluding rejected requests.",
   completion:
-    "Completed visits ÷ due visits. Due visits were confirmed, scheduled in the period, and have already ended (including later cancellations and no-shows).",
-  cancellation: "Cancellations after confirmation ÷ due visits.",
-  noShow: "No-shows ÷ due visits.",
+    "Completed visits ÷ finished visits. Finished visits were scheduled in the period, have already ended, and were completed, cancelled, or missed.",
+  cancellationNoShow: "Cancellations ÷ finished visits, and no-shows ÷ finished visits.",
+  peakSlot:
+    "The weekday and two-hour daytime slot (9 AM–5 PM, Manila) with the most appointments in the period.",
 } as const;
 
-/** Rates over fewer due visits than this get a small-sample note. */
+/** Rates over fewer finished visits than this get a small-sample note. */
 export const SMALL_SAMPLE_SIZE = 10;
 
 export const SMALL_SAMPLE_NOTE = "Rates based on few appointments.";
 export const NO_VOLUME_MESSAGE = "No appointments were scheduled in this period.";
-export const NO_DUE_MESSAGE = "No visits in this period have reached their scheduled time yet.";
+export const NO_OUTCOME_MESSAGE = "No visits in this period have finished yet.";
 
 const MONTH_FORMATTER = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
 
@@ -30,8 +31,18 @@ export function formatRate(rate: number | null): string {
   return rate === null ? "—" : `${rate.toFixed(2)}%`;
 }
 
-export function isSmallSample(dueCount: number): boolean {
-  return dueCount > 0 && dueCount < SMALL_SAMPLE_SIZE;
+export function isSmallSample(outcomeCount: number): boolean {
+  return outcomeCount > 0 && outcomeCount < SMALL_SAMPLE_SIZE;
+}
+
+const SHORT_MONTH_FORMATTER = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
+
+/** "Jan–Jun", "Nov", or "Dec 2025–Jan 2026" across a year boundary. */
+export function formatMonthRange(first: string, last: string): string {
+  const short = (month: string) => SHORT_MONTH_FORMATTER.format(new Date(`${month}-01T00:00:00Z`));
+  if (first === last) return short(first);
+  if (first.slice(0, 4) !== last.slice(0, 4)) return `${formatMonth(first)}–${formatMonth(last)}`;
+  return `${short(first)}–${short(last)}`;
 }
 
 const DAY_FORMATTER = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });

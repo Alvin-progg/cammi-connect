@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   Area,
   AreaChart,
@@ -20,10 +19,10 @@ import { formatDay, formatMonth } from "@/lib/analytics/display";
 import type {
   DailyVolume,
   DoctorAnalytics,
-  MonthlyStatusCounts,
+  MonthlyOutcomes,
   MonthlyVolume,
-  SlotRates,
   VolumeStatus,
+  WeekdayRates,
 } from "@/lib/analytics/metrics";
 import { VOLUME_STATUSES } from "@/lib/analytics/metrics";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
@@ -185,65 +184,49 @@ export function DoctorVolumeChart({ data }: { data: DoctorAnalytics[] }) {
   );
 }
 
-export const OUTCOME_SERIES: { status: VolumeStatus; color: string }[] = [
-  { status: "completed", color: SERIES.completed },
-  { status: "cancelled", color: SERIES.cancelled },
-  { status: "no_show", color: SERIES.noShow },
-];
-export const OPEN_SERIES: { status: VolumeStatus; color: string }[] = [
-  { status: "requested", color: SERIES.requested },
-  { status: "confirmed", color: SERIES.confirmed },
-];
+const OUTCOME_SERIES = [
+  { key: "completed", label: "Completed", color: SERIES.completed },
+  { key: "cancelled", label: "Cancelled", color: SERIES.cancelled },
+  { key: "noShow", label: "No-show", color: SERIES.noShow },
+] as const;
 
-export function StatusByMonthChart({ data }: { data: MonthlyStatusCounts[] }) {
-  const [showOpen, setShowOpen] = useState(false);
-  const series = showOpen ? [...OUTCOME_SERIES, ...OPEN_SERIES] : OUTCOME_SERIES;
+/** Completed, cancelled, and no-show per month, stacked, with each month's total above the bar. */
+export function OutcomesChart({ data }: { data: MonthlyOutcomes[] }) {
   const rows = data.map((month) => ({
     month: formatMonth(month.month),
-    ...month.counts,
-    // Total of the stacked segments shown, printed above each bar.
-    shownTotal: series.reduce((sum, { status }) => sum + month.counts[status], 0),
+    completed: month.completed,
+    cancelled: month.cancelled,
+    noShow: month.noShow,
+    total: month.completed + month.cancelled + month.noShow,
   }));
-
   return (
-    <div className="flex flex-col gap-3">
-      <label className="flex items-center gap-2 self-start text-sm text-ink-secondary">
-        <input
-          type="checkbox"
-          checked={showOpen}
-          onChange={(event) => setShowOpen(event.target.checked)}
-          className="size-4 accent-[var(--primary)] focus-ring"
-        />
-        Show pending and confirmed
-      </label>
-      <ChartFrame label="Stacked bar chart of appointment statuses per month" height={300}>
-        <BarChart data={rows} margin={{ top: 22, right: 8, bottom: 0, left: -12 }} barCategoryGap="28%">
-          <CartesianGrid stroke={GRID_STROKE} vertical={false} />
-          <XAxis dataKey="month" tick={AXIS_TICK} tickLine={false} axisLine={false} />
-          <YAxis allowDecimals={false} tick={AXIS_TICK} tickLine={false} axisLine={false} width={40} />
-          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={BAR_CURSOR} />
-          {series.map(({ status, color }, index) => {
-            const top = index === series.length - 1;
-            return (
-              <Bar
-                key={status}
-                dataKey={status}
-                name={APPOINTMENT_STATUS_LABELS[status]}
-                stackId="status"
-                fill={color}
-                // A 2px surface gap separates stacked segments without relying on hue.
-                stroke="var(--surface)"
-                strokeWidth={2}
-                radius={top ? [4, 4, 0, 0] : undefined}
-                isAnimationActive={false}
-              >
-                {top ? <LabelList dataKey="shownTotal" position="top" fontSize={11} fontWeight={500} fill={LABEL_FILL} /> : null}
-              </Bar>
-            );
-          })}
-        </BarChart>
-      </ChartFrame>
-    </div>
+    <ChartFrame label="Stacked bar chart of completed, cancelled, and no-show appointments per month" height={300}>
+      <BarChart data={rows} margin={{ top: 22, right: 8, bottom: 0, left: -12 }} barCategoryGap="28%">
+        <CartesianGrid stroke={GRID_STROKE} vertical={false} />
+        <XAxis dataKey="month" tick={AXIS_TICK} tickLine={false} axisLine={false} />
+        <YAxis allowDecimals={false} tick={AXIS_TICK} tickLine={false} axisLine={false} width={40} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={BAR_CURSOR} />
+        {OUTCOME_SERIES.map(({ key, label, color }, index) => {
+          const top = index === OUTCOME_SERIES.length - 1;
+          return (
+            <Bar
+              key={key}
+              dataKey={key}
+              name={label}
+              stackId="outcomes"
+              fill={color}
+              // A 2px surface gap separates stacked segments without relying on hue.
+              stroke="var(--surface)"
+              strokeWidth={2}
+              radius={top ? [4, 4, 0, 0] : undefined}
+              isAnimationActive={false}
+            >
+              {top ? <LabelList dataKey="total" position="top" fontSize={11} fontWeight={500} fill={LABEL_FILL} /> : null}
+            </Bar>
+          );
+        })}
+      </BarChart>
+    </ChartFrame>
   );
 }
 
@@ -305,18 +288,18 @@ function labelPercent(value: unknown) {
   return typeof value === "number" ? `${Math.round(value)}%` : "";
 }
 
-export function SlotRatesChart({ data }: { data: SlotRates[] }) {
-  const rows = data.map((slot) => ({
-    name: `${slot.weekday} ${slot.hourBucket}`,
-    cancellation: slot.cancellationRate,
-    noShow: slot.noShowRate,
+export function WeekdayRatesChart({ data }: { data: WeekdayRates[] }) {
+  const rows = data.map((day) => ({
+    name: day.weekday,
+    cancellation: day.cancellationRate,
+    noShow: day.noShowRate,
   }));
-  return <RatesChart label="Grouped bar chart of cancellation and no-show rates by day and time" rows={rows} />;
+  return <RatesChart label="Grouped bar chart of cancellation and no-show rates by weekday" rows={rows} />;
 }
 
 export function DoctorRatesChart({ data }: { data: DoctorAnalytics[] }) {
   const rows = data
-    .filter((doctor) => doctor.dueCount > 0)
-    .map((doctor) => ({ name: doctor.doctorName, cancellation: doctor.cancellationRate, noShow: doctor.noShowRate }));
+    .filter((doctor) => doctor.outcomeCount > 0)
+    .map((doctor) => ({ name: doctor.shortName, cancellation: doctor.cancellationRate, noShow: doctor.noShowRate }));
   return <RatesChart label="Grouped bar chart of cancellation and no-show rates by doctor" rows={rows} />;
 }

@@ -1372,6 +1372,7 @@ Applies to `UI-006` and `FR-007`.
 - Error: one clear error region with retry for reads; a single chart failure does not blank the page unless the page cannot function.
 - Date/time uses Asia/Manila by default and states the timezone.
 - Charts use Recharts (approved 2026-11-05); KPI numbers count up once on mount and render their final value under reduced motion.
+- **Amendment 2026-11-08 (v0.4):** the page follows the reference's data design (definitions v2 in `docs/analytics-definitions.md`). KPIs: "Appointments {this year}" (busiest month), "Completed, {Jan–Jun}" (n of m), "Cancelled · No-show, {Jan–Jun}" (counts), "Peak slot" ("Thu 11–1"). Demand: 1 monthly volume, 2 appointments per doctor, 3 peak consultation days and times (Mon–Fri × 9–11 / 11–1 / 1–3 / 3–5). Outcomes: 4 monthly outcomes (completed / cancelled / no-show stacked), 5 rates by weekday, 6 rates by doctor (surname labels). Each card's subtitle is a one-sentence takeaway written from the data; the default range is this year.
 
 ### 6.9 State patterns by screen
 

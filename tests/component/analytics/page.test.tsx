@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AdminAnalyticsPage from "@/app/admin/analytics/page";
@@ -39,9 +39,10 @@ async function renderPage(searchParams: Record<string, string> = {}) {
   render(await AdminAnalyticsPage({ params: Promise.resolve({}), searchParams: Promise.resolve(searchParams) }));
 }
 
+/** The card's final value: CountUp's screen-reader text, or the plain value text. */
 function kpiValue(label: string) {
-  const card = screen.getByRole("group", { name: label });
-  return card.querySelector(".sr-only")?.textContent ?? within(card).getByText("—").textContent;
+  const value = screen.getByRole("group", { name: label }).querySelector("[data-kpi-value]");
+  return value?.querySelector(".sr-only")?.textContent ?? value?.textContent;
 }
 
 describe("admin analytics page", () => {
@@ -88,34 +89,41 @@ describe("admin analytics page", () => {
     expect(supabaseAnalyticsRepository.listAppointments).not.toHaveBeenCalled();
   });
 
-  it("shows the four measured KPIs with the pending snapshot", async () => {
+  it("shows the reference KPIs over the outcome cohort with the pending snapshot", async () => {
     await renderPage();
 
-    expect(kpiValue("Total appointments")).toBe("4");
-    expect(kpiValue("Completion rate")).toBe("75.00%");
-    expect(kpiValue("Cancellation rate")).toBe("0.00%");
-    expect(kpiValue("No-show rate")).toBe("25.00%");
+    expect(kpiValue("Appointments this year")).toBe("4");
+    expect(screen.getByText("Nov is the busiest month (4)")).toBeInTheDocument();
+    expect(kpiValue("Completed, Nov")).toBe("75.0%");
+    expect(screen.getByText("3 of 4 appointments")).toBeInTheDocument();
+    expect(kpiValue("Cancelled · No-show, Nov")).toBe("0.0% · 25.0%");
+    expect(screen.getByText("0 cancelled · 1 no-show")).toBeInTheDocument();
+    expect(kpiValue("Peak slot")).toBe("Mon 9–11");
+    expect(screen.getByText("4 appointments")).toBeInTheDocument();
     expect(screen.getByText(/2 pending confirmation now/)).toBeInTheDocument();
     expect(screen.getAllByText("Rates based on few appointments.").length).toBeGreaterThan(0);
   });
 
-  it("renders the six charts with data tables, the timezone, and the association disclaimer", async () => {
+  it("renders the six reference charts with data tables, the timezone, and the association disclaimer", async () => {
     await renderPage();
 
     for (const title of [
       "Monthly appointment volume",
       "Appointments per doctor",
-      "Peak days and times",
-      "Status by month",
-      "Cancellations and no-shows by day and time",
-      "Cancellations and no-shows by doctor",
+      "Peak consultation days and times",
+      "Monthly appointment outcomes",
+      "Cancellation and no-show rate by weekday",
+      "Cancellation and no-show rate by doctor",
     ]) {
       expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     }
     expect(screen.getByRole("table", { name: "Monthly appointment volume data" })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Monthly appointment outcomes data" })).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "Peak days and times" })).toBeInTheDocument();
     expect(screen.getByText(/Times in Asia\/Manila/)).toBeInTheDocument();
     expect(screen.getByText("Patterns show association, not cause.")).toBeInTheDocument();
+    // Takeaways are written from the data.
+    expect(screen.getByText("Monday 9–11 AM peaks at 4; Monday 11 AM–1 PM is quietest (0).")).toBeInTheDocument();
   });
 
   it("shows empty states and no rates when the period has no appointments", async () => {
@@ -123,9 +131,10 @@ describe("admin analytics page", () => {
 
     await renderPage();
 
-    expect(kpiValue("Completion rate")).toBe("—");
-    expect(screen.getAllByText("No appointments were scheduled in this period.")).toHaveLength(4);
-    expect(screen.getAllByText("No visits in this period have reached their scheduled time yet.")).toHaveLength(2);
+    expect(kpiValue("Completed")).toBe("—");
+    expect(kpiValue("Peak slot")).toBe("—");
+    expect(screen.getAllByText("No appointments were scheduled in this period.")).toHaveLength(3);
+    expect(screen.getAllByText("No visits in this period have finished yet.")).toHaveLength(3);
     expect(screen.queryByRole("table", { name: "Peak days and times" })).not.toBeInTheDocument();
   });
 

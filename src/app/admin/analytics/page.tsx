@@ -5,9 +5,9 @@ import {
   DoctorRatesChart,
   DoctorVolumeChart,
   MonthlyVolumeChart,
+  OutcomesChart,
   SERIES,
-  SlotRatesChart,
-  StatusByMonthChart,
+  WeekdayRatesChart,
 } from "@/components/analytics/analytics-charts";
 import { AnalyticsExportMenu, AnalyticsFilters } from "@/components/analytics/analytics-filters";
 import { ChartCard, ChartLegend, ChartSection } from "@/components/analytics/chart-card";
@@ -16,9 +16,10 @@ import { KpiCards } from "@/components/analytics/kpi-cards";
 import { PeakHeatmap } from "@/components/analytics/peak-heatmap";
 import { AccessDenied } from "@/components/auth/access-denied";
 import {
-  NO_DUE_MESSAGE,
+  NO_OUTCOME_MESSAGE,
   NO_VOLUME_MESSAGE,
   formatMonth,
+  formatMonthRange,
   formatRate,
   isSmallSample,
 } from "@/lib/analytics/display";
@@ -27,10 +28,17 @@ import {
   ANALYTICS_RANGE_LABELS,
   parseAnalyticsFilters,
   toAnalyticsQuery,
+  type AnalyticsRange,
 } from "@/lib/analytics/filters";
-import { VOLUME_STATUSES } from "@/lib/analytics/metrics";
+import {
+  doctorRatesTakeaway,
+  doctorTakeaway,
+  heatmapTakeaway,
+  monthlyTakeaway,
+  outcomesTakeaway,
+  weekdayRatesTakeaway,
+} from "@/lib/analytics/takeaways";
 import { formatManilaMediumDate } from "@/lib/appointments/format";
-import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
 import { supabaseAnalyticsRepository } from "@/server/analytics/repository";
 import { loadAnalytics } from "@/server/analytics/service";
 import { getAdminSession } from "@/server/auth/dal";
@@ -42,7 +50,20 @@ export const instant = false;
 
 export const metadata: Metadata = { title: "Analytics" };
 
-/** Appointment analytics: KPIs, six charts, URL filters, CSV export (spec-admin ADM-11). */
+/** How the first KPI names the period: "Appointments this year". */
+const PERIOD_PHRASES: Record<AnalyticsRange, string> = {
+  this_year: "this year",
+  this_month: "this month",
+  last_3_months: "in the last 3 months",
+  last_12_months: "in the last 12 months",
+  custom: "in this period",
+};
+
+/**
+ * Appointment analytics in the reference design (spec-admin ADM-11, metric
+ * definitions v2 in docs/analytics-definitions.md): KPIs, Demand and Outcomes
+ * charts with data-written takeaways, URL filters, and CSV export.
+ */
 export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/admin/analytics">) {
   const params = await searchParams;
   const session = await getAdminSession(ANALYTICS_PATH);
@@ -57,11 +78,13 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
     loadAnalytics(toAnalyticsQuery(filters), supabaseAnalyticsRepository),
   ]);
 
-  const hasVolume = analytics.kpis.total > 0;
-  const volumeEmpty = hasVolume ? null : NO_VOLUME_MESSAGE;
-  const slotDue = analytics.ratesBySlot.reduce((sum, slot) => sum + slot.dueCount, 0);
-  const doctorsWithDue = analytics.byDoctor.filter((doctor) => doctor.dueCount > 0);
+  const { kpis } = analytics;
+  const volumeEmpty = kpis.total > 0 ? null : NO_VOLUME_MESSAGE;
+  const outcomeEmpty = kpis.outcomeCount > 0 ? null : NO_OUTCOME_MESSAGE;
+  const doctorsWithOutcomes = analytics.byDoctor.filter((doctor) => doctor.outcomeCount > 0);
+  const outcomeMonths = kpis.outcomeMonths ? formatMonthRange(kpis.outcomeMonths.first, kpis.outcomeMonths.last) : null;
   const period = `${ANALYTICS_RANGE_LABELS[filters.range]}, ${formatManilaMediumDate(filters.from)} – ${formatManilaMediumDate(filters.to)}`;
+
   const outcomesLegend = (
     <ChartLegend
       items={[
@@ -96,35 +119,34 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
           departments={departments.map((department) => ({ id: department.id, name: department.name }))}
         />
 
-        <KpiCards kpis={analytics.kpis} />
+        <KpiCards kpis={kpis} periodLabel={PERIOD_PHRASES[filters.range]} />
 
         <ChartSection title="Demand" description="How many appointments, with whom, and when" />
-          <ChartCard
-            id="monthly-volume"
-            number={1}
-            title="Monthly appointment volume"
-            description="Appointments scheduled each month, excluding rejected requests."
-            aside={caption("Appointments per month")}
-            emptyMessage={volumeEmpty}
-            table={
-              <DataTable
-                label="Monthly appointment volume data"
-                columns={["Month", "Appointments"]}
-                rows={analytics.monthly.map((month) => [formatMonth(month.month), month.total])}
-              />
-            }
-          >
-            <MonthlyVolumeChart data={analytics.monthly} />
-          </ChartCard>
+        <ChartCard
+          id="monthly-volume"
+          number={1}
+          title="Monthly appointment volume"
+          description={monthlyTakeaway(analytics.monthly) ?? "Appointments scheduled each month, excluding rejected requests."}
+          aside={caption("Appointments per month")}
+          emptyMessage={volumeEmpty}
+          table={
+            <DataTable
+              label="Monthly appointment volume data"
+              columns={["Month", "Appointments"]}
+              rows={analytics.monthly.map((month) => [formatMonth(month.month), month.total])}
+            />
+          }
+        >
+          <MonthlyVolumeChart data={analytics.monthly} />
+        </ChartCard>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-
           <ChartCard
             id="doctor-volume"
             number={2}
             title="Appointments per doctor"
-            description="Appointments scheduled with each doctor, busiest first."
-            aside={caption("This period")}
+            description={doctorTakeaway(analytics.byDoctor) ?? "Appointments scheduled with each doctor, busiest first."}
+            aside={caption(ANALYTICS_RANGE_LABELS[filters.range])}
             emptyMessage={volumeEmpty}
             table={
               <DataTable
@@ -140,79 +162,92 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
           <ChartCard
             id="peak-times"
             number={3}
-            title="Peak days and times"
-            description="Appointments by weekday and two-hour start time (Manila). Darker cells are busier."
+            title="Peak consultation days and times"
+            description={
+              heatmapTakeaway(analytics.heatmap.cells) ??
+              "Appointments by weekday and two-hour daytime slot (Manila). Darker cells are busier."
+            }
             aside={caption("Appointments per slot")}
             emptyMessage={volumeEmpty}
           >
-            <PeakHeatmap cells={analytics.heatmap} />
+            <PeakHeatmap heatmap={analytics.heatmap} />
           </ChartCard>
         </div>
 
         <ChartSection title="Outcomes" description="What happened to booked appointments" />
-
-          <ChartCard
-            id="status-by-month"
-            number={4}
-            title="Status by month"
-            description="Outcomes of the appointments scheduled each month. Cancellations count whenever they happened."
-            aside={outcomesLegend}
-            emptyMessage={volumeEmpty}
-            table={
-              <DataTable
-                label="Status by month data"
-                columns={["Month", ...VOLUME_STATUSES.map((status) => APPOINTMENT_STATUS_LABELS[status])]}
-                rows={analytics.statusByMonth.map((month) => [
-                  formatMonth(month.month),
-                  ...VOLUME_STATUSES.map((status) => month.counts[status]),
-                ])}
-              />
-            }
-          >
-            <StatusByMonthChart data={analytics.statusByMonth} />
-          </ChartCard>
+        <ChartCard
+          id="outcomes"
+          number={4}
+          title="Monthly appointment outcomes"
+          description={
+            outcomesTakeaway(analytics.outcomesByMonth) ??
+            "Completed, cancelled, and missed visits per month, for visits that have finished."
+          }
+          aside={outcomesLegend}
+          emptyMessage={outcomeEmpty}
+          smallSample={isSmallSample(kpis.outcomeCount)}
+          table={
+            <DataTable
+              label="Monthly appointment outcomes data"
+              columns={["Month", "Completed", "Cancelled", "No-show"]}
+              rows={analytics.outcomesByMonth.map((month) => [
+                formatMonth(month.month),
+                month.completed,
+                month.cancelled,
+                month.noShow,
+              ])}
+            />
+          }
+        >
+          <OutcomesChart data={analytics.outcomesByMonth} />
+        </ChartCard>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-
           <ChartCard
-            id="slot-rates"
+            id="weekday-rates"
             number={5}
+            title="Cancellation and no-show rate by weekday"
+            description={
+              weekdayRatesTakeaway(analytics.ratesByWeekday) ??
+              "Share of each weekday's finished visits that were cancelled or missed."
+            }
             aside={ratesLegend}
-            title="Cancellations and no-shows by day and time"
-            description="Share of due visits in each weekday and start-time slot that were cancelled or missed."
-            emptyMessage={analytics.ratesBySlot.length > 0 ? null : NO_DUE_MESSAGE}
-            smallSample={isSmallSample(slotDue)}
+            emptyMessage={outcomeEmpty}
+            smallSample={isSmallSample(kpis.outcomeCount)}
             table={
               <DataTable
-                label="Cancellations and no-shows by day and time data"
-                columns={["Slot", "Due visits", "Cancellation rate", "No-show rate"]}
-                rows={analytics.ratesBySlot.map((slot) => [
-                  `${slot.weekday} ${slot.hourBucket}`,
-                  slot.dueCount,
-                  formatRate(slot.cancellationRate),
-                  formatRate(slot.noShowRate),
+                label="Cancellation and no-show rate by weekday data"
+                columns={["Weekday", "Finished visits", "Cancellation rate", "No-show rate"]}
+                rows={analytics.ratesByWeekday.map((day) => [
+                  day.weekday,
+                  day.outcomeCount,
+                  formatRate(day.cancellationRate),
+                  formatRate(day.noShowRate),
                 ])}
               />
             }
           >
-            <SlotRatesChart data={analytics.ratesBySlot} />
+            <WeekdayRatesChart data={analytics.ratesByWeekday} />
           </ChartCard>
 
           <ChartCard
             id="doctor-rates"
             number={6}
+            title="Cancellation and no-show rate by doctor"
+            description={
+              doctorRatesTakeaway(analytics.byDoctor) ??
+              "Share of each doctor's finished visits that were cancelled or missed."
+            }
             aside={ratesLegend}
-            title="Cancellations and no-shows by doctor"
-            description="Share of each doctor's due visits that were cancelled or missed."
-            emptyMessage={doctorsWithDue.length > 0 ? null : NO_DUE_MESSAGE}
-            smallSample={isSmallSample(analytics.kpis.dueCount)}
+            emptyMessage={doctorsWithOutcomes.length > 0 ? null : NO_OUTCOME_MESSAGE}
+            smallSample={isSmallSample(kpis.outcomeCount)}
             table={
               <DataTable
-                label="Cancellations and no-shows by doctor data"
-                columns={["Doctor", "Due visits", "Cancellation rate", "No-show rate"]}
-                rows={doctorsWithDue.map((doctor) => [
+                label="Cancellation and no-show rate by doctor data"
+                columns={["Doctor", "Finished visits", "Cancellation rate", "No-show rate"]}
+                rows={doctorsWithOutcomes.map((doctor) => [
                   doctor.doctorName,
-                  doctor.dueCount,
+                  doctor.outcomeCount,
                   formatRate(doctor.cancellationRate),
                   formatRate(doctor.noShowRate),
                 ])}
@@ -223,7 +258,10 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
           </ChartCard>
         </div>
 
-        <p className="text-sm text-ink-muted">Patterns show association, not cause.</p>
+        <div className="flex flex-col gap-1 text-sm text-ink-muted">
+          {outcomeMonths ? <p>{`Outcome figures cover visits that finished in ${outcomeMonths}.`}</p> : null}
+          <p>Patterns show association, not cause.</p>
+        </div>
       </div>
     </AdminShell>
   );

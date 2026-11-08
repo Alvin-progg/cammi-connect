@@ -64,15 +64,15 @@ export function DoctorPerformance({ doctors }: { doctors: DoctorAnalytics[] }) {
     <Section
       id="doctor-performance"
       title="Doctor performance"
-      description="Top 5 doctors by appointments in range, with their no-show rate over due visits."
+      description="Top 5 doctors by appointments in range, with their no-show rate over finished visits."
     >
       {doctors.length === 0 ? (
         <EmptyState>No appointments were scheduled in this period.</EmptyState>
       ) : (
         <DataTable
           label="Doctor performance"
-          columns={["Doctor", "Appointments", "Due visits", "No-show rate"]}
-          rows={doctors.map((doctor) => [doctor.doctorName, doctor.total, doctor.dueCount, formatRate(doctor.noShowRate)])}
+          columns={["Doctor", "Appointments", "Finished visits", "No-show rate"]}
+          rows={doctors.map((doctor) => [doctor.doctorName, doctor.total, doctor.outcomeCount, formatRate(doctor.noShowRate)])}
         />
       )}
     </Section>

@@ -59,29 +59,39 @@ describe("loadAnalytics", () => {
 
     expect(analytics.kpis).toEqual({
       total: 1,
-      dueCount: 1,
+      outcomeCount: 1,
+      completed: 1,
+      cancelled: 0,
+      noShow: 0,
       completionRate: 100,
-      noShowRate: 0,
       cancellationRate: 0,
+      noShowRate: 0,
+      outcomeMonths: { first: "2026-10", last: "2026-10" },
+      busiestMonth: { month: "2026-10", total: 1 },
+      peakSlot: { weekday: "Mon", slot: "9–11 AM", count: 1 },
       pending: 4,
     });
     expect(analytics.monthly).toEqual([{ month: "2026-10", total: 1 }]);
     expect(analytics.byDoctor).toEqual([
-      { doctorId: DOCTOR_ID, doctorName: "Dr. Synthetic", total: 1, dueCount: 1, cancellationRate: 0, noShowRate: 0 },
-    ]);
-    expect(analytics.heatmap.find((cell) => cell.count > 0)).toEqual({
-      weekday: "Mon",
-      hourBucket: "08–10",
-      count: 1,
-    });
-    expect(analytics.statusByMonth).toEqual([
       {
-        month: "2026-10",
-        counts: { requested: 0, confirmed: 0, cancelled: 0, checked_in: 0, completed: 1, no_show: 0 },
+        doctorId: DOCTOR_ID,
+        doctorName: "Dr. Synthetic",
+        shortName: "Synthetic",
+        total: 1,
+        outcomeCount: 1,
+        cancellationRate: 0,
+        noShowRate: 0,
       },
     ]);
-    expect(analytics.ratesBySlot).toEqual([
-      { weekday: "Mon", hourBucket: "08–10", dueCount: 1, cancellationRate: 0, noShowRate: 0 },
+    expect(analytics.heatmap.cells.find((cell) => cell.count > 0)).toEqual({
+      weekday: "Mon",
+      slot: "9–11 AM",
+      count: 1,
+    });
+    expect(analytics.heatmap.outsideHours).toBe(0);
+    expect(analytics.outcomesByMonth).toEqual([{ month: "2026-10", completed: 1, cancelled: 0, noShow: 0 }]);
+    expect(analytics.ratesByWeekday).toEqual([
+      { weekday: "Mon", outcomeCount: 1, cancellationRate: 0, noShowRate: 0 },
     ]);
   });
 
