@@ -218,7 +218,7 @@ export function ChatShell({
                   role="log"
                   aria-label="Conversation"
                   aria-live="polite"
-                  className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-6"
+                  className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-4 py-8"
                 >
                   {messages.map((message) => (
                     <MessageBubble

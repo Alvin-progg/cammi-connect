@@ -6,7 +6,7 @@ import { useState } from "react";
 import type { ConversationSummary } from "@/lib/chat/schemas";
 import { signOutAction } from "@/server/auth/actions";
 
-import { CalendarIcon, LogOutIcon, PanelLeftIcon, SearchIcon, SquarePenIcon } from "lucide-react";
+import { CalendarIcon, LogOutIcon, PanelLeftIcon, SearchIcon, PlusIcon } from "lucide-react";
 
 /**
  * Width and label visibility are driven by `data-state` on the aside:
@@ -95,7 +95,7 @@ export function ChatSidebar({
       <nav aria-label="Chat actions" className="mt-2 flex flex-col gap-0.5 px-2">
         <Link href="/chat" onClick={onNavigate} className={ROW}>
           <span className={ICON_SLOT}>
-            <SquarePenIcon className="size-5" />
+            <PlusIcon aria-hidden="true" className="size-5 text-primary" />
           </span>
           <span className={LABEL}>New conversation</span>
         </Link>

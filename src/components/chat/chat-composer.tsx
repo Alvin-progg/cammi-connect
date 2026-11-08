@@ -2,7 +2,7 @@
 
 import { MESSAGE_MAX_LENGTH } from "@/lib/chat/schemas";
 
-import { ArrowUpIcon, ClockIcon } from "lucide-react";
+import { ArrowUpIcon, HistoryIcon } from "lucide-react";
 
 export function ChatComposer({
   draft,
@@ -26,7 +26,7 @@ export function ChatComposer({
           event.preventDefault();
           if (canSend) onSubmit();
         }}
-        className="flex items-end gap-1 rounded-[1.75rem] border border-line bg-surface p-1.5 shadow-card focus-within:border-line-strong"
+        className="flex items-end gap-1 rounded-[28px] border border-line-strong bg-surface p-1.5 shadow-card focus-within:border-primary"
       >
         <button
           type="button"
@@ -34,7 +34,7 @@ export function ChatComposer({
           aria-label="Open chat history"
           className="focus-ring inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink-secondary transition-colors hover:bg-surface-muted hover:text-ink motion-reduce:transition-none"
         >
-          <ClockIcon className="size-5" />
+          <HistoryIcon aria-hidden="true" className="size-5" />
         </button>
         <label htmlFor="chat-message" className="sr-only">
           Message
