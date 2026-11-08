@@ -5,6 +5,11 @@ import type {
 } from "@/lib/appointments/status";
 import type { UserRole } from "@/lib/auth/roles";
 import type { ChatRole } from "@/lib/chat/schemas";
+import type {
+  KnowledgeCategory,
+  KnowledgeProcessingStatus,
+  KnowledgeStatus,
+} from "@/lib/knowledge/types";
 import type { NotificationType } from "@/lib/notifications/types";
 import type { RequirementStatus } from "@/lib/requirements/types";
 import type { ScheduleExceptionType } from "@/lib/schedules/types";
@@ -543,7 +548,16 @@ export type Database = {
           title: string;
           content_hash: string;
           version: number;
-          is_published: boolean;
+          category: KnowledgeCategory;
+          content: string;
+          status: KnowledgeStatus;
+          processing_status: KnowledgeProcessingStatus;
+          processing_error: string | null;
+          source_file_name: string | null;
+          published_at: string | null;
+          published_by: string | null;
+          archived_at: string | null;
+          created_by: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -553,13 +567,30 @@ export type Database = {
           title: string;
           content_hash: string;
           version?: number;
-          is_published?: boolean;
+          category?: KnowledgeCategory;
+          content?: string;
+          status?: KnowledgeStatus;
+          processing_status?: KnowledgeProcessingStatus;
+          processing_error?: string | null;
+          source_file_name?: string | null;
+          published_at?: string | null;
+          published_by?: string | null;
+          archived_at?: string | null;
+          created_by?: string | null;
         };
         Update: {
           title?: string;
           content_hash?: string;
           version?: number;
-          is_published?: boolean;
+          category?: KnowledgeCategory;
+          content?: string;
+          status?: KnowledgeStatus;
+          processing_status?: KnowledgeProcessingStatus;
+          processing_error?: string | null;
+          source_file_name?: string | null;
+          published_at?: string | null;
+          published_by?: string | null;
+          archived_at?: string | null;
         };
         Relationships: [];
       };
@@ -975,6 +1006,22 @@ export type Database = {
           content: string;
           similarity: number;
         }[];
+      };
+      cammi_connect_admin_save_knowledge_document: {
+        Args: {
+          p_actor_profile_id: string;
+          p_document_id: string | null;
+          p_title: string;
+          p_category: KnowledgeCategory;
+          p_content: string;
+          p_content_hash: string;
+          p_source_file_name: string | null;
+        };
+        Returns: string;
+      };
+      cammi_connect_admin_set_knowledge_document_status: {
+        Args: { p_actor_profile_id: string; p_document_id: string; p_status: KnowledgeStatus };
+        Returns: undefined;
       };
       cammi_connect_replace_document_chunks: {
         Args: {
