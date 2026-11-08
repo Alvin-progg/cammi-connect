@@ -268,6 +268,8 @@ export default async function DoctorPage({
         title={view === "week" ? "Appointments" : DOCTOR_VIEW_LABELS[view]}
         todayLabel={formatManilaDate(todayInManila())}
         unreadCount={unreadCount}
+        doctorName={session.doctor.fullName}
+        specialty={details?.specialty ?? null}
       />
       <div className="mx-auto w-full max-w-[90rem] px-4 py-6 sm:px-6 lg:px-8">
         {view === "week" ? (

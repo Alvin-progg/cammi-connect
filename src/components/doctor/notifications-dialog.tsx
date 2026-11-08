@@ -106,14 +106,16 @@ export function NotificationsBellButton({
       onClick={openNotifications}
       aria-haspopup="dialog"
       aria-label={notificationsLabel(unreadCount)}
-      className="focus-ring relative inline-flex size-10 shrink-0 items-center justify-center rounded-full text-ink-secondary transition-[color,background-color,transform] duration-150 ease-snappy hover:bg-surface-muted hover:text-ink active:scale-[0.95] motion-reduce:transition-none"
+      className="focus-ring relative inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-ink-secondary transition-[color,background-color,transform] duration-150 ease-snappy hover:bg-surface-muted hover:text-ink active:scale-[0.95] motion-reduce:transition-none"
     >
-      <BellIcon className="size-5" />
+      <BellIcon aria-hidden="true" className="size-4.5" />
       {unreadCount > 0 ? (
         <span
           aria-hidden="true"
-          className="absolute right-2.5 top-2 size-2 rounded-full bg-danger ring-2 ring-surface"
-        />
+          className="absolute -right-1.5 -top-1.5 inline-flex size-4.5 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-ink ring-2 ring-surface"
+        >
+          {unreadCount > 9 ? "9+" : unreadCount}
+        </span>
       ) : null}
     </button>
   );

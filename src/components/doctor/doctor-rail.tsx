@@ -7,7 +7,7 @@ import { RAIL_ITEM_BASE as ITEM_BASE, RailLabel, initialsOf } from "@/components
 import type { DoctorView } from "@/lib/appointments/dashboard";
 import { signOutAction } from "@/server/auth/actions";
 
-import { BellIcon, CalendarIcon, ChartColumnIcon, ChevronRightIcon, ClipboardListIcon, LogOutIcon, StethoscopeIcon } from "lucide-react";
+import { BellIcon, CalendarIcon, ChartColumnIcon, ChevronRightIcon, ClipboardListIcon, LogOutIcon } from "lucide-react";
 import { useOpenNotifications } from "./notifications-dialog";
 
 type RailItem = {
@@ -76,7 +76,9 @@ export function DoctorRail({
             aria-label="CamiConnect home"
             className="focus-ring flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-ink"
           >
-            <StethoscopeIcon className="size-5" />
+            <span aria-hidden="true" className="text-base font-semibold">
+              C
+            </span>
           </Link>
           {expanded ? (
             <span className="truncate text-base font-semibold tracking-tight text-ink">
