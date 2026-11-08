@@ -5,12 +5,15 @@
  * Run with: npm run kb:ingest
  * Requires .env.local with NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and
  * GEMINI_API_KEY. GEMINI_EMBEDDING_MODEL is optional (default gemini-embedding-001).
- * Apply db/migrations/0005_knowledge.sql first.
+ * Apply db/migrations/0005_knowledge.sql and 0025_admin_knowledge_documents.sql first.
  *
  * Chunks every db/knowledge/*.md file, embeds the chunks, and swaps them in
- * atomically through cammi_connect_replace_document_chunks. Documents whose
- * content hash is unchanged are skipped. Prints only slugs and counts, never
- * keys or provider bodies.
+ * atomically through cammi_connect_replace_document_chunks, which also stores
+ * the file's content and category so admins see it at /admin/knowledge-base.
+ * Documents whose content hash is unchanged and whose content is already
+ * stored are skipped. A rerun overwrites admin edits to these slugs' content
+ * and category; an archived document stays archived. Prints only slugs and
+ * counts, never keys or provider bodies.
  *
  * Node runs this file directly (type stripping), so it cannot import the
  * server-only adapters in src/server/ai; the embedding call below mirrors
@@ -30,6 +33,15 @@ const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const EMBEDDING_DIMENSIONS = 768;
 const EMBED_BATCH_SIZE = 50;
 const TIMEOUT_MS = 60_000;
+
+/** Category of each corpus file (src/lib/knowledge/types.ts); others get other_patient_info. */
+const CATEGORY_BY_SLUG: Record<string, string> = {
+  "appointment-requirements": "appointment_requirements",
+  "departments-overview": "departments",
+  "required-documents": "appointment_requirements",
+  services: "services",
+  "visit-guidelines": "appointment_procedures",
+};
 
 const batchEmbedResponseSchema = z.object({
   embeddings: z.array(z.object({ values: z.array(z.number()).length(EMBEDDING_DIMENSIONS) })),
@@ -92,12 +104,17 @@ async function main(): Promise<void> {
 
   const { data: existing, error: existingError } = await supabase
     .from("knowledge_documents")
-    .select("slug, content_hash");
+    .select("slug, content_hash, content");
   if (existingError) {
-    throw new Error("Unable to read knowledge_documents. Is 0005_knowledge.sql applied?");
+    throw new Error(
+      "Unable to read knowledge_documents. Are 0005_knowledge.sql and 0025_admin_knowledge_documents.sql applied?",
+    );
   }
+  // Only documents with stored content can be skipped; 0025 left the old rows empty.
   const storedHashes = new Map(
-    (existing ?? []).map((row: { slug: string; content_hash: string }) => [row.slug, row.content_hash]),
+    (existing ?? [])
+      .filter((row: { content: string }) => row.content !== "")
+      .map((row: { slug: string; content_hash: string }) => [row.slug, row.content_hash]),
   );
 
   const files = (await readdir(KNOWLEDGE_DIR)).filter((file) => file.endsWith(".md")).sort();
@@ -134,7 +151,13 @@ async function main(): Promise<void> {
     );
 
     const { error } = await supabase.rpc("cammi_connect_replace_document_chunks", {
-      p_document: { slug, title: title ?? slug, content_hash: contentHash },
+      p_document: {
+        slug,
+        title: title ?? slug,
+        content_hash: contentHash,
+        content: markdown,
+        category: CATEGORY_BY_SLUG[slug] ?? "other_patient_info",
+      },
       p_chunks: payload,
     });
     if (error) {

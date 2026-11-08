@@ -86,7 +86,9 @@ value that 0020 uses), then `db/migrations/0020_admin_schedule_exceptions.sql` o
 then `db/migrations/0021_admin_services.sql` once, then
 `db/migrations/0022_admin_requirements.sql` once, then
 `db/migrations/0023_fix_admin_save_create.sql` once, then
-`db/migrations/0024_requirement_resupersede.sql` once.
+`db/migrations/0024_requirement_resupersede.sql` once, then
+`db/migrations/0025_admin_knowledge_documents.sql` once, then rerun
+`npm run kb:ingest` so the corpus documents get their content and category.
 After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
@@ -406,6 +408,21 @@ now fail.
   while that version is a draft or published). The new copy gets the original end date,
   taken from the archived copy, and `superseded_by` moves to it.
 
+`0025_admin_knowledge_documents.sql` (ADM-13):
+
+- extends `knowledge_documents` with `category`, `content`, `status`
+  (draft/published/archived), `processing_status` (pending/processing/ready/failed),
+  `processing_error`, `source_file_name`, and publish/archive/creator columns. Existing
+  rows become published (or archived if they were unpublished) with processing `ready`.
+- `cammi_connect_match_knowledge_chunks` now searches only `status = 'published'`
+  documents, and `knowledge_documents.is_published` is dropped.
+- `cammi_connect_replace_document_chunks` also stores `content` and `category`; a new
+  corpus document is published, an existing one keeps its status.
+- adds the audited `cammi_connect_admin_save_knowledge_document` and
+  `cammi_connect_admin_set_knowledge_document_status` (publish, archive, restore), used by
+  `/admin/knowledge-base`. Editing a published document's content bumps its version and
+  sets processing to `pending`; its old chunks stay searchable until ADM-14 re-ingests it.
+
 #### Supabase Auth email templates (ADM-01, manual)
 
 Admin-sent invites and password resets land on `/auth/confirm`, which verifies the
@@ -433,11 +450,9 @@ npm run kb:ingest
 
 It needs `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `GEMINI_API_KEY`
 in `.env.local`. Documents whose content hash has not changed are skipped, so rerun it
-after editing the corpus. To unpublish a document without deleting it:
-
-```sql
-update public.knowledge_documents set is_published = false where slug = '<slug>';
-```
+after editing the corpus. A rerun overwrites admin edits to a corpus document's content
+and category. To unpublish a document without deleting it, archive it at
+`/admin/knowledge-base` (Cami stops using it at once).
 
 ### Chat retention (ADR-0008)
 
