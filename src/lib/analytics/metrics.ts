@@ -266,6 +266,67 @@ export function ratesBySlot(rows: AnalyticsAppointment[], now: Date): SlotRates[
   });
 }
 
+/** Non-rejected appointments by current status (ADM-12 status distribution). */
+export function statusDistribution(rows: AnalyticsAppointment[]): Record<VolumeStatus, number> {
+  const counts: Record<VolumeStatus, number> = {
+    requested: 0,
+    confirmed: 0,
+    cancelled: 0,
+    checked_in: 0,
+    completed: 0,
+    no_show: 0,
+  };
+  for (const row of rows) {
+    if (isVolumeStatus(row.status)) {
+      counts[row.status] += 1;
+    }
+  }
+  return counts;
+}
+
+export type DashboardCards = {
+  total: number;
+  confirmed: number;
+  completed: number;
+  noShow: number;
+  cancelled: number;
+};
+
+/**
+ * ADM-12 summary cards (D4). Every card but Cancelled counts rows scheduled in
+ * the period by current status; Cancelled is counted by cancellation date, so
+ * the caller passes that count from a separate read.
+ */
+export function dashboardCards(rows: AnalyticsAppointment[], cancelledInPeriod: number): DashboardCards {
+  const counts = statusDistribution(rows);
+  return {
+    total: VOLUME_STATUSES.reduce((sum, status) => sum + counts[status], 0),
+    confirmed: counts.confirmed,
+    completed: counts.completed,
+    noShow: counts.no_show,
+    cancelled: cancelledInPeriod,
+  };
+}
+
+export type DailyVolume = { date: string; total: number };
+
+/** Non-rejected appointments per Manila day, one entry per day in `days`. */
+export function dailyVolume(rows: AnalyticsAppointment[], days: string[]): DailyVolume[] {
+  const totals = new Map(days.map((day) => [day, 0]));
+  for (const row of rows) {
+    const day = bucketTime(row.scheduledAt).schedDateMnl;
+    if (isVolumeStatus(row.status) && totals.has(day)) {
+      totals.set(day, (totals.get(day) ?? 0) + 1);
+    }
+  }
+  return days.map((date) => ({ date, total: totals.get(date) ?? 0 }));
+}
+
+/** Percent change from the previous period, rounded to 2 decimals; null when there was nothing before. */
+export function trendPercent(current: number, previous: number): number | null {
+  return rate(current - previous, previous);
+}
+
 /** Every dataset for one period, as `loadAnalytics` returns it. */
 export type AnalyticsDatasets = {
   kpis: AnalyticsKpis & { pending: number };

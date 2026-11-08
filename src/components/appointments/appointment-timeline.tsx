@@ -4,7 +4,7 @@ import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
 import { USER_ROLE_LABELS } from "@/lib/auth/roles";
 import type { RequestAuditEntry } from "@/lib/front-desk/requests";
 
-const AUDIT_ACTION_LABELS: Record<AppointmentAuditAction, string> = {
+export const AUDIT_ACTION_LABELS: Record<AppointmentAuditAction, string> = {
   created: "Request submitted",
   confirmed: "Confirmed",
   rejected: "Rejected",

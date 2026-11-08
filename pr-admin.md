@@ -697,6 +697,15 @@ Add to ADM-10 layer if missing: `dashboard_cards()`, `dashboard_daily_activity()
 - Unit: previous-period computation (This week → previous Mon–Sun).
 - E2E: admin lands on `/admin`, switches to "Today", clicks Pending card → appointments list filtered to pending.
 
+## Status as built (2026-11-08)
+- `/admin`: URL filters (Today / This week / This month / Custom, doctor, department), 6 summary cards labelled with their date basis, daily activity line, status distribution bar, top-5 doctor table, read-only front desk queue, last 10 `appointment_audit_logs` and last 10 `audit_logs` entries.
+- No status filter (decided 2026-11-08): each card is already one status, and status narrowing happens on `/admin/appointments` through the card links.
+- Math is TypeScript in `src/lib/analytics/` (`dashboardCards`, `dailyVolume`, `statusDistribution`, `trendPercent`, `previousPeriod`), served by `loadDashboard`; no SQL functions and no migration (same precedent as ADM-10). Definitions added to `docs/analytics-definitions.md`.
+- Cancelled card counts by cancellation date (the `cancelled` audit row), but its link opens every cancelled appointment without a date filter, because ADM-09 filters by scheduled date. Pending card links without dates (snapshot).
+- Trend is shown as ▲/▼ % on the Total card, not a separate sparkline.
+- Activity feeds are hospital-wide; the doctor and department filters do not narrow them.
+- E2E not run (Playwright not installed).
+
 
 ---
 

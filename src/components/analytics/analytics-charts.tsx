@@ -15,14 +15,16 @@ import {
   YAxis,
 } from "recharts";
 
-import { formatMonth } from "@/lib/analytics/display";
+import { formatDay, formatMonth } from "@/lib/analytics/display";
 import type {
+  DailyVolume,
   DoctorAnalytics,
   MonthlyStatusCounts,
   MonthlyVolume,
   SlotRates,
   VolumeStatus,
 } from "@/lib/analytics/metrics";
+import { VOLUME_STATUSES } from "@/lib/analytics/metrics";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
 
 /*
@@ -89,6 +91,51 @@ export function MonthlyVolumeChart({ data }: { data: MonthlyVolume[] }) {
           <LabelList dataKey="total" position="top" fill="var(--ink-secondary)" fontSize={12} />
         </Line>
       </LineChart>
+    </ChartFrame>
+  );
+}
+
+/** ADM-12: appointments per Manila day. No point labels, since a month has up to 31 points. */
+export function DailyActivityChart({ data }: { data: DailyVolume[] }) {
+  const points = data.map((point) => ({ day: formatDay(point.date), total: point.total }));
+  return (
+    <ChartFrame label="Line chart of appointments per day">
+      <LineChart data={points} margin={{ top: 16, right: 16, bottom: 0, left: 0 }}>
+        <CartesianGrid stroke={GRID_STROKE} vertical={false} />
+        <XAxis dataKey="day" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID_STROKE }} minTickGap={16} />
+        <YAxis allowDecimals={false} tick={AXIS_TICK} tickLine={false} axisLine={false} width={40} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} />
+        <Line
+          type="monotone"
+          dataKey="total"
+          name="Appointments"
+          stroke={SERIES.volume}
+          strokeWidth={2}
+          dot={data.length <= 14 ? { r: 4, fill: SERIES.volume } : false}
+          isAnimationActive={false}
+        />
+      </LineChart>
+    </ChartFrame>
+  );
+}
+
+/** ADM-12: appointments by current status. */
+export function StatusDistributionChart({ data }: { data: Record<VolumeStatus, number> }) {
+  const rows = VOLUME_STATUSES.map((status) => ({
+    name: APPOINTMENT_STATUS_LABELS[status],
+    total: data[status],
+  }));
+  return (
+    <ChartFrame label="Bar chart of appointments by status" height={rows.length * 40 + 40}>
+      <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 0 }}>
+        <CartesianGrid stroke={GRID_STROKE} horizontal={false} />
+        <XAxis type="number" allowDecimals={false} tick={AXIS_TICK} tickLine={false} axisLine={false} />
+        <YAxis type="category" dataKey="name" tick={AXIS_TICK} tickLine={false} axisLine={false} width={140} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--surface-muted)" }} />
+        <Bar dataKey="total" name="Appointments" fill={SERIES.volume} radius={[0, 4, 4, 0]} isAnimationActive={false}>
+          <LabelList dataKey="total" position="right" fill="var(--ink-secondary)" fontSize={12} />
+        </Bar>
+      </BarChart>
     </ChartFrame>
   );
 }

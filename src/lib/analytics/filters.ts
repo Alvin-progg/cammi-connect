@@ -46,7 +46,7 @@ function isPresetRange(value: string | undefined): value is PresetRange {
 }
 
 /** Calendar arithmetic on YYYY-MM-DD dates; UTC is used only as a timezone-free calendar. */
-function shiftDate(date: string, { months = 0, days = 0 }: { months?: number; days?: number }): string {
+export function shiftDate(date: string, { months = 0, days = 0 }: { months?: number; days?: number }): string {
   const value = new Date(`${date}T00:00:00Z`);
   value.setUTCMonth(value.getUTCMonth() + months, value.getUTCDate() + days);
   return value.toISOString().slice(0, 10);
@@ -60,7 +60,7 @@ function presetDates(range: PresetRange, today: string): { from: string; to: str
   };
 }
 
-function isValidCustomRange(from: string | undefined, to: string | undefined): boolean {
+export function isValidCustomRange(from: string | undefined, to: string | undefined): boolean {
   if (!from || !to || !isValidManilaDate(from) || !isValidManilaDate(to) || from > to) {
     return false;
   }
