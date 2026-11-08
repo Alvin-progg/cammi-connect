@@ -116,3 +116,66 @@ export function parseRequestQueueFilters(params: {
 export function formatRequestId(id: string): string {
   return id.slice(0, 8).toUpperCase();
 }
+
+export type RequestView = "board" | "list";
+
+/** `?view=` on the request queue; the board is the default. */
+export function parseRequestView(params: { view?: SearchParam }): RequestView {
+  return firstValue(params.view) === "list" ? "list" : "board";
+}
+
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+/** A pending request is overdue once it has waited a full day. */
+const OVERDUE_MS = DAY_MS;
+
+/** How long a request has waited since it was submitted ("40 min", "18 h", "3 d"). */
+export function formatWaiting(createdAt: string, now: Date): { label: string; overdue: boolean } {
+  const waited = Math.max(0, now.getTime() - new Date(createdAt).getTime());
+  const label =
+    waited < HOUR_MS
+      ? `${Math.max(1, Math.floor(waited / MINUTE_MS))} min`
+      : waited < 2 * DAY_MS
+        ? `${Math.floor(waited / HOUR_MS)} h`
+        : `${Math.floor(waited / DAY_MS)} d`;
+  return { label, overdue: waited >= OVERDUE_MS };
+}
+
+export type RequestBoardColumn = {
+  key: "pending" | "confirmed" | "checked_in" | "closed";
+  title: string;
+  items: RequestQueueItem[];
+};
+
+/**
+ * The request board's four columns. Completed and no-show visits are finished,
+ * so the board leaves them out; the list view still shows them.
+ */
+export function groupRequestBoard(items: RequestQueueItem[]): RequestBoardColumn[] {
+  const pick = (...statuses: AppointmentStatus[]) => items.filter((item) => statuses.includes(item.status));
+  return [
+    { key: "pending", title: "Pending confirmation", items: pick("requested") },
+    { key: "confirmed", title: "Confirmed", items: pick("confirmed") },
+    { key: "checked_in", title: "Checked in", items: pick("checked_in") },
+    { key: "closed", title: "Cancelled or rejected", items: pick("rejected", "cancelled") },
+  ];
+}
+
+/**
+ * Where a request sits in the pending queue (oldest first) and which one to
+ * open next; wraps to the first. Null when the request is not pending.
+ */
+export function nextPendingRequest(
+  pendingIds: string[],
+  currentId: string,
+): { position: number; total: number; nextId: string | null } | null {
+  const index = pendingIds.indexOf(currentId);
+  if (index === -1) return null;
+  const total = pendingIds.length;
+  return {
+    position: index + 1,
+    total,
+    nextId: total > 1 ? pendingIds[(index + 1) % total] : null,
+  };
+}

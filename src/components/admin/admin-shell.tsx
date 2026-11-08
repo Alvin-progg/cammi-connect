@@ -14,6 +14,8 @@ export function AdminShell({
   adminName,
   active,
   crumbs,
+  title,
+  badges,
   lead,
   actions,
   children,
@@ -21,6 +23,8 @@ export function AdminShell({
   adminName: string;
   active: AdminSection;
   crumbs: [...AdminCrumb[], AdminCrumb];
+  title?: ReactNode;
+  badges?: ReactNode;
   lead?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
@@ -37,6 +41,8 @@ export function AdminShell({
       initialsFallback="AD"
       rootCrumb={{ label: "Admin", href: "/admin" }}
       crumbs={crumbs}
+      title={title}
+      badges={badges}
       lead={lead}
       actions={actions}
     >

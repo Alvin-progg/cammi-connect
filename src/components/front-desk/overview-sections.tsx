@@ -1,205 +1,151 @@
-import clsx from "clsx";
 import Link from "next/link";
-import type { ReactNode } from "react";
 
-import { StatusBadge } from "@/components/ui/badge";
-import { formatManilaDateTime, formatManilaTime } from "@/lib/appointments/format";
-import type { AppointmentSearchItem, RecentAppointment } from "@/lib/front-desk/overview";
-import {
-  BOOKING_SOURCE_LABELS,
-  formatRequestId,
-  type RequestQueueItem,
-} from "@/lib/front-desk/requests";
+import { Badge, StatusBadge } from "@/components/ui/badge";
+import { LinkButton } from "@/components/ui/button";
+import { Avatar, KpiCard } from "@/components/ui/card";
+import { EmptyState, ListRow, ListRows } from "@/components/ui/data";
+import { initialsOf } from "@/components/ui/rail";
+import { formatManilaShortDate, formatManilaTime } from "@/lib/appointments/format";
+import type { RecentAppointment, TodaySummary } from "@/lib/front-desk/overview";
+import { formatRequestId, formatWaiting, type RequestQueueItem } from "@/lib/front-desk/requests";
 import type { ScheduleItem } from "@/lib/front-desk/schedule";
 
-import { CELL, EmptyState, HEADER_CELL, ROW, Table } from "@/components/ui/data";
+/** Overview widgets (SPEC-frontdesk §4, redesign 2026-11-08). */
 
-/** Overview lists (SPEC-frontdesk §4). Each links to the full view for more. */
+const ROW_LINK = "focus-ring rounded-sm text-sm font-medium text-ink underline-offset-4 hover:underline";
 
-// Lists sit flush inside the overview section cards.
-const LIST_CLASS = "divide-y divide-line border-t border-line";
-const MORE_LINK_CLASS =
-  "focus-ring mx-4 mb-2 inline-flex min-h-11 items-center self-start rounded-lg text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline";
-const DETAILS_LINK_CLASS =
-  "focus-ring inline-flex min-h-11 shrink-0 items-center rounded-lg px-2 text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline";
-
-function DetailsLink({ id, stretched = false }: { id: string; stretched?: boolean }) {
-  const shortId = formatRequestId(id);
-  return (
-    <Link
-      href={`/front-desk/requests/${id}`}
-      aria-label={`View appointment ${shortId}`}
-      className={clsx(
-        DETAILS_LINK_CLASS,
-        // Stretches the link's hit area over its whole list row, so the row is
-        // clickable without nesting interactive elements.
-        stretched && "after:absolute after:inset-0 after:rounded-[inherit]",
-      )}
-    >
-      View
-    </Link>
-  );
-}
-
-function Row({ children, id }: { children: ReactNode; id: string }) {
-  return (
-    <li className="relative flex items-start justify-between gap-3 px-4 py-3 transition-colors duration-150 ease-snappy hover:bg-surface-muted/50 motion-reduce:transition-none">
-      <div className="flex min-w-0 flex-col gap-1">{children}</div>
-      <DetailsLink id={id} stretched />
-    </li>
-  );
-}
-
-export function PendingRequestsList({
-  items,
-  total,
+/** The four summary cards. Pending comes first because it needs staff action. */
+export function OverviewCards({
+  pending,
+  overduePending,
+  overdueMayBeMore = false,
+  today,
 }: {
-  items: RequestQueueItem[];
-  total: number;
+  pending: number;
+  /** Pending requests that have waited a full day or more. */
+  overduePending: number;
+  /** The overdue count comes from a capped preview, so more may be waiting. */
+  overdueMayBeMore?: boolean;
+  today: TodaySummary;
 }) {
-  if (items.length === 0) {
-    return <EmptyState className="mx-4 mb-4">No requests are waiting for review.</EmptyState>;
-  }
+  const overdueLabel = `${overduePending}${overdueMayBeMore ? "+" : ""} waiting over 24 h`;
   return (
-    <div className="flex flex-col gap-2">
-      <ul aria-label="Pending requests" className={LIST_CLASS}>
-        {items.map((item) => (
-          <Row key={item.id} id={item.id}>
-            <span className="text-sm font-medium text-ink">{item.patientName}</span>
-            <span className="text-sm text-ink-secondary">
-              {`${formatManilaDateTime(item.scheduledAt)} · ${item.doctorName}`}
-            </span>
-          </Row>
-        ))}
-      </ul>
-      <Link href="/front-desk/requests" className={MORE_LINK_CLASS}>
-        {`View all ${total} pending`}
-      </Link>
-    </div>
-  );
-}
-
-export function TodayScheduleList({
-  items,
-  total,
-}: {
-  items: ScheduleItem[];
-  total: number;
-}) {
-  if (items.length === 0) {
-    return <EmptyState className="mx-4 mb-4">No appointments are scheduled today.</EmptyState>;
-  }
-  return (
-    <div className="flex flex-col gap-2">
-      <ul aria-label="Today's schedule" className={LIST_CLASS}>
-        {items.map((item) => (
-          <Row key={item.id} id={item.id}>
-            <span className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium tabular-nums text-ink">
-                {formatManilaTime(item.scheduledAt)}
-              </span>
-              <StatusBadge status={item.status} />
-            </span>
-            <span className="text-sm text-ink">{item.patientName}</span>
-            <span className="text-sm text-ink-secondary">{item.doctorName}</span>
-          </Row>
-        ))}
-      </ul>
-      <Link href="/front-desk/schedule" className={MORE_LINK_CLASS}>
-        {`View all ${total} today`}
-      </Link>
-    </div>
-  );
-}
-
-export function RecentActivityList({
-  label,
-  items,
-  emptyMessage,
-}: {
-  label: string;
-  items: RecentAppointment[];
-  emptyMessage: string;
-}) {
-  if (items.length === 0) {
-    return <EmptyState className="mx-4 mb-4">{emptyMessage}</EmptyState>;
-  }
-  return (
-    <ul aria-label={label} className={LIST_CLASS}>
-      {items.map((item) => (
-        <Row key={item.id} id={item.id}>
-          <span className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-ink">{item.patientName}</span>
-            <StatusBadge status={item.status} />
-          </span>
-          <span className="text-sm text-ink-secondary">
-            {`${formatManilaDateTime(item.scheduledAt)} · ${item.doctorName}`}
-          </span>
-          {item.reason ? (
-            <span className="text-sm text-ink-secondary">{`Reason: ${item.reason}`}</span>
-          ) : null}
-          <span className="text-xs text-ink-muted">
-            {`Updated ${formatManilaDateTime(item.changedAt)}`}
-          </span>
-        </Row>
-      ))}
+    <ul aria-label="Summary" className="grid list-none gap-4 p-0 sm:grid-cols-2 xl:grid-cols-4">
+      <li>
+        <KpiCard
+          label="Pending confirmation"
+          value={pending}
+          detail={overduePending > 0 ? overdueLabel : "None waiting over 24 h"}
+          detailTone={overduePending > 0 ? "danger" : "muted"}
+        />
+      </li>
+      <li>
+        <KpiCard
+          label="Today's appointments"
+          value={today.total}
+          detail={`${today.confirmed} confirmed · ${today.pending} pending`}
+        />
+      </li>
+      <li>
+        <KpiCard
+          label="Checked in"
+          value={today.checkedIn}
+          detail={today.nextCheckIn ? `Next: ${formatManilaTime(today.nextCheckIn)}` : "No more confirmed visits today"}
+        />
+      </li>
+      <li>
+        <KpiCard label="Completed today" value={today.completed} detail={`${today.noShow} no-show`} />
+      </li>
     </ul>
   );
 }
 
-
-export function AppointmentSearchResults({
-  query,
-  result,
-}: {
-  query: string;
-  result: { ok: true; items: AppointmentSearchItem[] } | { ok: false; message: string };
-}) {
-  if (!result.ok) {
-    return (
-      <p role="alert" className="text-sm text-danger-soft-ink">
-        {result.message}
-      </p>
-    );
-  }
-  if (result.items.length === 0) {
-    return <EmptyState>{`No appointments match “${query}”.`}</EmptyState>;
+/** Pending requests, oldest first, each with how long it has waited. */
+export function PendingRequestsList({ items, now }: { items: RequestQueueItem[]; now: Date }) {
+  if (items.length === 0) {
+    return <EmptyState>No requests are waiting for review.</EmptyState>;
   }
   return (
-    <Table label={`Search results for “${query}”`} minWidthClass="min-w-[48rem]">
-      <thead>
-        <tr>
-          <th scope="col" className={HEADER_CELL}>Appointment</th>
-          <th scope="col" className={HEADER_CELL}>Patient</th>
-          <th scope="col" className={HEADER_CELL}>Doctor</th>
-          <th scope="col" className={HEADER_CELL}>Status</th>
-          <th scope="col" className={HEADER_CELL}>Booked via</th>
-          <th scope="col" className={HEADER_CELL}>
-            <span className="sr-only">Details</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {result.items.map((item) => (
-          <tr key={item.id} className={ROW}>
-            <td className={CELL}>{formatManilaDateTime(item.scheduledAt)}</td>
-            <td className={CELL}>
-              <div className="font-medium">{item.patientName}</div>
-              {item.patientPhone ? (
-                <div className="text-xs text-ink-secondary">{item.patientPhone}</div>
-              ) : null}
-            </td>
-            <td className={CELL}>{item.doctorName}</td>
-            <td className={CELL}>
-              <StatusBadge status={item.status} />
-            </td>
-            <td className={CELL}>{BOOKING_SOURCE_LABELS[item.bookingSource]}</td>
-            <td className={clsx(CELL, "text-right")}>
-              <DetailsLink id={item.id} />
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </Table>
+    <ListRows>
+      {items.map((item) => {
+        const waiting = formatWaiting(item.createdAt, now);
+        return (
+          <ListRow key={item.id} className="flex-wrap">
+            <Avatar initials={initialsOf(item.patientName, "PT")} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-ink">{item.patientName}</p>
+              <p className="truncate text-xs text-ink-muted">
+                {`${item.doctorName} · ${formatManilaShortDate(item.scheduledAt)} · ${formatManilaTime(item.scheduledAt)}`}
+              </p>
+            </div>
+            <Badge tone={waiting.overdue ? "danger" : "warning"}>{`Waiting ${waiting.label}`}</Badge>
+            <LinkButton
+              variant="outline"
+              size="sm"
+              href={`/front-desk/requests/${item.id}`}
+              aria-label={`Review request ${formatRequestId(item.id)} from ${item.patientName}`}
+            >
+              Review
+            </LinkButton>
+          </ListRow>
+        );
+      })}
+    </ListRows>
+  );
+}
+
+/** Today's appointments in time order with their status. */
+export function TodayScheduleList({ items }: { items: ScheduleItem[] }) {
+  if (items.length === 0) {
+    return <EmptyState>No appointments are scheduled today.</EmptyState>;
+  }
+  return (
+    <ListRows>
+      {items.map((item) => (
+        <ListRow key={item.id}>
+          <span className="w-18 shrink-0 text-sm font-medium tabular-nums text-ink">
+            {formatManilaTime(item.scheduledAt)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <Link href={`/front-desk/requests/${item.id}`} className={`${ROW_LINK} block truncate font-normal`}>
+              {item.patientName}
+            </Link>
+            <p className="truncate text-xs text-ink-muted">{item.doctorName}</p>
+          </div>
+          <StatusBadge status={item.status} />
+        </ListRow>
+      ))}
+    </ListRows>
+  );
+}
+
+const ACTIVITY_VERB: Partial<Record<RecentAppointment["status"], string>> = {
+  confirmed: "confirmed",
+  rejected: "rejected",
+  cancelled: "cancelled",
+};
+
+/** Recently confirmed, rejected, and cancelled appointments in one feed. */
+export function RecentActivityFeed({ items }: { items: RecentAppointment[] }) {
+  if (items.length === 0) {
+    return <EmptyState>No recent confirmations, rejections, or cancellations.</EmptyState>;
+  }
+  return (
+    <ul aria-label="Recent activity" className="flex flex-col divide-y divide-line">
+      {items.map((item) => (
+        <li key={`${item.id}-${item.status}`} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+          <time dateTime={item.changedAt} className="w-28 shrink-0 text-xs tabular-nums text-ink-muted">
+            {`${formatManilaShortDate(item.changedAt)}, ${formatManilaTime(item.changedAt)}`}
+          </time>
+          <p className="min-w-0 flex-1 text-sm text-ink">
+            <Link href={`/front-desk/requests/${item.id}`} className={ROW_LINK}>
+              {item.patientName}
+            </Link>
+            {` ${ACTIVITY_VERB[item.status] ?? item.status} with ${item.doctorName} for ${formatManilaShortDate(item.scheduledAt)}, ${formatManilaTime(item.scheduledAt)}`}
+            {item.reason ? <span className="text-ink-secondary">{` · Reason: ${item.reason}`}</span> : null}
+          </p>
+        </li>
+      ))}
+    </ul>
   );
 }

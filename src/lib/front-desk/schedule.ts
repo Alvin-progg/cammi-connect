@@ -100,3 +100,10 @@ export function parseScheduleFilters(
     search: search || null,
   };
 }
+
+/** A Manila calendar date (`YYYY-MM-DD`) moved by whole days. */
+export function shiftManilaDate(date: string, days: number): string {
+  const shifted = new Date(`${date}T00:00:00Z`);
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
+}

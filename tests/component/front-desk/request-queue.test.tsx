@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { RequestQueue } from "@/components/front-desk/request-queue";
+import { RequestBoard, RequestQueue } from "@/components/front-desk/request-queue";
 import type { RequestQueueItem } from "@/lib/front-desk/requests";
 
 const PENDING_REQUEST: RequestQueueItem = {
@@ -27,10 +27,13 @@ const CANCELLED_REQUEST: RequestQueueItem = {
   status: "cancelled",
 };
 
+// The pending request has waited 25 hours.
+const NOW = new Date("2026-11-04T02:15:00.000Z");
+
 describe("RequestQueue", () => {
   it("lists each request with its id, patient contact, doctor, specialty, schedule, and status", () => {
     render(
-      <RequestQueue items={[PENDING_REQUEST, CANCELLED_REQUEST]} limitReached={false} />,
+      <RequestQueue items={[PENDING_REQUEST, CANCELLED_REQUEST]} limitReached={false} now={NOW} />,
     );
 
     const region = screen.getByRole("region", { name: "Appointment requests" });
@@ -52,8 +55,9 @@ describe("RequestQueue", () => {
     expect(within(pending).getByText("Nov 4, 2026")).toBeInTheDocument();
     expect(within(pending).getByText("10:30 AM")).toBeInTheDocument();
     expect(within(pending).getByText("Pending confirmation")).toBeInTheDocument();
+    expect(within(pending).getByText("25 h")).toBeInTheDocument();
     expect(
-      within(pending).getByRole("link", { name: "View request AB12CD34" }),
+      within(pending).getByRole("link", { name: "Synthetic Patient B" }),
     ).toHaveAttribute("href", "/front-desk/requests/ab12cd34-0000-4000-8000-000000000202");
 
     const cancelled = rows[2];
@@ -86,5 +90,24 @@ describe("RequestQueue", () => {
 
     rerender(<RequestQueue items={[PENDING_REQUEST, CANCELLED_REQUEST]} limitReached={false} />);
     expect(screen.getByText("2 requests")).toBeInTheDocument();
+  });
+});
+
+describe("RequestBoard", () => {
+  it("groups requests into status columns with linked cards", () => {
+    render(<RequestBoard items={[PENDING_REQUEST, CANCELLED_REQUEST]} now={NOW} />);
+
+    const pending = screen.getByRole("region", { name: "Pending confirmation" });
+    const card = within(pending).getByRole("link", { name: /Synthetic Patient B/ });
+    expect(card).toHaveAttribute("href", "/front-desk/requests/ab12cd34-0000-4000-8000-000000000202");
+    expect(within(card).getByText("AB12CD34")).toBeInTheDocument();
+    expect(within(card).getByText("Waiting 25 h")).toBeInTheDocument();
+    expect(within(pending).getByText("1")).toBeInTheDocument();
+
+    const closed = screen.getByRole("region", { name: "Cancelled or rejected" });
+    expect(within(closed).getByRole("link", { name: /Synthetic Patient D/ })).toBeInTheDocument();
+    expect(within(closed).getByText("Cancelled")).toBeInTheDocument();
+
+    expect(within(screen.getByRole("region", { name: "Confirmed" })).getByText("No requests")).toBeInTheDocument();
   });
 });

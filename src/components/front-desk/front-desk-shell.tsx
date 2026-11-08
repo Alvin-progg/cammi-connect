@@ -18,15 +18,22 @@ export function FrontDeskShell({
   staffName,
   active,
   crumbs,
+  title,
+  badges,
   lead,
   actions,
+  requestCount,
   children,
 }: {
   staffName: string;
   active: FrontDeskSection;
   crumbs: [...FrontDeskCrumb[], FrontDeskCrumb];
+  title?: ReactNode;
+  badges?: ReactNode;
   lead?: ReactNode;
   actions?: ReactNode;
+  /** Pending request count for the sidebar badge, when the page has it. */
+  requestCount?: number;
   children: ReactNode;
 }) {
   return (
@@ -34,13 +41,17 @@ export function FrontDeskShell({
       navLabel="Front desk"
       roleLabel="Front desk"
       homeHref="/front-desk"
-      items={FRONT_DESK_NAV_ITEMS}
+      items={FRONT_DESK_NAV_ITEMS.map((item) =>
+        item.key === "requests" ? { ...item, count: requestCount } : item,
+      )}
       activeKey={active}
       personName={staffName}
       personRole="Front desk"
       initialsFallback="FD"
       rootCrumb={{ label: "Front desk", href: "/front-desk" }}
       crumbs={crumbs}
+      title={title}
+      badges={badges}
       lead={lead}
       actions={actions}
       search={<CommandPalette />}

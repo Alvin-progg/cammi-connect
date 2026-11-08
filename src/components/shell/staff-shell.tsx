@@ -57,7 +57,7 @@ function StaffSidebar({
   search?: ReactNode;
 }) {
   return (
-    <aside className="flex w-full flex-col gap-0.5 border-line bg-surface px-3 py-4 lg:sticky lg:top-0 lg:h-dvh lg:w-60 lg:shrink-0 lg:border-r">
+    <aside className="flex w-full flex-col gap-0.5 border-line bg-surface px-3 py-4 print:hidden lg:sticky lg:top-0 lg:h-dvh lg:w-60 lg:shrink-0 lg:border-r">
       <Link
         href={homeHref}
         aria-label={`CamiConnect ${navLabel.toLowerCase()} home`}
@@ -96,7 +96,9 @@ function StaffSidebar({
                   <span className="flex-1 truncate">{item.label}</span>
                   {item.count ? (
                     <span className="min-w-5.5 rounded-full bg-primary px-1.5 text-center text-xs text-primary-ink">
+                      <span className="sr-only">(</span>
                       {item.count}
+                      <span className="sr-only"> waiting)</span>
                     </span>
                   ) : null}
                 </Link>
@@ -142,6 +144,8 @@ export function StaffShell({
   initialsFallback,
   rootCrumb,
   crumbs,
+  title,
+  badges,
   lead,
   actions,
   search,
@@ -157,12 +161,15 @@ export function StaffShell({
   initialsFallback: string;
   rootCrumb: StaffCrumb;
   crumbs: [...StaffCrumb[], StaffCrumb];
+  /** Page title when it differs from the last breadcrumb. */
+  title?: ReactNode;
+  badges?: ReactNode;
   lead?: ReactNode;
   actions?: ReactNode;
   search?: ReactNode;
   children: ReactNode;
 }) {
-  const heading = crumbs[crumbs.length - 1].label;
+  const heading = title ?? crumbs[crumbs.length - 1].label;
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-canvas lg:flex-row">
       <StaffSidebar
@@ -177,12 +184,12 @@ export function StaffShell({
         search={search}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-8">
+        <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-8 print:hidden">
           <Breadcrumb items={[rootCrumb, ...crumbs]} />
           {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
         </header>
         <main id="main" className="flex flex-col gap-6 px-4 pb-12 pt-6 sm:px-8">
-          <PageHeader title={heading} lead={lead} />
+          <PageHeader title={heading} badges={badges} lead={lead} />
           {children}
         </main>
       </div>
