@@ -1,19 +1,27 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useId, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardHeader, DetailList } from "@/components/ui/card";
+import { CONTROL_CLASS, Fieldset } from "@/components/ui/field";
 import { formatManilaTime } from "@/lib/appointments/format";
 import { bookForPatientAction, type BookingFormState } from "@/server/front-desk/actions";
 
-const IDLE_STATE: BookingFormState = { status: "idle" };
+import { SlotChips } from "./slot-chips";
 
+const IDLE_STATE: BookingFormState = { status: "idle" };
 
 /**
  * Picks a slot, reviews, and books a confirmed appointment for the patient
  * (SPEC-frontdesk §7 steps 6–8). `slots` comes from the doctor's real
  * availability; the database re-checks the chosen slot. The staff member is
  * taken from the session on the server, never from this form.
+ *
+ * Laid out as the reference: the steps on the left and a sticky summary with
+ * the submit button on the right. The page's patient step and doctor/date
+ * (GET) form render inside the left column, outside this POST form, so the
+ * slot radios and reason join the form through the `form` attribute.
  */
 export function BookingForm({
   patientId,
@@ -23,100 +31,98 @@ export function BookingForm({
   specialtyId,
   dateLabel,
   slots,
+  patientStep,
+  doctorControl,
+  noDoctorMessage = "Choose a doctor and a date, then show the free slots.",
 }: {
   patientId: string;
   patientName: string;
-  doctorId: string;
-  doctorName: string;
+  doctorId: string | null;
+  doctorName: string | null;
   specialtyId: string | null;
   dateLabel: string;
   slots: readonly { start: string; end: string }[];
+  patientStep?: ReactNode;
+  doctorControl?: ReactNode;
+  noDoctorMessage?: string;
 }) {
+  const formId = useId();
   const [state, formAction, pending] = useActionState(bookForPatientAction, IDLE_STATE);
   const [chosenStart, setChosenStart] = useState<string | null>(null);
-
-  if (slots.length === 0) {
-    return (
-      <p className="text-sm text-ink-muted">
-        No free slots on this date. Choose another date.
-      </p>
-    );
-  }
+  const canBook = doctorId !== null && slots.length > 0;
 
   return (
-    <form action={formAction} className="flex flex-col">
-      <input type="hidden" name="patientId" value={patientId} />
-      <input type="hidden" name="doctorId" value={doctorId} />
-      <input type="hidden" name="specialtyId" value={specialtyId ?? ""} />
-      <fieldset>
-        <legend className="text-sm font-medium text-ink">Time</legend>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {slots.map((slot) => (
-            <label
-              key={slot.start}
-              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink pressable hover:bg-surface-muted has-[:checked]:border-primary has-[:checked]:bg-primary-soft"
-            >
-              <input
-                type="radio"
-                name="scheduledAt"
-                value={slot.start}
-                required
-                checked={chosenStart === slot.start}
-                onChange={() => setChosenStart(slot.start)}
-                className="size-4 accent-primary"
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+      <div className="flex min-w-0 flex-col gap-4">
+        {patientStep}
+        <Fieldset legend="2 · Doctor and time">
+          {doctorControl}
+          {doctorId === null ? (
+            <p className="text-sm text-ink-muted">{noDoctorMessage}</p>
+          ) : slots.length === 0 ? (
+            <p className="text-sm text-ink-muted">No free slots on this date. Choose another date.</p>
+          ) : (
+            <SlotChips
+              legend={`Free times with ${doctorName} · ${dateLabel}`}
+              name="scheduledAt"
+              slots={slots}
+              onSelect={setChosenStart}
+              form={formId}
+            />
+          )}
+        </Fieldset>
+        {canBook ? (
+          <Fieldset legend="3 · Visit details">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="booking-reason" className="text-sm font-medium text-ink">
+                Reason for visit (optional)
+              </label>
+              <textarea
+                id="booking-reason"
+                name="reason"
+                rows={3}
+                maxLength={500}
+                form={formId}
+                className={`${CONTROL_CLASS} py-2 leading-6`}
               />
-              {formatManilaTime(slot.start)}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      <label htmlFor="booking-reason" className="mt-4 block text-sm font-medium text-ink">
-        Reason for visit (optional)
-      </label>
-      <textarea
-        id="booking-reason"
-        name="reason"
-        rows={3}
-        maxLength={500}
-        className="mt-1 w-full rounded-lg border border-control-line bg-surface px-3 py-2 text-base text-ink focus-ring"
-      />
-      <section
-        aria-labelledby="booking-review-title"
-        className="mt-5 rounded-xl border border-line bg-surface-muted px-4 py-3 text-sm"
-      >
-        <h3 id="booking-review-title" className="font-medium text-ink">
-          Review
-        </h3>
-        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-          <dt className="text-ink-muted">Patient</dt>
-          <dd className="text-ink">{patientName}</dd>
-          <dt className="text-ink-muted">Doctor</dt>
-          <dd className="text-ink">{doctorName}</dd>
-          <dt className="text-ink-muted">When</dt>
-          <dd className="text-ink">
-            {chosenStart
-              ? `${dateLabel}, ${formatManilaTime(chosenStart)}`
-              : `${dateLabel} · Choose a time`}
-          </dd>
-        </dl>
-        <p className="mt-2 text-ink-muted">
+            </div>
+          </Fieldset>
+        ) : null}
+      </div>
+
+      <Card aria-labelledby="booking-review-title" className="shadow-card xl:sticky xl:top-6">
+        <CardHeader id="booking-review-title" title="Review" />
+        <DetailList
+          termWidth="4.5rem"
+          items={[
+            ["Patient", patientName],
+            ["Doctor", doctorName ?? "Not chosen"],
+            [
+              "When",
+              chosenStart ? `${dateLabel}, ${formatManilaTime(chosenStart)}` : `${dateLabel} · Choose a time`,
+            ],
+            ["Source", "Front desk"],
+          ]}
+        />
+        {canBook ? (
+          <form id={formId} action={formAction} className="mt-5 flex flex-col gap-2">
+            <input type="hidden" name="patientId" value={patientId} />
+            <input type="hidden" name="doctorId" value={doctorId} />
+            <input type="hidden" name="specialtyId" value={specialtyId ?? ""} />
+            {state.status === "error" ? (
+              <p role="alert" className="text-sm text-danger-soft-ink">
+                {state.message}
+              </p>
+            ) : null}
+            <Button type="submit" size="lg" className="w-full" disabled={pending} aria-busy={pending || undefined}>
+              {pending ? "Booking…" : "Book and confirm"}
+            </Button>
+          </form>
+        ) : null}
+        <p className="mt-2 text-center text-xs text-ink-muted">
           The appointment is confirmed as soon as it is booked.
         </p>
-      </section>
-      {state.status === "error" ? (
-        <p role="alert" className="mt-3 text-sm text-danger-soft-ink">
-          {state.message}
-        </p>
-      ) : null}
-      <div className="mt-5">
-        <Button
-          type="submit"
-          disabled={pending}
-          aria-busy={pending || undefined}
-        >
-          {pending ? "Booking…" : "Book and confirm"}
-        </Button>
-      </div>
-    </form>
+      </Card>
+    </div>
   );
 }

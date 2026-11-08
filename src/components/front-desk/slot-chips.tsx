@@ -14,11 +14,14 @@ export function SlotChips({
   name,
   slots,
   onSelect,
+  form,
 }: {
   legend: string;
   name: string;
   slots: readonly { start: string }[];
   onSelect?: (start: string) => void;
+  /** Id of the form the radios submit with, when they render outside it. */
+  form?: string;
 }) {
   return (
     <fieldset>
@@ -34,6 +37,7 @@ export function SlotChips({
               name={name}
               value={slot.start}
               required
+              form={form}
               onChange={() => onSelect?.(slot.start)}
               className="sr-only"
             />
