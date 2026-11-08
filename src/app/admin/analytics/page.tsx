@@ -5,11 +5,12 @@ import {
   DoctorRatesChart,
   DoctorVolumeChart,
   MonthlyVolumeChart,
+  SERIES,
   SlotRatesChart,
   StatusByMonthChart,
 } from "@/components/analytics/analytics-charts";
-import { AnalyticsFilters } from "@/components/analytics/analytics-filters";
-import { ChartCard } from "@/components/analytics/chart-card";
+import { AnalyticsExportMenu, AnalyticsFilters } from "@/components/analytics/analytics-filters";
+import { ChartCard, ChartLegend, ChartSection } from "@/components/analytics/chart-card";
 import { DataTable } from "@/components/analytics/data-table";
 import { KpiCards } from "@/components/analytics/kpi-cards";
 import { PeakHeatmap } from "@/components/analytics/peak-heatmap";
@@ -21,8 +22,14 @@ import {
   formatRate,
   isSmallSample,
 } from "@/lib/analytics/display";
-import { ANALYTICS_PATH, parseAnalyticsFilters, toAnalyticsQuery } from "@/lib/analytics/filters";
+import {
+  ANALYTICS_PATH,
+  ANALYTICS_RANGE_LABELS,
+  parseAnalyticsFilters,
+  toAnalyticsQuery,
+} from "@/lib/analytics/filters";
 import { VOLUME_STATUSES } from "@/lib/analytics/metrics";
+import { formatManilaMediumDate } from "@/lib/appointments/format";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
 import { supabaseAnalyticsRepository } from "@/server/analytics/repository";
 import { loadAnalytics } from "@/server/analytics/service";
@@ -54,9 +61,34 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
   const volumeEmpty = hasVolume ? null : NO_VOLUME_MESSAGE;
   const slotDue = analytics.ratesBySlot.reduce((sum, slot) => sum + slot.dueCount, 0);
   const doctorsWithDue = analytics.byDoctor.filter((doctor) => doctor.dueCount > 0);
+  const period = `${ANALYTICS_RANGE_LABELS[filters.range]}, ${formatManilaMediumDate(filters.from)} – ${formatManilaMediumDate(filters.to)}`;
+  const outcomesLegend = (
+    <ChartLegend
+      items={[
+        { label: "Completed", color: SERIES.completed },
+        { label: "Cancelled", color: SERIES.cancelled },
+        { label: "No-show", color: SERIES.noShow },
+      ]}
+    />
+  );
+  const ratesLegend = (
+    <ChartLegend
+      items={[
+        { label: "Cancellation rate", color: SERIES.cancelled },
+        { label: "No-show rate", color: SERIES.noShow },
+      ]}
+    />
+  );
+  const caption = (text: string) => <span className="text-xs text-ink-muted">{text}</span>;
 
   return (
-    <AdminShell adminName={session.admin.fullName} active="analytics" crumbs={[{ label: "Analytics" }]}>
+    <AdminShell
+      adminName={session.admin.fullName}
+      active="analytics"
+      crumbs={[{ label: "Analytics" }]}
+      lead={`Appointment volume, doctor workload, peak hours and outcomes · ${period} · Times in Asia/Manila`}
+      actions={<AnalyticsExportMenu filters={filters} />}
+    >
       <div className="flex flex-col gap-6">
         <AnalyticsFilters
           filters={filters}
@@ -66,11 +98,13 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
 
         <KpiCards kpis={analytics.kpis} />
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <ChartSection title="Demand" description="How many appointments, with whom, and when" />
           <ChartCard
             id="monthly-volume"
+            number={1}
             title="Monthly appointment volume"
             description="Appointments scheduled each month, excluding rejected requests."
+            aside={caption("Appointments per month")}
             emptyMessage={volumeEmpty}
             table={
               <DataTable
@@ -83,10 +117,14 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
             <MonthlyVolumeChart data={analytics.monthly} />
           </ChartCard>
 
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+
           <ChartCard
             id="doctor-volume"
+            number={2}
             title="Appointments per doctor"
             description="Appointments scheduled with each doctor, busiest first."
+            aside={caption("This period")}
             emptyMessage={volumeEmpty}
             table={
               <DataTable
@@ -101,17 +139,24 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
 
           <ChartCard
             id="peak-times"
+            number={3}
             title="Peak days and times"
             description="Appointments by weekday and two-hour start time (Manila). Darker cells are busier."
+            aside={caption("Appointments per slot")}
             emptyMessage={volumeEmpty}
           >
             <PeakHeatmap cells={analytics.heatmap} />
           </ChartCard>
+        </div>
+
+        <ChartSection title="Outcomes" description="What happened to booked appointments" />
 
           <ChartCard
             id="status-by-month"
+            number={4}
             title="Status by month"
             description="Outcomes of the appointments scheduled each month. Cancellations count whenever they happened."
+            aside={outcomesLegend}
             emptyMessage={volumeEmpty}
             table={
               <DataTable
@@ -127,8 +172,12 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
             <StatusByMonthChart data={analytics.statusByMonth} />
           </ChartCard>
 
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+
           <ChartCard
             id="slot-rates"
+            number={5}
+            aside={ratesLegend}
             title="Cancellations and no-shows by day and time"
             description="Share of due visits in each weekday and start-time slot that were cancelled or missed."
             emptyMessage={analytics.ratesBySlot.length > 0 ? null : NO_DUE_MESSAGE}
@@ -151,6 +200,8 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
 
           <ChartCard
             id="doctor-rates"
+            number={6}
+            aside={ratesLegend}
             title="Cancellations and no-shows by doctor"
             description="Share of each doctor's due visits that were cancelled or missed."
             emptyMessage={doctorsWithDue.length > 0 ? null : NO_DUE_MESSAGE}

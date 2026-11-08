@@ -14,7 +14,7 @@ function Definition({ label, definition }: { label: string; definition: string }
       <Popover.Trigger
         openOnHover
         aria-label={`How ${label.toLowerCase()} is measured`}
-        className="inline-flex size-6 items-center justify-center rounded-full border border-line text-xs text-ink-muted focus-ring hover:bg-surface-muted"
+        className="inline-flex size-5 items-center justify-center rounded-full border border-line text-[11px] text-ink-muted focus-ring hover:bg-surface-muted"
       >
         ?
       </Popover.Trigger>
@@ -46,39 +46,39 @@ export function KpiCards({ kpis }: { kpis: AnalyticsDatasets["kpis"] }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
           <div
             key={card.label}
             role="group"
             aria-label={card.label}
-            className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-5 shadow-card"
+            className="flex flex-col rounded-xl border border-line bg-surface p-5 shadow-soft"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium text-ink-secondary">{card.label}</span>
+              <span className="text-sm text-ink-secondary">{card.label}</span>
               <Definition label={card.label} definition={card.definition} />
             </div>
             {card.value === null ? (
-              <span className="text-3xl font-semibold text-ink-muted">—</span>
+              <span className="mt-1.5 text-3xl font-semibold tracking-tight text-ink-muted">—</span>
             ) : (
               <CountUp
                 value={card.value}
                 decimals={card.isRate ? 2 : 0}
                 suffix={card.isRate ? "%" : ""}
-                className="text-3xl font-semibold text-ink"
+                className="mt-1.5 text-3xl font-semibold tracking-tight tabular-nums text-ink"
               />
             )}
             {card.isRate ? (
-              <span className="text-xs text-ink-muted">
+              <span className="mt-1 text-xs text-ink-muted">
                 {card.value === null ? "Nothing due yet in this period" : `of ${kpis.dueCount} due visits`}
               </span>
             ) : (
-              <span className="text-xs text-ink-muted">Scheduled in this period</span>
+              <span className="mt-1 text-xs text-ink-muted">Scheduled in this period</span>
             )}
           </div>
         ))}
       </div>
-      <p className="text-sm text-ink-secondary">
+      <p className="text-xs text-ink-muted">
         {kpis.pending} pending confirmation now (front desk queue; not limited to this period).
         {isSmallSample(kpis.dueCount) ? <span className="ml-2 text-warning-soft-ink">{SMALL_SAMPLE_NOTE}</span> : null}
       </p>
