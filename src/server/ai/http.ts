@@ -1,6 +1,6 @@
 import "server-only";
 
-export type ProviderName = "gemini" | "opencode-zen";
+export type ProviderName = "gemini" | "groq";
 
 export type ProviderErrorKind =
   | "timeout"

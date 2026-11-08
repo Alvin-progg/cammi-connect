@@ -39,9 +39,9 @@ const aiProviderEnvSchema = z.object({
   GEMINI_API_KEY: z.string().min(1),
   GEMINI_EMBEDDING_MODEL: z.string().min(1).default("gemini-embedding-001"),
   EMBEDDING_DIMENSIONS: z.coerce.number().int().positive().default(768),
-  OPENCODE_ZEN_API_KEY: z.string().min(1),
-  OPENCODE_ZEN_BASE_URL: z.url(),
-  OPENCODE_ZEN_MODEL: z.string().min(1),
+  GROQ_API_KEY: z.string().min(1),
+  GROQ_BASE_URL: z.url().default("https://api.groq.com/openai/v1"),
+  GROQ_MODEL: z.string().min(1),
   LLM_TIMEOUT_SECONDS: z.coerce.number().positive().default(20),
   LLM_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
 });
@@ -50,9 +50,9 @@ export type AiProviderEnv = {
   geminiApiKey: string;
   geminiEmbeddingModel: string;
   embeddingDimensions: number;
-  openCodeZenApiKey: string;
-  openCodeZenBaseUrl: string;
-  openCodeZenModel: string;
+  groqApiKey: string;
+  groqBaseUrl: string;
+  groqModel: string;
   llmTimeoutSeconds: number;
   llmMaxRetries: number;
 };
@@ -60,7 +60,7 @@ export type AiProviderEnv = {
 let cachedAiProviderEnv: AiProviderEnv | null = null;
 
 /**
- * Lazily validates the Gemini and OpenCode Zen settings (ADR-0006). Kept apart
+ * Lazily validates the Gemini and Groq settings (ADR-0006). Kept apart
  * from getServerEnv so Supabase-only code keeps working without AI keys. The
  * error names the invalid variables but never prints their values.
  */
@@ -71,9 +71,9 @@ export function getAiProviderEnv(): AiProviderEnv {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     GEMINI_EMBEDDING_MODEL: process.env.GEMINI_EMBEDDING_MODEL,
     EMBEDDING_DIMENSIONS: process.env.EMBEDDING_DIMENSIONS,
-    OPENCODE_ZEN_API_KEY: process.env.OPENCODE_ZEN_API_KEY,
-    OPENCODE_ZEN_BASE_URL: process.env.OPENCODE_ZEN_BASE_URL,
-    OPENCODE_ZEN_MODEL: process.env.OPENCODE_ZEN_MODEL,
+    GROQ_API_KEY: process.env.GROQ_API_KEY,
+    GROQ_BASE_URL: process.env.GROQ_BASE_URL,
+    GROQ_MODEL: process.env.GROQ_MODEL,
     LLM_TIMEOUT_SECONDS: process.env.LLM_TIMEOUT_SECONDS,
     LLM_MAX_RETRIES: process.env.LLM_MAX_RETRIES,
   });
@@ -89,9 +89,9 @@ export function getAiProviderEnv(): AiProviderEnv {
     geminiApiKey: parsed.data.GEMINI_API_KEY,
     geminiEmbeddingModel: parsed.data.GEMINI_EMBEDDING_MODEL,
     embeddingDimensions: parsed.data.EMBEDDING_DIMENSIONS,
-    openCodeZenApiKey: parsed.data.OPENCODE_ZEN_API_KEY,
-    openCodeZenBaseUrl: parsed.data.OPENCODE_ZEN_BASE_URL,
-    openCodeZenModel: parsed.data.OPENCODE_ZEN_MODEL,
+    groqApiKey: parsed.data.GROQ_API_KEY,
+    groqBaseUrl: parsed.data.GROQ_BASE_URL,
+    groqModel: parsed.data.GROQ_MODEL,
     llmTimeoutSeconds: parsed.data.LLM_TIMEOUT_SECONDS,
     llmMaxRetries: parsed.data.LLM_MAX_RETRIES,
   };

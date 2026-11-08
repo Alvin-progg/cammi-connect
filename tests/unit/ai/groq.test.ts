@@ -2,11 +2,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { ProviderError } from "@/server/ai/http";
-import { generate, type OpenCodeZenDeps } from "@/server/ai/opencode-zen";
+import { generate, type GroqDeps } from "@/server/ai/groq";
 
 vi.mock("server-only", () => ({}));
 
-const API_KEY = "zen-test-key";
+const API_KEY = "groq-test-key";
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -19,10 +19,10 @@ function completion(content: unknown) {
   return { choices: [{ message: { role: "assistant", content } }] };
 }
 
-function deps(fetchImpl: typeof fetch): OpenCodeZenDeps {
+function deps(fetchImpl: typeof fetch): GroqDeps {
   return {
     apiKey: API_KEY,
-    baseUrl: "https://zen.example.test/v1/",
+    baseUrl: "https://groq.example.test/openai/v1/",
     model: "test-model",
     timeoutMs: 1000,
     maxRetries: 0,
@@ -42,7 +42,6 @@ function lastRequest(fetchImpl: ReturnType<typeof vi.fn>) {
 
 const INPUT = {
   systemPrompt: "You are the CamiConnect assistant.",
-  sessionId: "conversation-1",
   messages: [
     { role: "user" as const, content: "Hello" },
     { role: "assistant" as const, content: "Hi! How can I help?" },
@@ -57,7 +56,7 @@ describe("generate", () => {
     await expect(generate(INPUT, deps(fetchImpl))).resolves.toBe("Sure.");
 
     const request = lastRequest(fetchImpl);
-    expect(request.url).toBe("https://zen.example.test/v1/chat/completions");
+    expect(request.url).toBe("https://groq.example.test/openai/v1/chat/completions");
     expect(request.headers.get("authorization")).toBe(`Bearer ${API_KEY}`);
     expect(request.body).toEqual({
       model: "test-model",
@@ -65,14 +64,12 @@ describe("generate", () => {
     });
   });
 
-  it("identifies the app and the conversation, as OpenCode Go requires", async () => {
+  it("sends no OpenCode-specific headers", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(completion("Sure.")));
 
     await generate(INPUT, deps(fetchImpl));
 
-    const { headers } = lastRequest(fetchImpl);
-    expect(headers.get("x-opencode-session")).toBe("conversation-1");
-    expect(headers.get("user-agent")).toBe("cammi-connect/0.1");
+    expect(lastRequest(fetchImpl).headers.has("x-opencode-session")).toBe(false);
   });
 
   it("requests JSON mode only when asked", async () => {
@@ -89,7 +86,7 @@ describe("generate", () => {
     const error = await generate(INPUT, deps(fetchImpl)).catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(ProviderError);
-    expect(error).toMatchObject({ provider: "opencode-zen", kind: "invalid_response" });
+    expect(error).toMatchObject({ provider: "groq", kind: "invalid_response" });
   });
 
   it("fails with a controlled error when choices are missing", async () => {

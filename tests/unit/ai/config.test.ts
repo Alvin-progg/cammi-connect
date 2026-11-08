@@ -5,14 +5,14 @@ vi.mock("server-only", () => ({}));
 
 const REQUIRED_ENV = {
   GEMINI_API_KEY: "gemini-secret-value",
-  OPENCODE_ZEN_API_KEY: "zen-secret-value",
-  OPENCODE_ZEN_BASE_URL: "https://opencode.ai/inference/openai/v1",
-  OPENCODE_ZEN_MODEL: "test-model",
+  GROQ_API_KEY: "groq-secret-value",
+  GROQ_MODEL: "test-model",
 };
 
 const OPTIONAL_KEYS = [
   "GEMINI_EMBEDDING_MODEL",
   "EMBEDDING_DIMENSIONS",
+  "GROQ_BASE_URL",
   "LLM_TIMEOUT_SECONDS",
   "LLM_MAX_RETRIES",
 ];
@@ -39,9 +39,9 @@ describe("getAiProviderEnv", () => {
       geminiApiKey: "gemini-secret-value",
       geminiEmbeddingModel: "gemini-embedding-001",
       embeddingDimensions: 768,
-      openCodeZenApiKey: "zen-secret-value",
-      openCodeZenBaseUrl: "https://opencode.ai/inference/openai/v1",
-      openCodeZenModel: "test-model",
+      groqApiKey: "groq-secret-value",
+      groqBaseUrl: "https://api.groq.com/openai/v1",
+      groqModel: "test-model",
       llmTimeoutSeconds: 20,
       llmMaxRetries: 2,
     });
@@ -61,7 +61,7 @@ describe("getAiProviderEnv", () => {
   });
 
   it("names a missing variable without printing any secret value", async () => {
-    vi.stubEnv("OPENCODE_ZEN_API_KEY", undefined);
+    vi.stubEnv("GROQ_API_KEY", undefined);
     const { getAiProviderEnv } = await loadConfig();
 
     let message = "";
@@ -71,16 +71,16 @@ describe("getAiProviderEnv", () => {
       message = error instanceof Error ? error.message : String(error);
     }
 
-    expect(message).toContain("OPENCODE_ZEN_API_KEY");
+    expect(message).toContain("GROQ_API_KEY");
     expect(message).not.toContain("gemini-secret-value");
-    expect(message).not.toContain(REQUIRED_ENV.OPENCODE_ZEN_BASE_URL);
+    expect(message).not.toContain(REQUIRED_ENV.GROQ_MODEL);
   });
 
   it("rejects an invalid base URL", async () => {
-    vi.stubEnv("OPENCODE_ZEN_BASE_URL", "not a url");
+    vi.stubEnv("GROQ_BASE_URL", "not a url");
     const { getAiProviderEnv } = await loadConfig();
 
-    expect(() => getAiProviderEnv()).toThrow(/OPENCODE_ZEN_BASE_URL/);
+    expect(() => getAiProviderEnv()).toThrow(/GROQ_BASE_URL/);
   });
 
   it("does not require the AI variables for the Supabase server env", async () => {
