@@ -89,7 +89,8 @@ then `db/migrations/0021_admin_services.sql` once, then
 `db/migrations/0024_requirement_resupersede.sql` once, then
 `db/migrations/0025_admin_knowledge_documents.sql` once, then rerun
 `npm run kb:ingest` so the corpus documents get their content and category, then
-`db/migrations/0026_admin_knowledge_ingestion.sql` once.
+`db/migrations/0026_admin_knowledge_ingestion.sql` once, then
+`db/migrations/0027_admin_system_settings.sql` once.
 After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
@@ -436,6 +437,25 @@ now fail.
 - Publish, edit, and Reprocess at `/admin/knowledge-base` now chunk and embed the
   document inline (needs `GEMINI_API_KEY` in the app's environment). A failed run sets
   processing to `failed` with a fixed message and leaves the previous chunks searchable.
+
+`0027_admin_system_settings.sql` (ADM-15):
+
+- adds `system_settings` (one row per allow-listed key; a missing key uses the default
+  in `src/lib/settings/schema.ts`, so nothing is seeded). RLS on, no policies, no
+  anon/authenticated access.
+- adds the audited `cammi_connect_admin_save_settings` (active admins only; raises
+  `unknown_key` for a key off the allow-list and `unchanged` when no value changed). It
+  writes one `settings.update` audit row with the previous and new value of each changed
+  key; a previous value of `null` means the key was using its default.
+- replaces `cammi_connect_match_knowledge_chunks` with a version that takes an optional
+  `categories text[]` (null searches every category). The old three-argument function is
+  dropped. Cami passes `chatbot.enabled_categories`.
+- Smoke test: as an admin, change the welcome message at `/admin/settings?tab=chatbot`,
+  review and save, and check `/chat` shows it and `audit_logs` has a `settings.update`
+  row. Turn the chatbot off: `/chat` shows the maintenance message and
+  `POST /api/v1/chat` answers 503 `chat_disabled`. Set the lead time to 24 hours: Cami
+  offers no slot in the next 24 hours. "Send cancellation policy to knowledge base"
+  opens a new draft document. A patient account is denied at `/admin/settings`.
 
 #### Supabase Auth email templates (ADM-01, manual)
 

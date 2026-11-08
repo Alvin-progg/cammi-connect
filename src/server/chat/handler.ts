@@ -61,7 +61,16 @@ export type ChatOutcome =
   | "invalid_request"
   | "not_found"
   | "rate_limited"
+  | "chat_disabled"
   | "unavailable";
+
+/** The admin settings a chat turn needs (ADM-15). */
+export type ChatTurnSettings = {
+  /** `chatbot.enabled`; false refuses every turn. */
+  enabled: boolean;
+  /** `appointment.max_advance_days`. */
+  bookingHorizonDays: number;
+};
 
 /** Log entries hold IDs and outcomes only, never message text (SPEC §7.3). */
 export type ChatLogEntry = {
@@ -78,6 +87,7 @@ export type ChatHandlerDeps = {
   generate: TurnDeps["generate"];
   searchKnowledge: TurnDeps["searchKnowledge"];
   tools: TurnDeps["tools"];
+  loadChatSettings: () => Promise<ChatTurnSettings>;
   now: () => Date;
   newId: () => string;
   log: (entry: ChatLogEntry) => void;
@@ -90,6 +100,8 @@ const ERROR_MESSAGES: Record<Exclude<ChatOutcome, "ok">, string> = {
   invalid_request: "Please enter a message of up to 1000 characters.",
   not_found: "This conversation could not be found.",
   rate_limited: "You're sending messages too quickly. Please wait a moment and try again.",
+  chat_disabled:
+    "Cami is offline for maintenance. Please contact the hospital front desk for help.",
   unavailable: "The assistant is unavailable right now. Please try again in a moment.",
 };
 
@@ -100,6 +112,7 @@ const ERROR_STATUS: Record<Exclude<ChatOutcome, "ok">, number> = {
   invalid_request: 422,
   not_found: 404,
   rate_limited: 429,
+  chat_disabled: 503,
   unavailable: 503,
 };
 
@@ -135,6 +148,12 @@ export async function handleChatRequest(
       return fail(access.status);
     }
     const patientId = access.patient.id;
+
+    // The switch is enforced here, not only by hiding the chat page.
+    const settings = await deps.loadChatSettings();
+    if (!settings.enabled) {
+      return fail("chat_disabled");
+    }
 
     let body: unknown;
     try {
@@ -176,6 +195,7 @@ export async function handleChatRequest(
         event,
         state: bookingState,
         now,
+        bookingHorizonDays: settings.bookingHorizonDays,
       },
       {
         generate: deps.generate,

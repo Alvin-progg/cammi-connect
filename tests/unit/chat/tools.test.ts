@@ -110,6 +110,7 @@ function toolDeps(
     booker: fakeBooker(),
     patientAppointments,
     now: () => NOW,
+    minLeadHours: async () => 0,
   };
 }
 
@@ -234,6 +235,36 @@ describe("chat booking tools", () => {
     });
 
     expect(deps.availability.getDoctor).toHaveBeenCalledWith(DOCTOR_ID);
+    expect(slots).toEqual([
+      { start: "2026-11-03T01:00:00.000Z", end: "2026-11-03T01:30:00.000Z" },
+      { start: "2026-11-03T01:30:00.000Z", end: "2026-11-03T02:00:00.000Z" },
+    ]);
+  });
+
+  it("offers only slots at least the admin's lead hours away (appointment.min_lead_hours)", async () => {
+    // 06:45 Manila on Tuesday 2026-11-03; with 2 lead hours the first slot is after 08:45.
+    const deps = { ...toolDeps(), now: () => new Date("2026-11-02T22:45:00Z"), minLeadHours: async () => 2 };
+    vi.mocked(deps.availability.listSchedulesForDoctor).mockResolvedValue([
+      {
+        id: "sch1",
+        doctorId: DOCTOR_ID,
+        dayOfWeek: 2,
+        startTime: "08:00",
+        endTime: "10:00",
+        slotDurationMinutes: 30,
+        effectiveFrom: "2026-01-01",
+        effectiveUntil: null,
+        isActive: true,
+      },
+    ]);
+    const tools = createChatTools(deps);
+
+    const slots = await tools.getDoctorAvailability({
+      doctorId: DOCTOR_ID,
+      fromDate: "2026-11-03",
+      days: 1,
+    });
+
     expect(slots).toEqual([
       { start: "2026-11-03T01:00:00.000Z", end: "2026-11-03T01:30:00.000Z" },
       { start: "2026-11-03T01:30:00.000Z", end: "2026-11-03T02:00:00.000Z" },

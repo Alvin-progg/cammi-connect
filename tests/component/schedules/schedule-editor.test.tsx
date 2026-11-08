@@ -84,9 +84,11 @@ async function submitException(user: ReturnType<typeof userEvent.setup>, buttonN
   await user.click(within(form).getByRole("button", { name: buttonName }));
 }
 
+const DOCTOR_EDITOR = { editor: "doctor", today: "2026-11-01", defaultSlotMinutes: 30 } as const;
+
 describe("SchedulePeriodsSection", () => {
   it("lists several consultation periods under the same weekday", () => {
-    render(<SchedulePeriodsSection editor="doctor" schedules={SCHEDULES} today="2026-11-01" />);
+    render(<SchedulePeriodsSection {...DOCTOR_EDITOR} schedules={SCHEDULES} />);
 
     const monday = screen.getByRole("group", { name: "Monday" });
     expect(within(monday).getAllByLabelText("Start")).toHaveLength(2);
@@ -100,7 +102,7 @@ describe("SchedulePeriodsSection", () => {
   });
 
   it("summarizes each period read-only before it is edited", () => {
-    render(<SchedulePeriodsSection editor="doctor" schedules={SCHEDULES} today="2026-11-01" />);
+    render(<SchedulePeriodsSection {...DOCTOR_EDITOR} schedules={SCHEDULES} />);
 
     const monday = screen.getByRole("group", { name: "Monday" });
     expect(within(monday).getByText("8:00 AM – 12:00 PM · 30 min")).toBeInTheDocument();
@@ -123,7 +125,7 @@ describe("SchedulePeriodsSection", () => {
       ],
     });
     const user = userEvent.setup();
-    render(<SchedulePeriodsSection editor="doctor" schedules={[period({})]} today="2026-11-01" />);
+    render(<SchedulePeriodsSection {...DOCTOR_EDITOR} schedules={[period({})]} />);
 
     await user.click(within(screen.getByRole("group", { name: "Monday" })).getByRole("button", { name: "Save period" }));
 
@@ -134,7 +136,7 @@ describe("SchedulePeriodsSection", () => {
   });
 
   it("shows weekdays without periods as not available", () => {
-    render(<SchedulePeriodsSection editor="doctor" schedules={SCHEDULES} today="2026-11-01" />);
+    render(<SchedulePeriodsSection {...DOCTOR_EDITOR} schedules={SCHEDULES} />);
 
     const tuesday = screen.getByRole("group", { name: "Tuesday" });
     expect(within(tuesday).getByText("Not available")).toBeInTheDocument();
@@ -146,6 +148,7 @@ describe("SchedulePeriodsSection", () => {
         editor="doctor"
         schedules={[period({ isActive: false })]}
         today="2026-11-01"
+        defaultSlotMinutes={30}
       />,
     );
 
@@ -154,7 +157,7 @@ describe("SchedulePeriodsSection", () => {
   });
 
   it("offers a form to add another period, defaulting to today", () => {
-    render(<SchedulePeriodsSection editor="doctor" schedules={[]} today="2026-11-01" />);
+    render(<SchedulePeriodsSection {...DOCTOR_EDITOR} schedules={[]} />);
 
     const addForm = screen.getByRole("form", { name: "Add consultation period" });
     expect(within(addForm).getByLabelText("Weekday")).toBeInTheDocument();
@@ -162,9 +165,16 @@ describe("SchedulePeriodsSection", () => {
     expect(screen.getByText("No consultation periods yet.")).toBeInTheDocument();
   });
 
+  it("defaults a new period to the admin's slot length (appointment.default_slot_minutes)", () => {
+    render(<SchedulePeriodsSection {...DOCTOR_EDITOR} schedules={[]} defaultSlotMinutes={45} />);
+
+    const addForm = screen.getByRole("form", { name: "Add consultation period" });
+    expect(within(addForm).getByLabelText("Slot length")).toHaveValue("45");
+  });
+
   it("does not send a doctorId from the doctor's own editor", () => {
     const { container } = render(
-      <SchedulePeriodsSection editor="doctor" schedules={SCHEDULES} today="2026-11-01" />,
+      <SchedulePeriodsSection {...DOCTOR_EDITOR} schedules={SCHEDULES} />,
     );
 
     expect(container.querySelector('input[name="doctorId"]')).toBeNull();
@@ -177,6 +187,7 @@ describe("SchedulePeriodsSection", () => {
         doctorId={DOCTOR_ID}
         schedules={SCHEDULES}
         today="2026-11-01"
+        defaultSlotMinutes={30}
       />,
     );
 

@@ -55,6 +55,7 @@ async function errorMessageFrom(response: Response): Promise<string> {
 export function ChatShell({
   salutation,
   firstName,
+  welcomeMessage,
   patientName,
   conversations,
   conversationId,
@@ -63,6 +64,8 @@ export function ChatShell({
 }: {
   salutation: string;
   firstName: string;
+  /** The admin's `chatbot.welcome_message`, shown under the greeting. */
+  welcomeMessage: string;
   /** Full name, shown in the sidebar's account footer. */
   patientName: string;
   conversations: ConversationSummary[];
@@ -246,6 +249,7 @@ export function ChatShell({
               <ChatEmptyState
                 salutation={salutation}
                 firstName={firstName}
+                welcomeMessage={welcomeMessage}
                 disabled={isSending}
                 onSuggestion={(message) => send(message, { fromDraft: false })}
               />

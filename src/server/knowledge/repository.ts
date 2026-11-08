@@ -6,7 +6,7 @@ import type { KnowledgeStore } from "./service";
 
 /** Knowledge search through the service-role match function (0005_knowledge.sql). */
 export const supabaseKnowledgeRepository: KnowledgeStore = {
-  async matchChunks(embedding, matchCount, minSimilarity) {
+  async matchChunks(embedding, matchCount, minSimilarity, categories) {
     const { data, error } = await getSupabaseAdminClient().rpc(
       "cammi_connect_match_knowledge_chunks",
       {
@@ -14,6 +14,7 @@ export const supabaseKnowledgeRepository: KnowledgeStore = {
         query_embedding: JSON.stringify(embedding),
         match_count: matchCount,
         min_similarity: minSimilarity,
+        categories: categories ? [...categories] : null,
       },
     );
     if (error) {

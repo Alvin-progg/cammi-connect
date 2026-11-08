@@ -1,8 +1,5 @@
 import { MANILA_TIME_ZONE, isValidManilaDate, todayInManila } from "@/lib/appointments/filters";
 
-/** AI-APT-001: preferred dates more than this many days ahead are rejected. */
-export const BOOKING_HORIZON_DAYS = 60;
-
 const DOCTOR_TITLE_PATTERN = /^(dr\.?|doctor|doc)\s+/;
 const DAY_MILLISECONDS = 24 * 60 * 60 * 1000;
 
@@ -65,19 +62,26 @@ export type PreferredDateResult =
   | { status: "beyond_horizon" }
   | { status: "invalid" };
 
-/** Checks a YYYY-MM-DD date against today and the booking horizon, in Manila. */
-export function resolvePreferredDate(value: string, now: Date): PreferredDateResult {
+/**
+ * Checks a YYYY-MM-DD date against today and the booking horizon, in Manila.
+ * `horizonDays` is the admin's `appointment.max_advance_days` (ADM-15).
+ */
+export function resolvePreferredDate(
+  value: string,
+  now: Date,
+  horizonDays: number,
+): PreferredDateResult {
   if (!isValidManilaDate(value)) return { status: "invalid" };
 
   const today = todayInManila(now);
   if (value < today) return { status: "past" };
-  if (value > addDays(today, BOOKING_HORIZON_DAYS)) return { status: "beyond_horizon" };
+  if (value > addDays(today, horizonDays)) return { status: "beyond_horizon" };
   return { status: "ok", date: value };
 }
 
 /** The last bookable date, inclusive. */
-export function bookingHorizonEnd(now: Date): string {
-  return addDays(todayInManila(now), BOOKING_HORIZON_DAYS);
+export function bookingHorizonEnd(now: Date, horizonDays: number): string {
+  return addDays(todayInManila(now), horizonDays);
 }
 
 /** Minutes after Manila midnight; [from, to). */

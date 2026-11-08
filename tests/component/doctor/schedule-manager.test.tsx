@@ -36,6 +36,7 @@ function renderManager() {
       month="2026-11"
       today="2026-11-01"
       grid={grid}
+      defaultSlotMinutes={30}
     />,
   );
 }

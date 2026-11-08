@@ -122,6 +122,27 @@ export type Database = {
         };
         Relationships: [];
       };
+      /** Migration 0027 (admin system settings). A missing key uses its default. */
+      system_settings: {
+        Row: {
+          key: string;
+          value: Json;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          key: string;
+          value: Json;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          value?: Json;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       /** Migration 0022 (admin requirements). Exactly one of service_id/specialty_id is set. */
       service_requirements: {
         Row: {
@@ -761,6 +782,14 @@ export type Database = {
         Returns: undefined;
       };
       /** Migration 0021 (admin services). Raise P0001 not_admin, duplicate, not_found, unchanged, or inactive_department. */
+      cammi_connect_admin_save_settings: {
+        Args: {
+          p_actor_profile_id: string;
+          /** The changed keys only: {"<key>": <value>}. */
+          p_values: Json;
+        };
+        Returns: undefined;
+      };
       cammi_connect_admin_save_service: {
         Args: {
           p_actor_profile_id: string;
@@ -997,6 +1026,8 @@ export type Database = {
           query_embedding: string;
           match_count: number;
           min_similarity: number;
+          /** Migration 0027: null searches every category. */
+          categories?: string[] | null;
         };
         Returns: {
           chunk_id: string;

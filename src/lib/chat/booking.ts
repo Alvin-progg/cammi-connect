@@ -26,9 +26,13 @@ export const BOOKING_COPY = {
     "That option isn't active anymore. Just tell me what you'd like to book and we'll pick up from there.",
   stopped: "Okay, I've stopped this booking. Nothing was booked. Let me know whenever you'd like to try again.",
   dateInPast: "That date has already passed. Which upcoming date would work for you?",
-  dateBeyondHorizon:
-    "I can only book up to 60 days ahead. Please choose a date within the next 60 days.",
 } as const;
+
+/** The reply for a date past the admin's booking horizon (`appointment.max_advance_days`). */
+export function beyondHorizonCopy(days: number): string {
+  const period = days === 1 ? "1 day" : `${days} days`;
+  return `I can only book up to ${period} ahead. Please choose a date within the next ${period}.`;
+}
 
 /** Directory names may already carry the title (e.g. the seed's "Dr. Maya Santos"). */
 export function doctorDisplayName(fullName: string): string {

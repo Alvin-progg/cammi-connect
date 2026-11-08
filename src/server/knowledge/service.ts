@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { KnowledgeCategory } from "@/lib/knowledge/types";
+
 /** How many chunks a hospital-information answer is grounded on. */
 export const KNOWLEDGE_MATCH_COUNT = 5;
 /**
@@ -20,17 +22,20 @@ export type KnowledgeChunkMatch = {
 export type KnowledgeSource = Pick<KnowledgeChunkMatch, "slug" | "title" | "sectionTitle">;
 
 export type KnowledgeStore = {
-  /** Published chunks only, most similar first. */
+  /** Published chunks only, most similar first. Null categories searches every category. */
   matchChunks(
     embedding: number[],
     matchCount: number,
     minSimilarity: number,
+    categories: readonly KnowledgeCategory[] | null,
   ): Promise<KnowledgeChunkMatch[]>;
 };
 
 export type KnowledgeSearchDeps = {
   embedQuery: (question: string) => Promise<number[]>;
   store: KnowledgeStore;
+  /** The admin's `chatbot.enabled_categories`; omitted searches every category. */
+  categories?: readonly KnowledgeCategory[];
 };
 
 export type KnowledgeSearchResult =
@@ -50,6 +55,7 @@ export async function searchHospitalInformation(
     embedding,
     KNOWLEDGE_MATCH_COUNT,
     KNOWLEDGE_MIN_SIMILARITY,
+    deps.categories ?? null,
   );
   if (chunks.length === 0) {
     return { found: false };

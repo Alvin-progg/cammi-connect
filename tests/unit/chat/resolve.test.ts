@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  BOOKING_HORIZON_DAYS,
+  bookingHorizonEnd,
   filterSlotsByTime,
   matchDoctorsByName,
   matchSpecialtiesByName,
@@ -66,28 +66,44 @@ describe("resolvePreferredDate", () => {
   // 2026-10-31 09:00 in Manila.
   const NOW = new Date("2026-10-31T01:00:00Z");
 
+  const HORIZON_DAYS = 60;
+
   it("accepts today and dates up to the booking horizon", () => {
-    expect(resolvePreferredDate("2026-10-31", NOW)).toEqual({ status: "ok", date: "2026-10-31" });
-    expect(resolvePreferredDate("2026-12-30", NOW)).toEqual({ status: "ok", date: "2026-12-30" });
+    expect(resolvePreferredDate("2026-10-31", NOW, HORIZON_DAYS)).toEqual({
+      status: "ok",
+      date: "2026-10-31",
+    });
+    expect(resolvePreferredDate("2026-12-30", NOW, HORIZON_DAYS)).toEqual({
+      status: "ok",
+      date: "2026-12-30",
+    });
   });
 
   it("rejects past dates", () => {
-    expect(resolvePreferredDate("2026-10-30", NOW)).toEqual({ status: "past" });
+    expect(resolvePreferredDate("2026-10-30", NOW, HORIZON_DAYS)).toEqual({ status: "past" });
   });
 
-  it(`rejects dates more than ${BOOKING_HORIZON_DAYS} days ahead`, () => {
-    expect(resolvePreferredDate("2026-12-31", NOW)).toEqual({ status: "beyond_horizon" });
+  it("rejects dates more than the horizon days ahead", () => {
+    expect(resolvePreferredDate("2026-12-31", NOW, HORIZON_DAYS)).toEqual({
+      status: "beyond_horizon",
+    });
+  });
+
+  it("uses the admin's horizon (appointment.max_advance_days)", () => {
+    expect(resolvePreferredDate("2026-11-30", NOW, 30)).toEqual({ status: "ok", date: "2026-11-30" });
+    expect(resolvePreferredDate("2026-12-01", NOW, 30)).toEqual({ status: "beyond_horizon" });
+    expect(bookingHorizonEnd(NOW, 30)).toBe("2026-11-30");
   });
 
   it("uses the Manila date, not the UTC date", () => {
     // 2026-10-31 23:30 UTC is already 1 November in Manila.
     const lateUtc = new Date("2026-10-31T23:30:00Z");
-    expect(resolvePreferredDate("2026-10-31", lateUtc)).toEqual({ status: "past" });
+    expect(resolvePreferredDate("2026-10-31", lateUtc, HORIZON_DAYS)).toEqual({ status: "past" });
   });
 
   it("reports anything that is not a real date as invalid", () => {
-    expect(resolvePreferredDate("next Monday", NOW)).toEqual({ status: "invalid" });
-    expect(resolvePreferredDate("2026-02-30", NOW)).toEqual({ status: "invalid" });
+    expect(resolvePreferredDate("next Monday", NOW, HORIZON_DAYS)).toEqual({ status: "invalid" });
+    expect(resolvePreferredDate("2026-02-30", NOW, HORIZON_DAYS)).toEqual({ status: "invalid" });
   });
 });
 

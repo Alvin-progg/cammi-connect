@@ -54,6 +54,8 @@ import {
   listDoctorExceptions,
   listDoctorSchedules,
 } from "@/server/schedules/service";
+import { supabaseSettingsRepository } from "@/server/settings/repository";
+import { getSettings } from "@/server/settings/service";
 
 export const instant = false;
 
@@ -131,7 +133,7 @@ async function CalendarWorkspace({ doctorId, params }: { doctorId: string; param
   const monthStart = manilaDayRange(`${month}-01`).start;
   const monthEnd = manilaDayRange(`${shiftCalendarMonth(month, 1)}-01`).start;
 
-  const [schedules, exceptions, appointments] = await Promise.all([
+  const [schedules, exceptions, appointments, settings] = await Promise.all([
     listDoctorSchedules(doctorId, supabaseDoctorSchedulesRepository),
     listDoctorExceptions(
       { doctorId, start: monthStart, end: monthEnd },
@@ -141,6 +143,7 @@ async function CalendarWorkspace({ doctorId, params }: { doctorId: string; param
       { doctorId, start: monthStart, end: monthEnd, status: null },
       supabaseDoctorAppointmentsRepository,
     ),
+    getSettings(supabaseSettingsRepository),
   ]);
 
   const countByDate = new Map<
@@ -170,6 +173,7 @@ async function CalendarWorkspace({ doctorId, params }: { doctorId: string; param
       month={month}
       today={today}
       grid={grid}
+      defaultSlotMinutes={settings["appointment.default_slot_minutes"]}
     />
   );
 }

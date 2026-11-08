@@ -76,6 +76,8 @@ export type TurnInput = {
   event: ChatEvent;
   state: BookingState;
   now: Date;
+  /** The admin's `appointment.max_advance_days`. */
+  bookingHorizonDays: number;
 };
 
 export type TurnDeps = {
@@ -221,6 +223,7 @@ export async function handleTurn(input: TurnInput, deps: TurnDeps): Promise<Turn
     patientId: input.patientId,
     state: input.state,
     now: input.now,
+    horizonDays: input.bookingHorizonDays,
     tools: deps.tools,
     claimBooking: deps.claimBooking,
   };

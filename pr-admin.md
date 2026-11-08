@@ -897,6 +897,19 @@ Explicitly **not** exposed: model name, temperature, system prompt, API keys.
 - Integration: `chatbot.enabled_categories` limits `match_knowledge` categories.
 - E2E: change welcome message → patient chat shows it.
 
+## Status as built (2026-11-08)
+- `0027` adds `system_settings` (no seed rows; a missing key uses its default from `src/lib/settings/schema.ts`) and the audited `cammi_connect_admin_save_settings`. It re-checks the key allow-list, upserts only changed keys, and writes one `settings.update` row with per-key previous/new values (previous `null` = default).
+- `/admin/settings` has Appointment, Hospital, and Chatbot tabs (`?tab=`). Each tab saves on its own after a review-changes dialog. The timezone is shown read-only and is not stored.
+- No cache: `getSettings` reads the small table once per request; saves revalidate `/admin/settings` and `/chat`.
+- `appointment.default_slot_minutes` is limited to 15/30/45/60, not 5–240, because slot lengths stay 15/30/45/60. It sets the default for a new period in the doctor and admin schedule editors.
+- `appointment.min_lead_hours` applies to Cami only: the chat availability tool offers slots that start more than N hours from now, and booking re-reads that same tool. Front desk bookings and the SQL booking functions are unchanged.
+- `appointment.max_advance_days` replaces the fixed 60-day chat booking horizon.
+- `chatbot.enabled = false`: the `/chat` page shows a maintenance message with `hospital.contact_phone`, and `POST /api/v1/chat` refuses with 503 `chat_disabled`. The patient's appointments view under `/chat` is hidden too.
+- `chatbot.enabled_categories` is passed to `cammi_connect_match_knowledge_chunks` (new `categories` parameter, `0027`).
+- Stored with no effect yet: `appointment.request_expiry_hours` (D8, null = off), hospital name/address/email/operating hours, and the policy texts.
+- "Send to knowledge base" creates a draft `appointment_procedures` document from the **saved** policy text through the existing audited knowledge save, then opens it for review.
+- Tests: unit tests for the schemas, display, service, actions, knowledge category filter, chat horizon, lead time, and chat switch; component tests for the form, preview, maintenance panel, and welcome message. No SQL integration tests or E2E (no local DB, no Playwright); the `db/README.md` smoke test covers those.
+
 
 ---
 

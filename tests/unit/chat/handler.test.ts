@@ -95,6 +95,7 @@ beforeEach(() => {
         message: "unused",
       })),
     },
+    loadChatSettings: vi.fn(async () => ({ enabled: true, bookingHorizonDays: 60 })),
     now: () => NOW,
     newId: () => (nextId++ === 0 ? REQUEST_ID : NEW_CONVERSATION_ID),
     log: (entry) => logged.push(entry),
@@ -131,6 +132,46 @@ describe("handleChatRequest", () => {
 
     expect(response.status).toBe(403);
     expect(deps.generate).not.toHaveBeenCalled();
+  });
+
+  it("refuses with 503 while an admin has turned the chatbot off (chatbot.enabled)", async () => {
+    vi.mocked(deps.loadChatSettings).mockResolvedValue({ enabled: false, bookingHorizonDays: 60 });
+
+    const response = await handleChatRequest(chatRequest(messageBody("Hi")), deps);
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "chat_disabled" },
+    });
+    expect(deps.generate).not.toHaveBeenCalled();
+    expect(store.appendMessages).not.toHaveBeenCalled();
+    expect(logged).toEqual([
+      { requestId: REQUEST_ID, outcome: "chat_disabled", status: 503 },
+    ]);
+  });
+
+  it("checks the chatbot switch only after authentication", async () => {
+    vi.mocked(deps.resolvePatient).mockResolvedValue({ status: "unauthenticated" });
+
+    await handleChatRequest(chatRequest(messageBody("Hi")), deps);
+
+    expect(deps.loadChatSettings).not.toHaveBeenCalled();
+  });
+
+  it("passes the admin's booking horizon to the turn", async () => {
+    vi.mocked(deps.loadChatSettings).mockResolvedValue({ enabled: true, bookingHorizonDays: 7 });
+    vi.mocked(deps.generate).mockResolvedValue(
+      JSON.stringify({ intent: "book", specialty: "Pediatrics", preferredDate: "2026-12-31" }),
+    );
+
+    const response = await handleChatRequest(
+      chatRequest(messageBody("Book pediatrics on Dec 31")),
+      deps,
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(JSON.stringify(body)).toContain("up to 7 days ahead");
   });
 
   it("returns 400 for a body that is not JSON", async () => {

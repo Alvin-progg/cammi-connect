@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { AccessDenied } from "@/components/auth/access-denied";
+import { ChatMaintenance } from "@/components/chat/chat-maintenance";
 import { ChatShell } from "@/components/chat/chat-shell";
 import { splitPatientAppointments } from "@/lib/appointments/patient";
 import { greetingFor } from "@/lib/chat/greeting";
@@ -10,6 +11,8 @@ import { listPatientAppointments } from "@/server/appointments/service";
 import { getPatientSession } from "@/server/auth/dal";
 import { supabaseChatRepository } from "@/server/chat/repository";
 import { loadChatView } from "@/server/chat/service";
+import { supabaseSettingsRepository } from "@/server/settings/repository";
+import { getSettings } from "@/server/settings/service";
 
 export const metadata: Metadata = { title: "Chat · CamiConnect" };
 
@@ -25,6 +28,15 @@ export default async function ChatPage({
 
   if (!session) {
     return <AccessDenied message="The chat assistant is only available to patient accounts." />;
+  }
+
+  const settings = await getSettings(supabaseSettingsRepository);
+  if (!settings["chatbot.enabled"]) {
+    return (
+      <main id="main" className="flex h-dvh flex-col bg-surface">
+        <ChatMaintenance contactPhone={settings["hospital.contact_phone"]} />
+      </main>
+    );
   }
 
   const patientId = session.patient.id;
@@ -47,6 +59,7 @@ export default async function ChatPage({
         key={`${pageView}:${view.conversationId ?? "new"}`}
         salutation={salutation}
         firstName={firstName}
+        welcomeMessage={settings["chatbot.welcome_message"]}
         patientName={session.patient.fullName}
         conversations={view.conversations}
         conversationId={view.conversationId}

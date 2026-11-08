@@ -4,6 +4,7 @@ import { todayInManila } from "@/lib/appointments/filters";
 import { formatManilaShortDate, formatManilaTime } from "@/lib/appointments/format";
 import {
   BOOKING_COPY,
+  beyondHorizonCopy,
   doctorDisplayName,
   groupSlotsByManilaDate,
   manilaDateOf,
@@ -39,6 +40,8 @@ export type BookingContext = {
   patientId: string;
   state: BookingState;
   now: Date;
+  /** The admin's `appointment.max_advance_days`: the last bookable date is today plus this. */
+  horizonDays: number;
   tools: ChatTools;
   /**
    * Guarded update from awaiting_confirmation to `next`. Returns false when
@@ -145,7 +148,7 @@ async function offerSlots(
   lead?: string,
 ): Promise<BookingReply> {
   const today = todayInManila(ctx.now);
-  const horizonEnd = bookingHorizonEnd(ctx.now);
+  const horizonEnd = bookingHorizonEnd(ctx.now, ctx.horizonDays);
   const fromDate =
     draft.preferredDate && draft.preferredDate > today ? draft.preferredDate : today;
   const days = Math.max(
@@ -294,12 +297,12 @@ export async function startOrCorrectBooking(
 
   const preferredDate = extraction.preferredDate?.trim();
   if (preferredDate) {
-    const resolved = resolvePreferredDate(preferredDate, ctx.now);
+    const resolved = resolvePreferredDate(preferredDate, ctx.now, ctx.horizonDays);
     if (resolved.status === "past") {
       return { reply: BOOKING_COPY.dateInPast, payload: null, state };
     }
     if (resolved.status === "beyond_horizon") {
-      return { reply: BOOKING_COPY.dateBeyondHorizon, payload: null, state };
+      return { reply: beyondHorizonCopy(ctx.horizonDays), payload: null, state };
     }
     // An unreadable date is ignored rather than guessed.
     if (resolved.status === "ok") changes.preferredDate = resolved.date;
@@ -499,14 +502,14 @@ async function selectDoctor(doctorId: string, ctx: BookingContext): Promise<Labe
 }
 
 async function showLaterDates(fromDate: string, ctx: BookingContext): Promise<BookingReply> {
-  const resolved = resolvePreferredDate(fromDate, ctx.now);
+  const resolved = resolvePreferredDate(fromDate, ctx.now, ctx.horizonDays);
   switch (resolved.status) {
     case "ok":
       return advance(applyCorrection(ctx.state.draft, { preferredDate: resolved.date }), ctx);
     case "past":
       return { reply: BOOKING_COPY.dateInPast, payload: null, state: ctx.state };
     case "beyond_horizon":
-      return { reply: BOOKING_COPY.dateBeyondHorizon, payload: null, state: ctx.state };
+      return { reply: beyondHorizonCopy(ctx.horizonDays), payload: null, state: ctx.state };
     case "invalid":
       return { reply: BOOKING_COPY.outOfOrder, payload: null, state: ctx.state };
   }

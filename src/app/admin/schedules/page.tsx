@@ -18,6 +18,8 @@ import {
   listDoctorExceptions,
   listDoctorSchedules,
 } from "@/server/schedules/service";
+import { supabaseSettingsRepository } from "@/server/settings/repository";
+import { getSettings } from "@/server/settings/service";
 
 import { ADMIN_ACCESS_DENIED_MESSAGE } from "../_shared/placeholder-page";
 
@@ -148,7 +150,7 @@ export default async function AdminSchedulesPage({
 
   const today = todayInManila();
   const windowStart = manilaDayRange(today).start;
-  const [schedules, exceptions] = await Promise.all([
+  const [schedules, exceptions, settings] = await Promise.all([
     listDoctorSchedules(selected.id, supabaseDoctorSchedulesRepository),
     listDoctorExceptions(
       {
@@ -158,6 +160,7 @@ export default async function AdminSchedulesPage({
       },
       supabaseDoctorSchedulesRepository,
     ),
+    getSettings(supabaseSettingsRepository),
   ]);
 
   return (
@@ -173,6 +176,7 @@ export default async function AdminSchedulesPage({
           doctorId={selected.id}
           schedules={schedules}
           today={today}
+          defaultSlotMinutes={settings["appointment.default_slot_minutes"]}
         />
         <ScheduleExceptionsSection
           editor="admin"

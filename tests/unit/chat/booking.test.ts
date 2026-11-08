@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { formatManilaShortDate, formatManilaTime } from "@/lib/appointments/format";
-import { BOOKING_COPY } from "@/lib/chat/booking";
+import { BOOKING_COPY, beyondHorizonCopy } from "@/lib/chat/booking";
 import { matchDoctorsByName } from "@/lib/chat/resolve";
 import type { ChatEvent } from "@/lib/chat/schemas";
 import { IDLE_STATE, type BookingState } from "@/lib/chat/state";
@@ -112,7 +112,15 @@ function bookingDeps(
 }
 
 function turnWith(event: ChatEvent, state: BookingState = IDLE_STATE): TurnInput {
-  return { conversationId: CONVERSATION_ID, patientId: PATIENT_ID, history: [], event, state, now: NOW };
+  return {
+    conversationId: CONVERSATION_ID,
+    patientId: PATIENT_ID,
+    history: [],
+    event,
+    state,
+    now: NOW,
+    bookingHorizonDays: 60,
+  };
 }
 
 function message(text: string, state?: BookingState): TurnInput {
@@ -565,7 +573,7 @@ describe("booking corrections and edge cases", () => {
 
   it.each([
     ["a past date", "2026-10-30", BOOKING_COPY.dateInPast],
-    ["a date beyond the 60-day horizon", "2026-12-31", BOOKING_COPY.dateBeyondHorizon],
+    ["a date beyond the 60-day horizon", "2026-12-31", beyondHorizonCopy(60)],
   ])("rejects %s without changing the booking", async (_label, preferredDate, reply) => {
     const deps = bookingDeps({ intent: "book", preferredDate });
 

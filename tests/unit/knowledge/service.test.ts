@@ -43,8 +43,22 @@ describe("searchHospitalInformation", () => {
       EMBEDDING,
       KNOWLEDGE_MATCH_COUNT,
       KNOWLEDGE_MIN_SIMILARITY,
+      null,
     );
     expect(KNOWLEDGE_MATCH_COUNT).toBe(5);
+  });
+
+  it("limits the search to the enabled categories (chatbot.enabled_categories)", async () => {
+    const searchDeps = { ...deps([match({})]), categories: ["services", "departments"] as const };
+
+    await searchHospitalInformation("What services do you have?", searchDeps);
+
+    expect(searchDeps.store.matchChunks).toHaveBeenCalledWith(
+      EMBEDDING,
+      KNOWLEDGE_MATCH_COUNT,
+      KNOWLEDGE_MIN_SIMILARITY,
+      ["services", "departments"],
+    );
   });
 
   it("reports not found when no chunk clears the threshold", async () => {
