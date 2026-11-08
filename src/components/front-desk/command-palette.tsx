@@ -2,6 +2,7 @@
 
 import { Dialog } from "@base-ui/react/dialog";
 import { Command } from "cmdk";
+import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -9,7 +10,6 @@ import { DIALOG_BACKDROP_CLASS } from "./dialog-styles";
 import { FRONT_DESK_NAV_ITEMS } from "./nav-items";
 
 import { StatusBadge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
 import { formatManilaDateTime } from "@/lib/appointments/format";
 import { PATIENT_SEARCH_MIN_LENGTH } from "@/lib/front-desk/booking";
 import {
@@ -102,12 +102,13 @@ export function CommandPalette() {
     <Dialog.Root open={open} onOpenChange={changeOpen}>
       <Dialog.Trigger
         aria-keyshortcuts="Meta+K Control+K"
-        className={buttonVariants({ variant: "secondary", size: "sm", className: "gap-3" })}
+        className="focus-ring flex h-9 w-full items-center gap-2 rounded-md border border-control-line bg-surface px-3 text-sm text-ink-muted shadow-soft hover:bg-surface-muted"
       >
-        Search
+        <Search aria-hidden="true" className="size-4 shrink-0" />
+        <span className="flex-1 text-left">Find patient</span>
         <kbd
           aria-hidden="true"
-          className="hidden rounded border border-line bg-surface-muted px-1.5 font-sans text-xs text-ink-muted sm:inline"
+          className="rounded border border-line-strong px-1.5 font-mono text-[11px] text-ink-secondary"
         >
           ⌘K
         </kbd>

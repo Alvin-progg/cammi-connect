@@ -1,5 +1,4 @@
 import { render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
@@ -112,7 +111,7 @@ describe("FrontDeskShell", () => {
 
     expect(screen.getByText("Synthetic Front Desk")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Search" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Find patient" })).toHaveAttribute(
       "aria-keyshortcuts",
       "Meta+K Control+K",
     );
@@ -120,22 +119,18 @@ describe("FrontDeskShell", () => {
     expect(screen.getByText("Overview content")).toBeInTheDocument();
   });
 
-  it("keeps the rail fixed in view while the page scrolls", () => {
+  it("keeps the sidebar fixed in view on large screens while the page scrolls", () => {
     renderOverview();
 
-    const rail = screen.getByRole("navigation", { name: "Front desk" }).closest("aside");
-    expect(rail).toHaveClass("sticky", "top-0", "h-dvh");
+    const sidebar = screen.getByRole("navigation", { name: "Front desk" }).closest("aside");
+    expect(sidebar).toHaveClass("lg:sticky", "lg:top-0", "lg:h-dvh");
   });
 
-  it("expands the rail to show section labels and the staff member's role", async () => {
-    const user = userEvent.setup();
+  it("shows section labels and the staff member's role in the sidebar", () => {
     renderOverview();
 
-    await user.click(screen.getByRole("button", { name: "Expand menu" }));
-
     const nav = screen.getByRole("navigation", { name: "Front desk" });
-    expect(screen.getByRole("button", { name: "Collapse menu" })).toHaveAttribute("aria-expanded", "true");
     expect(within(nav).getByRole("link", { name: "Daily schedule" })).toHaveTextContent(/^Daily schedule$/);
-    expect(screen.getByText("Synthetic Front Desk")).toBeInTheDocument();
+    expect(screen.getAllByText("Front desk").length).toBeGreaterThan(0);
   });
 });
