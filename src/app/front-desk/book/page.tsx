@@ -21,6 +21,9 @@ import { listBookableDoctors } from "@/server/directory/service";
 import { supabaseFrontDeskPatientsRepository } from "@/server/front-desk/repository";
 import { listBookingSlots, searchPatients } from "@/server/front-desk/service";
 import { CONTROL_CLASS } from "@/components/ui/field";
+import { Badge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/card";
+import { initialsOf } from "@/components/ui/rail";
 import { cn } from "@/lib/cn";
 
 export const instant = false;
@@ -91,8 +94,12 @@ export default async function FrontDeskBookPage({ searchParams }: PageProps<"/fr
       active="book"
       crumbs={[{ label: "New appointment", href: BOOK_PATH }, { label: patient.fullName }]}
     >
-      <div className="flex max-w-2xl flex-col gap-6">
+      <div className="flex max-w-3xl flex-col gap-4">
         <PatientSummary patient={patient} />
+        <section aria-labelledby="book-doctor-title" className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-6 shadow-soft">
+        <h2 id="book-doctor-title" className="text-[15px] font-semibold text-ink">
+          2 · Doctor and time
+        </h2>
         <form method="get" aria-label="Choose a doctor and date" className="flex flex-wrap items-end gap-3">
           <input type="hidden" name="patient" value={patient.id} />
           <div className="flex flex-col gap-1">
@@ -150,9 +157,9 @@ export default async function FrontDeskBookPage({ searchParams }: PageProps<"/fr
         </form>
         {doctor ? (
           <>
-            <h2 className="text-base font-semibold text-ink">
+            <h3 className="text-sm font-medium text-ink">
               {`Free slots with ${doctor.fullName} on ${formatManilaMediumDate(params.date)}`}
-            </h2>
+            </h3>
             {/* Keyed so a new doctor or date starts from a fresh form. */}
             <BookingForm
               key={`${doctor.id}-${params.date}`}
@@ -172,6 +179,7 @@ export default async function FrontDeskBookPage({ searchParams }: PageProps<"/fr
               : "Choose a doctor and a date, then show the free slots."}
           </p>
         )}
+        </section>
       </div>
     </FrontDeskShell>
   );
@@ -183,9 +191,9 @@ async function PatientStep({ search }: { search: string | null }) {
     : null;
 
   return (
-    <div className="flex max-w-2xl flex-col gap-8">
-      <section aria-labelledby="patient-search-title" className="flex flex-col gap-4">
-        <h2 id="patient-search-title" className="text-base font-semibold text-ink">
+    <div className="flex max-w-3xl flex-col gap-4">
+      <section aria-labelledby="patient-search-title" className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-6 shadow-soft">
+        <h2 id="patient-search-title" className="text-[15px] font-semibold text-ink">
           Find the patient
         </h2>
         <form method="get" role="search" className="flex flex-wrap items-end gap-3">
@@ -215,11 +223,11 @@ async function PatientStep({ search }: { search: string | null }) {
         ) : null}
         {outcome?.ok ? <PatientResults patients={outcome.patients} /> : null}
       </section>
-      <section aria-labelledby="register-patient-title" className="flex flex-col gap-4">
-        <h2 id="register-patient-title" className="text-base font-semibold text-ink">
+      <section aria-labelledby="register-patient-title" className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-6 shadow-soft">
+        <h2 id="register-patient-title" className="text-[15px] font-semibold text-ink">
           Register a new patient
         </h2>
-        <p className="text-sm text-ink-secondary">
+        <p className="-mt-2 text-sm text-ink-muted">
           Search first. Register only when the patient isn&apos;t already on file.
         </p>
         <RegisterPatientForm />
@@ -238,12 +246,13 @@ function PatientResults({ patients }: { patients: PatientMatch[] }) {
   }
 
   return (
-    <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
+    <ul className="divide-y divide-line rounded-xl border border-line px-3">
       {patients.map((patient) => (
-        <li key={patient.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+        <li key={patient.id} className="flex flex-wrap items-center gap-3 py-2.5">
+          <Avatar initials={initialsOf(patient.fullName, "PT")} />
           <div className="min-w-0 flex-1">
-            <p className="font-medium text-ink">{patient.fullName}</p>
-            <p className="text-sm text-ink-secondary">
+            <p className="text-sm font-medium text-ink">{patient.fullName}</p>
+            <p className="text-xs text-ink-muted">
               {patient.phone ?? "No phone on file"}
             </p>
           </div>
@@ -263,9 +272,7 @@ function PatientResults({ patients }: { patients: PatientMatch[] }) {
 
 function AccountBadge({ hasAccount }: { hasAccount: boolean }) {
   return (
-    <span className="rounded-full border border-line px-2 py-0.5 text-xs text-ink-secondary">
-      {hasAccount ? "Online account" : "Walk-in record"}
-    </span>
+    <Badge tone={hasAccount ? "info" : "neutral"}>{hasAccount ? "Online account" : "Walk-in record"}</Badge>
   );
 }
 
@@ -273,9 +280,11 @@ function PatientSummary({ patient }: { patient: PatientMatch }) {
   return (
     <section
       aria-label="Patient"
-      className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3"
+      className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface p-5 shadow-soft"
     >
+      <Avatar initials={initialsOf(patient.fullName, "PT")} />
       <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-ink-muted">1 · Patient</p>
         <p className="font-medium text-ink">{patient.fullName}</p>
         <p className="text-sm text-ink-secondary">{patient.phone ?? "No phone on file"}</p>
       </div>
