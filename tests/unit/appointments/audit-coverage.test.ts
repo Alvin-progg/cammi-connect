@@ -4,6 +4,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { migrationFunctionBodies } from "../../helpers/sql";
+
 /**
  * ADM-09 asks for every appointment status change to leave an
  * `appointment_audit_logs` row. Instead of a trigger, each writer inserts the
@@ -17,32 +19,15 @@ import { describe, expect, it } from "vitest";
  */
 
 const ROOT = process.cwd();
-const MIGRATIONS_DIR = join(ROOT, "db/migrations");
-
-/** Dollar-quoted bodies ($$...$$ or $tag$...$tag$) with the function name before them. */
-function functionBodies(sql: string): { name: string; body: string }[] {
-  const bodies: { name: string; body: string }[] = [];
-  const pattern = /\$(\w*)\$([\s\S]*?)\$\1\$/g;
-  for (const match of sql.matchAll(pattern)) {
-    const preceding = sql.slice(0, match.index);
-    const names = [...preceding.matchAll(/create or replace function\s+public\.(\w+)/gi)];
-    bodies.push({ name: names.at(-1)?.[1] ?? "(anonymous block)", body: match[2] });
-  }
-  return bodies;
-}
 
 const APPOINTMENT_UPDATE = /update\s+public\.appointments\b/i;
 const APPOINTMENT_INSERT = /insert\s+into\s+public\.appointments\s*\(/i;
 const AUDIT_INSERT = /insert\s+into\s+public\.appointment_audit_logs\b/i;
 
 describe("appointment audit coverage", () => {
-  const writers = readdirSync(MIGRATIONS_DIR)
-    .filter((file) => file.endsWith(".sql"))
-    .flatMap((file) =>
-      functionBodies(readFileSync(join(MIGRATIONS_DIR, file), "utf8"))
-        .filter(({ body }) => APPOINTMENT_UPDATE.test(body) || APPOINTMENT_INSERT.test(body))
-        .map((fn) => ({ ...fn, file })),
-    );
+  const writers = migrationFunctionBodies().filter(
+    ({ body }) => APPOINTMENT_UPDATE.test(body) || APPOINTMENT_INSERT.test(body),
+  );
 
   it("finds the appointment writer functions", () => {
     // Guards the parser itself: confirm/reject, attendance, reschedule/cancel,
