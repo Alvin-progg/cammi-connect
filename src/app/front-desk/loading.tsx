@@ -1,22 +1,22 @@
 const PULSE = "bg-surface-muted motion-safe:animate-pulse";
 
 /**
- * Mirrors the FrontDeskShell frame (sidebar, 64px top bar, content padding)
+ * Mirrors the FrontDeskShell frame (icon rail, 64px top bar, content padding)
  * so the page settles into place instead of jumping when it loads.
  */
 export default function FrontDeskLoading() {
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-canvas lg:flex-row">
+    <div className="flex min-h-full flex-1 bg-canvas">
       <aside
         aria-hidden="true"
-        className="flex flex-col border-b border-line bg-surface lg:w-60 lg:shrink-0 lg:border-r lg:border-b-0"
+        className="sticky top-0 flex h-dvh w-16 shrink-0 flex-col border-r border-line bg-surface"
       >
-        <div className="flex min-h-16 items-center px-4 lg:px-5">
-          <div className={`h-5 w-28 rounded-md ${PULSE}`} />
+        <div className="flex h-16 shrink-0 items-center px-3.5">
+          <div className={`size-9 rounded-xl ${PULSE}`} />
         </div>
-        <div className="flex flex-wrap gap-1 px-2 pb-2 lg:flex-col lg:py-2">
+        <div className="flex flex-col gap-1 border-t border-line px-2.5 py-4">
           {Array.from({ length: 4 }, (_, index) => (
-            <div key={index} className={`h-11 w-28 rounded-lg lg:w-full ${PULSE}`} />
+            <div key={index} className={`h-11 rounded-xl ${PULSE}`} />
           ))}
         </div>
       </aside>

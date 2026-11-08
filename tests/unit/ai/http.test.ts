@@ -21,7 +21,7 @@ function textResponse(body: string, status: number): Response {
 
 function options(fetchImpl: typeof fetch, overrides: { maxRetries?: number; timeoutMs?: number } = {}) {
   return {
-    provider: "opencode-zen" as const,
+    provider: "groq" as const,
     url: "https://provider.example.test/v1/chat/completions",
     init: {
       method: "POST",
@@ -66,7 +66,7 @@ describe("fetchJson", () => {
     );
 
     expect(error.kind).toBe("timeout");
-    expect(error.provider).toBe("opencode-zen");
+    expect(error.provider).toBe("groq");
   });
 
   it("retries a 503 and succeeds on the next attempt with backoff", async () => {

@@ -7,7 +7,7 @@ import { NOT_VERIFIED } from "@/lib/chat/safety";
 import { IDLE_STATE, type BookingState } from "@/lib/chat/state";
 import type { PatientApiAccess } from "@/server/auth/dal";
 import { ProviderError } from "@/server/ai/http";
-import type { GenerateInput } from "@/server/ai/opencode-zen";
+import type { GenerateInput } from "@/server/ai/groq";
 import {
   CHAT_RATE_LIMIT_PER_MINUTE,
   handleChatRequest,
@@ -210,7 +210,7 @@ describe("handleChatRequest", () => {
 
   it("returns 503 and persists nothing when the provider is down", async () => {
     vi.mocked(deps.generate).mockRejectedValue(
-      new ProviderError("opencode-zen", "unavailable", 503),
+      new ProviderError("groq", "unavailable", 503),
     );
 
     const response = await handleChatRequest(chatRequest(messageBody("Hi")), deps);
@@ -251,9 +251,6 @@ describe("handleChatRequest", () => {
       bookingState: IDLE_STATE,
     });
     expect(store.getBookingState).not.toHaveBeenCalled();
-    expect(deps.generate).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: NEW_CONVERSATION_ID }),
-    );
 
     const [conversationId, messages] = vi.mocked(store.appendMessages).mock.calls[0];
     expect(conversationId).toBe(NEW_CONVERSATION_ID);
@@ -320,7 +317,6 @@ describe("handleChatRequest", () => {
     expect(store.listMessages).toHaveBeenCalledWith(OWN_CONVERSATION_ID);
     expect(deps.generate).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionId: OWN_CONVERSATION_ID,
         messages: [
           { role: "user", content: "Hi" },
           { role: "assistant", content: "Hello" },
@@ -341,7 +337,7 @@ describe("handleChatRequest", () => {
 
     await handleChatRequest(chatRequest(messageBody(SECRET_TEXT)), deps);
     vi.mocked(deps.generate).mockRejectedValue(
-      new ProviderError("opencode-zen", "timeout"),
+      new ProviderError("groq", "timeout"),
     );
     await handleChatRequest(chatRequest(messageBody(SECRET_TEXT)), deps);
 

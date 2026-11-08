@@ -57,7 +57,7 @@ One repository (`camiconnect`) owns UI, route handlers, domain logic, database s
                   |
         ┌─────────┼──────────────────────┐
         v         v                      v
-   PostgreSQL   Gemini Embedding API   OpenCode Zen LLM API
+   PostgreSQL   Gemini Embedding API   Groq LLM API
    + pgvector   (embeddings)           (answer generation)
    (hosted)
 
@@ -76,7 +76,7 @@ One repository (`camiconnect`) owns UI, route handlers, domain logic, database s
 | AI orchestration | Explicit TypeScript RAG pipeline (plain modules, no agent framework required) |
 | Embeddings | Google Gemini Embedding API via the official Google Gen AI JS/TS SDK |
 | Embedding model | `gemini-embedding-001` initially |
-| Text generation | OpenCode Zen API via an OpenAI-compatible client, **only after** verifying the chosen model's documented endpoint, request format, and response format |
+| Text generation | Groq API via an OpenAI-compatible client, **only after** verifying the chosen model's documented endpoint, request format, and response format |
 | Transactional + vector storage | Supabase (hosted PostgreSQL with the pgvector extension) |
 | ORM and migrations | Drizzle ORM + drizzle-kit **[Proposed]** (first-class pgvector columns; Prisma is the alternative but needs raw SQL for vectors) |
 | Authentication | Auth provider to be selected **[Open]** |
@@ -88,7 +88,7 @@ One repository (`camiconnect`) owns UI, route handlers, domain logic, database s
 | API documentation | OpenAPI document maintained alongside Zod schemas **[Proposed]** |
 | Version control | Git |
 
-Do not assume every model in the Zen catalog supports the same API protocol. Do not assume an OpenCode coding subscription includes unlimited application API usage.
+Do not assume every Groq model supports the same features. Do not assume the Groq plan has unlimited rate limits (see ADR-0006).
 
 ### 2.3 Code boundaries
 
@@ -117,7 +117,7 @@ Do not assume every model in the Zen catalog supports the same API protocol. Do 
         │   └── pipeline.ts
         └── providers/
             ├── gemini-embeddings.ts
-            └── opencode-zen.ts
+            └── groq.ts
 
 Rules:
 
@@ -206,7 +206,7 @@ Analytics are computed from authoritative data. AI-generated explanations must b
 ### 4.1 Provider responsibilities
 
 - **Gemini Embedding API:** embed approved documents and incoming questions with a consistent model and dimensionality; use retrieval-oriented task types.
-- **OpenCode Zen:** generate the final answer from a prompt containing the question and retrieved context, using a configured model identifier.
+- **Groq:** generate the final answer from a prompt containing the question and retrieved context, using a configured model identifier.
 - **PostgreSQL + pgvector:** store document metadata, chunk text, source identifiers, embeddings, versions, and publication status; serve similarity search.
 
 ### 4.2 Ingestion pipeline (resumable for serverless)
@@ -257,7 +257,7 @@ For every chat request:
 7. Rank/filter by measured relevance.
 8. Build context with source metadata.
 9. Apply context-length limits.
-10. Call OpenCode Zen.
+10. Call Groq.
 11. Validate the generation response.
 12. Return answer and real source references.
 13. Record operational metadata without unnecessary sensitive content.
@@ -291,11 +291,11 @@ Provider adapter, not scattered calls:
       }): Promise<string>;
     }
 
-Configuration (server-only): `OPENCODE_ZEN_API_KEY`, `OPENCODE_ZEN_BASE_URL`, `OPENCODE_ZEN_MODEL`, `LLM_TIMEOUT_SECONDS`, `LLM_MAX_RETRIES`.
+Configuration (server-only): `GROQ_API_KEY`, `GROQ_BASE_URL` (optional), `GROQ_MODEL`, `LLM_TIMEOUT_SECONDS`, `LLM_MAX_RETRIES`.
 
 The adapter shall: keep the key server-side; validate responses; enforce timeouts via `AbortSignal` **shorter than the serverless function limit**; retry only transient failures with bounded exponential backoff (total retry budget must fit the function limit); handle rate limits and outages; throw a controlled application error on failure; never expose raw provider errors.
 
-Before implementation, verify the model's current identifier, endpoint, authentication scheme, and request format in the OpenCode Zen catalog.
+Before implementation, verify the model's current identifier, endpoint, authentication scheme, and request format in the Groq docs.
 
 **Streaming [Proposed]:** streaming chat responses may be added later to improve perceived latency; it is not required initially, and source references must still come only from retrieved records.
 
@@ -399,7 +399,7 @@ Store only what is needed. No patient records or PII in the public knowledge bas
 
 ### 7.2 Secrets and exposure
 
-- Gemini, OpenCode Zen, database, storage, and auth secrets exist only as server-side environment variables on the hosting platform and in local untracked `.env` files.
+- Gemini, Groq, database, storage, and auth secrets exist only as server-side environment variables on the hosting platform and in local untracked `.env` files.
 - Never use `NEXT_PUBLIC_*` for secrets. CI checks the client bundle for secret leakage.
 - Signed upload URLs are short-lived, scoped to one object key, and restricted by content type and size.
 - Configure same-origin by default; if the UI and API are ever on different origins, configure CORS to exact origins.
@@ -412,9 +412,9 @@ Required server configuration:
 
     DATABASE_URL
     GEMINI_API_KEY
-    OPENCODE_ZEN_API_KEY
-    OPENCODE_ZEN_BASE_URL
-    OPENCODE_ZEN_MODEL
+    GROQ_API_KEY
+    GROQ_BASE_URL
+    GROQ_MODEL
     AUTH_SECRET (or provider equivalents)
     APP_BASE_URL
 
@@ -427,7 +427,7 @@ Never commit `.env` files, production keys, or real patient data.
 - Structured logs with request IDs.
 - Do not log full patient messages by default; never log passwords, API keys, authorization headers, or tokens.
 - Keep audit records for sensitive administrative operations.
-- Review Google and OpenCode Zen data-retention and usage terms before processing real hospital information.
+- Review Google and Groq data-retention and usage terms before processing real hospital information.
 - Client: no chat content, patient names, or tokens in console output, error trackers, or analytics; clear client state on sign-out.
 
 ---
@@ -482,7 +482,7 @@ A single typed client owns base URL (same-origin by default), credentials, timeo
 ### 9.1 Provider failures
 
 - **Gemini unavailable:** pause or fail the ingestion job; do not publish incomplete documents; retry transient failures within bounds; preserve job status for resume.
-- **OpenCode Zen unavailable or slow:** return a controlled temporary-unavailability response; never fabricate an answer; allow later retry.
+- **Groq unavailable or slow:** return a controlled temporary-unavailability response; never fabricate an answer; allow later retry.
 - **Database unavailable:** controlled `503` with no internal details; UI shows the unavailable state.
 
 ### 9.2 Hosting availability
@@ -560,7 +560,7 @@ This is a proposal. Inspect the existing repository before moving or renaming fi
 | 0 | Review the existing repo; confirm hosting, auth, DB provider, background-job approach; record assumptions | Architecture and decisions approved |
 | 1 | Foundation: strict TypeScript, Tailwind, validated config, `server-only` boundary, Drizzle + pgvector, migrations, local Docker database, health route, lint/test/CI | App builds and runs locally; foundation tests pass |
 | 2 | Embeddings and ingestion: Gemini adapter, document registration and signed upload, extraction, chunking, resumable ingestion jobs, atomic publication | Synthetic document ingested, retrieved, and cited |
-| 3 | Generation and chat: verify Zen protocol, adapter, timeouts within function limits, prompt construction, retrieval→generation, fallbacks, shared-store rate limiting | Grounded answers on the evaluation set; unsupported questions decline |
+| 3 | Generation and chat: verify Groq protocol, adapter, timeouts within function limits, prompt construction, retrieval→generation, fallbacks, shared-store rate limiting | Grounded answers on the evaluation set; unsupported questions decline |
 | 4 | Authentication and appointments: auth, RBAC, departments/doctors/schedules/appointments, concurrency-safe booking, cancel/reschedule, audit events | All appointment tests pass incl. concurrency and unauthorized access |
 | 5 | UI integration: chat UI, patient flows, doctor and admin dashboards, loading/timeout/error/empty states | UI works against the real route handlers |
 | 6 | Cloud deployment: hosting setup, environment variables, hosted database, migrations, preview/demo environments, platform-limit verification | Deployed app works end to end; secrets and exposure checks pass |
@@ -605,7 +605,7 @@ For each feature:
 
 - The app runs locally from a clean checkout with documented commands and deploys to the chosen cloud platform.
 - Gemini embeddings work with the configured vector schema.
-- OpenCode Zen generates responses through the verified API interface within function time limits.
+- Groq generates responses through the verified API interface within function time limits.
 - The RAG pipeline returns source-grounded answers; unsupported questions trigger a fallback.
 - Appointment operations use authoritative database logic with concurrency-safe booking.
 - Authorization prevents access outside the user's role and scope, enforced server-side.
@@ -624,7 +624,7 @@ For each feature:
 4. Background-job mechanism for ingestion (queue, cron, platform background task, or admin-driven stepping).
 5. Object storage for uploaded documents (Supabase Storage is one option; not assumed).
 6. Shared rate-limit store.
-7. Which OpenCode Zen model will be used (verify current availability, protocol, and cost).
+7. Which Groq model will be used (verify current availability, protocol, and cost).
 8. Approved hospital documents and sources for the knowledge base.
 9. Doctor schedule and appointment rules (cancellation windows, reschedule limits).
 10. Chatbot available to unauthenticated visitors, or patients only?

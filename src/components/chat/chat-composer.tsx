@@ -74,7 +74,7 @@ export function ChatComposer({
       <div className="mt-2 flex items-start justify-between gap-4 px-3 text-xs leading-5 text-ink-muted">
         <p>
           AI-generated · not medical advice · not an appointment confirmation · messages are
-          stored and sent to Google Gemini and OpenCode Zen.
+          stored and sent to Google Gemini and Groq.
         </p>
         <p className="shrink-0 tabular-nums">
           {draft.length}/{MESSAGE_MAX_LENGTH}

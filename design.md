@@ -48,7 +48,7 @@ This document does **not**:
 - Add product functionality or change acceptance criteria.
 - Define API contracts, authorization behavior, database schema, or business rules.
 - Select a chart library, icon library, component library, or CSS framework.
-- Approve a new dependency. Sonner is approved and installed (§5.9); any further dependency requires approval.
+- Approve a new dependency. Sonner is approved and installed (§5.9). Recharts and motion (for the React Bits CountUp copy in `src/components/ui/count-up.tsx`) were approved for analytics on 2026-11-05; any further dependency requires approval.
 - Replace `SPEC.md` or `TEST.md`.
 - Approve a hospital logo, photography, or official brand palette. Those require human input.
 
@@ -60,7 +60,7 @@ This document does **not**:
 - Geist Sans and Geist Mono via `next/font/google` in `src/app/layout.tsx`.
 - A stock create-next-app landing page and a working auth slice under `src/app/(auth)`, `src/app/account`, and `src/components/auth`.
 - Vitest and Testing Library.
-- `sonner@^2.0.8` as the single toast implementation; no icon, chart, or UI component package.
+- `sonner@^2.0.8` as the single toast implementation; `recharts@3.10.1` for analytics charts and `motion@12.43.0` for the KPI count-up (both approved 2026-11-05, ADM-11); no icon or UI component package.
 
 Other screens may still use one-off utility classes until their own approved migration tasks. Do not perform an unrelated visual rewrite inside a feature task.
 
@@ -767,7 +767,7 @@ Rules:
 - Red and green are not acceptable as the only distinction between success and failure.
 - Measured values and AI-generated explanations are visually separate. AI text gets an explicit label and a distinct surface, with a divider from measurements.
 - Charts do not imply causation.
-- No chart library until approved and evaluated for bundle size, accessibility, and server/client boundaries.
+- Recharts is the approved chart library (2026-11-05). It is imported only by `src/components/analytics/analytics-charts.tsx`, so it stays in the analytics route's client bundle; every chart sits next to its data table.
 
 ### 4.7 Layout tokens summary
 
@@ -1251,6 +1251,7 @@ Applies to `UI-005`, `FR-002`, and `FR-006`.
 
 - Desktop: 240px sidebar, 64px top bar, content container with a 12-column grid.
 - Mobile: sidebar becomes an accessible drawer; no hidden-only navigation.
+- `/admin` (2026-11-05): uses the doctor workspace's icon rail instead of the 240px sidebar. It is sticky and full height (it stays put while the page scrolls), 64px collapsed with tooltips and 224px expanded with labels (an overlay below `lg`), and the signed-in admin and sign-out sit at its foot. The 64px top bar keeps the breadcrumb. `/front-desk` uses the same rail (shared `WorkspaceRail`).
 - Page title, short description, and one primary action per screen. Use secondary buttons and a clearly separated danger zone for additional actions.
 
 **Density:**
@@ -1284,7 +1285,7 @@ Applies to `UI-006` and `FR-007`.
 - Loading: skeleton cards/charts with fixed dimensions; no layout shift.
 - Error: one clear error region with retry for reads; a single chart failure does not blank the page unless the page cannot function.
 - Date/time uses Asia/Manila by default and states the timezone.
-- No chart library until approved.
+- Charts use Recharts (approved 2026-11-05); KPI numbers count up once on mount and render their final value under reduced motion.
 
 ### 6.9 State patterns by screen
 
@@ -1303,8 +1304,8 @@ Applies to `UI-006` and `FR-007`.
 
 Applies to `SPEC-frontdesk.md` (FD-001). Added 2026-11-03.
 
-- Uses the administrator shell (§6.7): 240px white sidebar with the brand and view navigation, a 64px top bar with a breadcrumb ("Front desk / <view>"), the signed-in staff name, and sign-out, and the content area on `canvas`. The active nav item uses `primary-soft` with `primary` text.
-- Below `lg`, the sidebar stacks above the content as a top section (§5 Tablet); navigation is never hidden.
+- Uses the staff icon rail shared with `/admin` (§6.7, 2026-11-05): sticky and full height with the view navigation, the signed-in staff name, and sign-out; a 64px top bar with a breadcrumb ("Front desk / <view>") and the ⌘K search; the content area on `canvas`. The active nav item uses `primary-soft` with `primary` text.
+- Below `lg`, the rail stays visible collapsed, and its expanded state overlays the page; navigation is never hidden.
 - The sidebar lists only views that exist. Each FD-001 slice adds its own item: Overview and Requests (PR 3) so far. The breadcrumb's last step is the page `<h1>`; earlier steps link back.
 - **Request queue** (`/front-desk/requests`): a GET filter row (status, appointment date, doctor, specialty, "Clear filters") above one table on `surface` with `shadow-card`. Columns: request ID (monospace, 8 characters), patient with email and phone (or "not provided"), specialty, doctor, requested date and time, submitted, status badge, and a "View" link. Below `lg` the table scrolls inside its frame so the page never scrolls sideways. Pending is the default filter.
 - **Request details** (`/front-desk/requests/<id>`): cards in a two-column grid at `lg` (one column below): Patient, Appointment (as a definition list), Patient-provided information (with the note that chat transcripts are not shared), and Status history as a timeline, oldest first, with the actor and role.

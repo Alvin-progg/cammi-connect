@@ -4,7 +4,7 @@ import {
 } from "@/server/appointments/repository";
 import { resolvePatientForApi } from "@/server/auth/dal";
 import { embedTexts } from "@/server/ai/gemini-embeddings";
-import { generate } from "@/server/ai/opencode-zen";
+import { generate } from "@/server/ai/groq";
 import { supabaseAvailabilitySource } from "@/server/availability/repository";
 import { handleChatRequest } from "@/server/chat/handler";
 import { supabaseChatRepository } from "@/server/chat/repository";

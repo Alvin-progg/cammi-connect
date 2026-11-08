@@ -30,13 +30,11 @@ GEMINI_API_KEY=...
 # Optional: defaults shown.
 GEMINI_EMBEDDING_MODEL=gemini-embedding-001
 EMBEDDING_DIMENSIONS=768
-OPENCODE_ZEN_API_KEY=...
-# Pay-as-you-go (needs Console credit): https://opencode.ai/inference/openai/v1
-# OpenCode Go subscription (chosen, ADR-0006): https://opencode.ai/inference/go/openai/v1
-OPENCODE_ZEN_BASE_URL=https://opencode.ai/inference/go/openai/v1
-# A model served on chat-completions (e.g. glm-5.3-flash); free-tier models only
-# work through the OpenCode client.
-OPENCODE_ZEN_MODEL=...
+GROQ_API_KEY=...
+# A Groq chat model that supports response_format json_object (see ADR-0006).
+GROQ_MODEL=...
+# Optional: default shown.
+GROQ_BASE_URL=https://api.groq.com/openai/v1
 # Optional: per-attempt timeout and extra attempts for transient failures.
 LLM_TIMEOUT_SECONDS=20
 LLM_MAX_RETRIES=2
@@ -48,7 +46,7 @@ LLM_MAX_RETRIES=2
 - The Data API must be enabled for the project so the service-role client can reach the
   tables.
 - Do not paste secrets into issue trackers or chat.
-- `GEMINI_API_KEY` and `OPENCODE_ZEN_API_KEY` are server-only, like the service-role key.
+- `GEMINI_API_KEY` and `GROQ_API_KEY` are server-only, like the service-role key.
   The app validates them lazily, only when a provider is first called.
 
 ### Provider smoke test
@@ -58,7 +56,7 @@ npm run smoke:providers
 ```
 
 It makes one Gemini embedding call (expects a vector of `EMBEDDING_DIMENSIONS`) and one
-OpenCode Zen chat completion, first with `response_format: json_object` and, if that is
+Groq chat completion, first with `response_format: json_object` and, if that is
 rejected, without it. It prints only pass/fail lines and HTTP statuses. Record the
 results in ADR-0006 "Smoke results". Each run uses a small amount of provider quota.
 

@@ -14,7 +14,7 @@ import {
 import { IDLE_STATE } from "@/lib/chat/state";
 import type { Department, DoctorSummary, Specialty } from "@/lib/directory/types";
 import { ProviderError } from "@/server/ai/http";
-import type { GenerateInput } from "@/server/ai/opencode-zen";
+import type { GenerateInput } from "@/server/ai/groq";
 import { handleTurn, type TurnDeps } from "@/server/chat/orchestrator";
 import type { ChatTools, DoctorLookup } from "@/server/chat/tools";
 import type { KnowledgeSearchResult } from "@/server/knowledge/service";
@@ -152,7 +152,6 @@ describe("handleTurn", () => {
     const smallTalk = generate.mock.calls[1][0];
     expect(smallTalk.systemPrompt).toBe(SMALL_TALK_SYSTEM_PROMPT);
     expect(smallTalk.json).toBeUndefined();
-    expect(smallTalk.sessionId).toBe(CONVERSATION_ID);
     expect(smallTalk.messages).toEqual([
       { role: "assistant", content: "Earlier reply" },
       { role: "user", content: "Hello" },
@@ -239,7 +238,6 @@ describe("handleTurn", () => {
 
     const input = generate.mock.calls[0][0];
     expect(input.json).toBe(true);
-    expect(input.sessionId).toBe(CONVERSATION_ID);
     expect(input.messages).toEqual([
       { role: "user", content: "Hi" },
       { role: "assistant", content: "Hello" },
@@ -266,7 +264,7 @@ describe("handleTurn", () => {
   it("lets provider failures propagate", async () => {
     const generate = vi
       .fn<(input: GenerateInput) => Promise<string>>()
-      .mockRejectedValue(new ProviderError("opencode-zen", "unavailable", 503));
+      .mockRejectedValue(new ProviderError("groq", "unavailable", 503));
 
     await expect(handleTurn(turn("Hello"), turnDeps(generate))).rejects.toBeInstanceOf(
       ProviderError,
@@ -327,7 +325,6 @@ describe("handleTurn service_inquiry", () => {
 
     const answerCall = generate.mock.calls[1][0];
     expect(answerCall.json).toBeFalsy();
-    expect(answerCall.sessionId).toBe(CONVERSATION_ID);
     expect(answerCall.systemPrompt).toMatch(/could not be verified/i);
     expect(answerCall.messages).toHaveLength(1);
     expect(answerCall.messages[0].content).toContain("<<<CONTEXT");
@@ -376,7 +373,7 @@ describe("handleTurn service_inquiry", () => {
     const generate = vi
       .fn<(input: GenerateInput) => Promise<string>>()
       .mockResolvedValueOnce(JSON.stringify({ intent: "service_inquiry" }))
-      .mockRejectedValueOnce(new ProviderError("opencode-zen", "timeout"));
+      .mockRejectedValueOnce(new ProviderError("groq", "timeout"));
 
     await expect(
       handleTurn(

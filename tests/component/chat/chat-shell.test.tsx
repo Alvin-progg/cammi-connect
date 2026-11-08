@@ -157,7 +157,7 @@ describe("ChatShell empty state", () => {
     const notice = screen.getByText(/AI-generated/);
     expect(notice).toHaveTextContent("not medical advice");
     expect(notice).toHaveTextContent("not an appointment confirmation");
-    expect(notice).toHaveTextContent(/stored and sent to Google Gemini and OpenCode Zen/);
+    expect(notice).toHaveTextContent(/stored and sent to Google Gemini and Groq/);
   });
 });
 

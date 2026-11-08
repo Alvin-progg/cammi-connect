@@ -648,6 +648,12 @@ Charts library consistent with the rest of the app (e.g. Recharts); blue/white p
 - Integration: export endpoint 403 for non-admin; CSV rows match function output.
 - E2E: change department filter → all KPIs and charts update; export downloads file.
 
+## Status as built (2026-11-05)
+- `/admin/analytics`: URL filters (range presets this month / last 3 / last 12 months / custom inclusive dates up to 24 months, doctor, department), 4 KPI cards with definition popovers and a pending snapshot line, 6 charts each with a data table and empty state, footer disclaimer.
+- Charts: Recharts 3.10.1, isolated in `src/components/analytics/analytics-charts.tsx`. The heatmap is a tinted HTML table (Recharts has no heatmap). KPI numbers use a trimmed React Bits CountUp (`src/components/ui/count-up.tsx`, MIT + Commons Clause notice kept) on `motion` 12.43.0.
+- CSV: `GET /api/admin/analytics/export?dataset=…` with the page's params; formula-injection guard; audited as `analytics.export`; 403 for non-admins.
+- E2E not run (Playwright not installed).
+
 
 ---
 

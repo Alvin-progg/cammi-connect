@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
@@ -117,5 +118,24 @@ describe("FrontDeskShell", () => {
     );
     expect(screen.getByRole("heading", { level: 1, name: "Overview" })).toBeInTheDocument();
     expect(screen.getByText("Overview content")).toBeInTheDocument();
+  });
+
+  it("keeps the rail fixed in view while the page scrolls", () => {
+    renderOverview();
+
+    const rail = screen.getByRole("navigation", { name: "Front desk" }).closest("aside");
+    expect(rail).toHaveClass("sticky", "top-0", "h-dvh");
+  });
+
+  it("expands the rail to show section labels and the staff member's role", async () => {
+    const user = userEvent.setup();
+    renderOverview();
+
+    await user.click(screen.getByRole("button", { name: "Expand menu" }));
+
+    const nav = screen.getByRole("navigation", { name: "Front desk" });
+    expect(screen.getByRole("button", { name: "Collapse menu" })).toHaveAttribute("aria-expanded", "true");
+    expect(within(nav).getByRole("link", { name: "Daily schedule" })).toHaveTextContent(/^Daily schedule$/);
+    expect(screen.getByText("Synthetic Front Desk")).toBeInTheDocument();
   });
 });

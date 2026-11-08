@@ -22,7 +22,7 @@ import {
 } from "@/lib/chat/safety";
 import type { BookingState } from "@/lib/chat/state";
 import type { DoctorSummary } from "@/lib/directory/types";
-import type { ChatTurn, GenerateInput } from "@/server/ai/opencode-zen";
+import type { ChatTurn, GenerateInput } from "@/server/ai/groq";
 import type { KnowledgeSearchResult } from "@/server/knowledge/service";
 
 import { handleAppointmentEvent, showPatientAppointments } from "./appointments";
@@ -132,7 +132,6 @@ async function answerHospitalQuestion(
         content: `${formatRagContext(search.chunks)}\n\nPatient question: ${question}`,
       },
     ],
-    sessionId: input.conversationId,
   });
   const reply = answer.trim();
   if (!reply) {
@@ -149,7 +148,6 @@ async function answerSmallTalk(text: string, input: TurnInput, deps: TurnDeps): 
   const answer = await deps.generate({
     systemPrompt: SMALL_TALK_SYSTEM_PROMPT,
     messages: [...input.history.slice(-HISTORY_LIMIT), { role: "user", content: text }],
-    sessionId: input.conversationId,
   });
   const reply = answer.trim();
   return { reply: reply ? clipReply(reply) : CAMI_INTRO, payload: null };
@@ -250,7 +248,6 @@ async function replyToMessage(
   const raw = await deps.generate({
     systemPrompt: extractionSystemPrompt(input.now),
     messages: [...input.history.slice(-HISTORY_LIMIT), { role: "user", content: text }],
-    sessionId: input.conversationId,
     json: true,
   });
 

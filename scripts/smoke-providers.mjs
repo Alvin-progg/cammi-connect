@@ -3,16 +3,17 @@
  * Provider smoke test for AI-APT-001 S0 (ADR-0006).
  *
  * Run with: npm run smoke:providers
- * Requires .env.local with GEMINI_API_KEY, OPENCODE_ZEN_API_KEY,
- * OPENCODE_ZEN_BASE_URL, and OPENCODE_ZEN_MODEL. GEMINI_EMBEDDING_MODEL and
- * EMBEDDING_DIMENSIONS are optional (defaults: gemini-embedding-001, 768).
+ * Requires .env.local with GEMINI_API_KEY, GROQ_API_KEY, and GROQ_MODEL.
+ * GEMINI_EMBEDDING_MODEL, EMBEDDING_DIMENSIONS, and GROQ_BASE_URL are optional
+ * (defaults: gemini-embedding-001, 768, https://api.groq.com/openai/v1).
  *
- * Makes one Gemini embedding call and one Zen chat completion with synthetic
+ * Makes one Gemini embedding call and one Groq chat completion with synthetic
  * text. It prints only pass/fail lines and HTTP statuses, never keys or
  * response bodies.
  */
 
 const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
+const GROQ_DEFAULT_BASE_URL = "https://api.groq.com/openai/v1";
 const TIMEOUT_MS = 30_000;
 
 function requireEnv(name) {
@@ -63,18 +64,12 @@ async function smokeGemini() {
   return false;
 }
 
-async function smokeZen() {
-  const apiKey = requireEnv("OPENCODE_ZEN_API_KEY");
-  const baseUrl = requireEnv("OPENCODE_ZEN_BASE_URL").replace(/\/+$/, "");
-  const model = requireEnv("OPENCODE_ZEN_MODEL");
+async function smokeGroq() {
+  const apiKey = requireEnv("GROQ_API_KEY");
+  const baseUrl = (process.env.GROQ_BASE_URL || GROQ_DEFAULT_BASE_URL).replace(/\/+$/, "");
+  const model = requireEnv("GROQ_MODEL");
   const url = `${baseUrl}/chat/completions`;
-  // OpenCode Go rejects requests without a session ID and asks clients to send
-  // their own user agent (ADR-0006). One ID covers both requests of this run.
-  const headers = {
-    authorization: `Bearer ${apiKey}`,
-    "user-agent": "cammi-connect-smoke/0.1",
-    "x-opencode-session": crypto.randomUUID(),
-  };
+  const headers = { authorization: `Bearer ${apiKey}` };
   const messages = [
     {
       role: "system",
@@ -91,7 +86,7 @@ async function smokeZen() {
   const jsonModeContent = jsonMode.json?.choices?.[0]?.message?.content;
   if (jsonMode.ok && typeof jsonModeContent === "string") {
     const parses = isJson(jsonModeContent);
-    console.log(`PASS  Zen ${model}: chat completion with response_format json_object`);
+    console.log(`PASS  Groq ${model}: chat completion with response_format json_object`);
     console.log(`INFO  json mode supported: yes; reply parses as JSON: ${parses ? "yes" : "no"}`);
     return true;
   }
@@ -101,13 +96,13 @@ async function smokeZen() {
   if (jsonMode.status !== 400 && jsonMode.status !== 422) {
     const hint =
       jsonMode.status === 429
-        ? " (rate limited or quota exhausted; free-tier models only work through the OpenCode client)"
-        : jsonMode.status === 402
-          ? " (no credit: add a balance or enable auto-recharge in the Zen console)"
-          : jsonMode.status === 401 || jsonMode.status === 403
-          ? " (check OPENCODE_ZEN_API_KEY and the model's access)"
-          : "";
-    console.error(`FAIL  Zen ${model}: HTTP ${jsonMode.status}${hint}`);
+        ? " (rate limited: wait, or check the plan's limits in the Groq console)"
+        : jsonMode.status === 401 || jsonMode.status === 403
+          ? " (check GROQ_API_KEY and the model's access)"
+          : jsonMode.status === 404
+            ? " (check GROQ_MODEL against the Groq model list)"
+            : "";
+    console.error(`FAIL  Groq ${model}: HTTP ${jsonMode.status}${hint}`);
     return false;
   }
 
@@ -115,13 +110,13 @@ async function smokeZen() {
   const plain = await postJson(url, headers, { model, messages });
   const plainContent = plain.json?.choices?.[0]?.message?.content;
   if (plain.ok && typeof plainContent === "string") {
-    console.log(`PASS  Zen ${model}: chat completion without response_format`);
+    console.log(`PASS  Groq ${model}: chat completion without response_format`);
     console.log(
       `INFO  json mode supported: no; use prompt-instructed JSON fallback (reply parses as JSON: ${isJson(plainContent) ? "yes" : "no"})`,
     );
     return true;
   }
-  console.error(`FAIL  Zen ${model}: HTTP ${plain.status}, no message content`);
+  console.error(`FAIL  Groq ${model}: HTTP ${plain.status}, no message content`);
   return false;
 }
 
@@ -144,7 +139,7 @@ async function run(label, check) {
   }
 }
 
-const results = [await run("Gemini", smokeGemini), await run("Zen", smokeZen)];
+const results = [await run("Gemini", smokeGemini), await run("Groq", smokeGroq)];
 if (results.every(Boolean)) {
   console.log("Provider smoke test passed.");
 } else {

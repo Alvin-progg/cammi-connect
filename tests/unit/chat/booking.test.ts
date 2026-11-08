@@ -7,7 +7,7 @@ import { matchDoctorsByName } from "@/lib/chat/resolve";
 import type { ChatEvent } from "@/lib/chat/schemas";
 import { IDLE_STATE, type BookingState } from "@/lib/chat/state";
 import type { DoctorSummary, Specialty } from "@/lib/directory/types";
-import type { GenerateInput } from "@/server/ai/opencode-zen";
+import type { GenerateInput } from "@/server/ai/groq";
 import { handleTurn, type TurnDeps, type TurnInput } from "@/server/chat/orchestrator";
 import type { ChatTools, TimeSlot } from "@/server/chat/tools";
 
