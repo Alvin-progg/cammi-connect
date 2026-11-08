@@ -9,7 +9,7 @@ import type { AuthFormState } from "@/lib/auth/form-state";
 import { PASSWORD_MIN_LENGTH } from "@/lib/auth/schemas";
 import { REGISTER_ERROR_TOAST_ID } from "@/lib/auth/toast-ids";
 
-import { CheckCircleIcon } from "./auth-icons";
+import { CircleCheckIcon } from "lucide-react";
 import { FormField } from "./form-field";
 import { useMascot } from "./mascot-stage";
 import { SubmitButton } from "./submit-button";
@@ -50,7 +50,7 @@ export function RegisterForm({ next }: { next?: string }) {
         role="status"
         className="flex items-start gap-3 rounded-xl bg-success-soft px-4 py-4 text-sm leading-6 text-success-soft-ink text-pretty"
       >
-        <CheckCircleIcon className="mt-0.5 size-5 shrink-0" />
+        <CircleCheckIcon className="mt-0.5 size-5 shrink-0" />
         <p>{state.success}</p>
       </div>
     );

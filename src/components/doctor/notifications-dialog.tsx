@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { BellIcon } from "./icons";
+import { BellIcon } from "lucide-react";
 
 const OpenNotificationsContext = createContext<(() => void) | null>(null);
 

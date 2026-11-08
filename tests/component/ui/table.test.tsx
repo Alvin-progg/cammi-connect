@@ -1,12 +1,12 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { TableFrame } from "@/components/front-desk/table-frame";
+import { Table } from "@/components/ui/data";
 
-describe("TableFrame", () => {
+describe("Table", () => {
   it("names the table with a caption inside a keyboard-scrollable region", () => {
     render(
-      <TableFrame label="Daily schedule" minWidthClass="min-w-[60rem]">
+      <Table label="Daily schedule" minWidthClass="min-w-[60rem]">
         <thead>
           <tr>
             <th scope="col">Time</th>
@@ -17,7 +17,7 @@ describe("TableFrame", () => {
             <td>9:30 AM</td>
           </tr>
         </tbody>
-      </TableFrame>,
+      </Table>,
     );
 
     // design.md §5.7: a wide table scrolls in a focusable, labelled wrapper.

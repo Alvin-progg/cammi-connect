@@ -2,7 +2,7 @@
 
 import { MESSAGE_MAX_LENGTH } from "@/lib/chat/schemas";
 
-import { ArrowUpIcon, ClockIcon } from "./icons";
+import { ArrowUpIcon, ClockIcon } from "lucide-react";
 
 export function ChatComposer({
   draft,

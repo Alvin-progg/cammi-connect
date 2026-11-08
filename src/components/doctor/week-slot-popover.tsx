@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { AppointmentStatusBadge } from "@/components/appointments/appointment-status-badge";
+import { StatusBadge } from "@/components/ui/badge";
 import { formatManilaShortDate } from "@/lib/appointments/format";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
 import type { WeekBlock } from "@/lib/appointments/week";
@@ -11,7 +11,7 @@ import {
   AppointmentActions,
   type AppointmentHistoryItem,
 } from "./appointment-actions";
-import { CloseIcon } from "./icons";
+import { XIcon } from "lucide-react";
 import { patientInitials } from "./slot-tones";
 
 /** Blocks in the lower part of the grid open their popover upward. */
@@ -116,7 +116,7 @@ export function WeekSlotPopover({
           onClick={() => onClose({ restoreFocus: true })}
           className="focus-ring -mr-1 -mt-1 inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-muted transition-[color,background-color,transform] duration-150 ease-snappy hover:bg-surface-muted hover:text-ink active:scale-[0.97] motion-reduce:transition-none"
         >
-          <CloseIcon className="size-4" />
+          <XIcon className="size-4" />
         </button>
       </div>
 
@@ -130,7 +130,7 @@ export function WeekSlotPopover({
         <div>
           <dt className="text-xs text-ink-muted">Status</dt>
           <dd className="mt-1">
-            <AppointmentStatusBadge status={appointment.status} />
+            <StatusBadge status={appointment.status} />
           </dd>
         </div>
         <div>

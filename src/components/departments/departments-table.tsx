@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-import { ActiveBadge } from "@/components/admin/active-badge";
-import { EmptyState } from "@/components/admin/empty-state";
-import { CELL, HEADER_CELL, ROW, TableFrame } from "@/components/front-desk/table-frame";
+import { ActiveBadge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/data";
+import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
 import { DEPARTMENT_STATS_WINDOW_DAYS, type DepartmentOverview } from "@/lib/departments/types";
 
 export function DepartmentsTable({ departments }: { departments: DepartmentOverview[] }) {
@@ -11,7 +11,7 @@ export function DepartmentsTable({ departments }: { departments: DepartmentOverv
   }
 
   return (
-    <TableFrame label="Departments" minWidthClass="min-w-[44rem]">
+    <Table label="Departments" minWidthClass="min-w-[44rem]">
       <thead>
         <tr>
           <th scope="col" className={HEADER_CELL}>Name</th>
@@ -43,6 +43,6 @@ export function DepartmentsTable({ departments }: { departments: DepartmentOverv
           </tr>
         ))}
       </tbody>
-    </TableFrame>
+    </Table>
   );
 }

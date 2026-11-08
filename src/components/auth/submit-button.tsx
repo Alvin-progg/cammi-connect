@@ -1,4 +1,4 @@
-import { SpinnerIcon } from "./auth-icons";
+import { LoaderCircleIcon } from "lucide-react";
 
 /** Full-width primary submit for the auth forms; blocks double submission. */
 export function SubmitButton({
@@ -18,7 +18,7 @@ export function SubmitButton({
       className="focus-ring mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-primary-ink shadow-card transition-[background-color,transform] duration-150 ease-snappy hover:bg-primary-hover active:scale-[0.98] disabled:pointer-events-none disabled:opacity-70 motion-reduce:transition-none"
     >
       {pending ? (
-        <SpinnerIcon className="size-4 motion-safe:animate-spin" />
+        <LoaderCircleIcon className="size-4 motion-safe:animate-spin" />
       ) : null}
       {pending ? pendingLabel : label}
     </button>

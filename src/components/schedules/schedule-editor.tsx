@@ -3,7 +3,7 @@
 import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { ChevronRightIcon, PlusIcon } from "@/components/doctor/icons";
+import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import {
   formatClockTime,
   formatManilaDateTime,

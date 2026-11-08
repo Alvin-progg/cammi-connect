@@ -2,7 +2,7 @@
 
 import { useState, type ChangeEvent } from "react";
 
-import { AlertCircleIcon, EyeIcon, EyeOffIcon } from "./auth-icons";
+import { CircleAlertIcon, EyeIcon, EyeOffIcon } from "lucide-react";
 import { useMascot } from "./mascot-stage";
 
 export type FormFieldProps = {
@@ -95,7 +95,7 @@ export function FormField({
           id={errorId}
           className="flex items-start gap-1.5 text-sm leading-6 text-danger"
         >
-          <AlertCircleIcon className="mt-1 size-4 shrink-0" />
+          <CircleAlertIcon className="mt-1 size-4 shrink-0" />
           <span className="sr-only">Error:</span>{" "}
           <span>{error[0]}</span>
         </p>

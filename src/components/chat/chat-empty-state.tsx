@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { BuildingIcon, CalendarIcon, ClipboardIcon, SparkleIcon } from "./icons";
+import { Building2Icon, CalendarIcon, ClipboardListIcon, SparklesIcon } from "lucide-react";
 
 type Suggestion = {
   icon: ReactNode;
@@ -23,7 +23,7 @@ const SUGGESTIONS: Suggestion[] = [
     message: "I'd like to book an appointment.",
   },
   {
-    icon: <ClipboardIcon className="size-5" />,
+    icon: <ClipboardListIcon className="size-5" />,
     title: "My Appointments",
     description: "See the status and details of your upcoming and past visits.",
     action: "View Appointments",
@@ -31,7 +31,7 @@ const SUGGESTIONS: Suggestion[] = [
     href: "/chat?view=appointments",
   },
   {
-    icon: <BuildingIcon className="size-5" />,
+    icon: <Building2Icon className="size-5" />,
     title: "Hospital Information",
     description: "Ask about services, departments, requirements, and visit guidelines.",
     action: "Ask a Question",
@@ -56,7 +56,7 @@ export function ChatEmptyState({
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4 py-10 text-center">
       <span className="inline-flex size-11 items-center justify-center rounded-full border border-line bg-surface text-accent shadow-card">
-        <SparkleIcon className="size-5" />
+        <SparklesIcon className="size-5" />
       </span>
       <h1 className="mt-4 text-3xl font-medium tracking-tight text-ink text-balance">
         {salutation}, <span className="text-ink-muted">{firstName}</span>

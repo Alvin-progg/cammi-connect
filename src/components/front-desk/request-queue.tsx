@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import Link from "next/link";
 
-import { AppointmentStatusBadge } from "@/components/appointments/appointment-status-badge";
+import { StatusBadge } from "@/components/ui/badge";
 import { todayInManila } from "@/lib/appointments/filters";
 import {
   formatManilaDateTime,
@@ -14,8 +14,8 @@ import {
   type RequestQueueItem,
 } from "@/lib/front-desk/requests";
 
-import { EmptyState } from "./empty-state";
-import { CELL, HEADER_CELL, ROW, TableFrame } from "./table-frame";
+import { EmptyState } from "@/components/ui/data";
+import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
 
 
 /**
@@ -41,7 +41,7 @@ export function RequestQueue({
       <p className="text-sm text-ink-secondary">
         {items.length === 1 ? "1 request" : `${items.length} requests`}
       </p>
-      <TableFrame label="Appointment requests" minWidthClass="min-w-[56rem]">
+      <Table label="Appointment requests" minWidthClass="min-w-[56rem]">
         <thead>
           <tr>
             <th scope="col" className={HEADER_CELL}>Request</th>
@@ -91,7 +91,7 @@ export function RequestQueue({
                   {formatManilaDateTime(item.createdAt)}
                 </td>
                 <td className={CELL}>
-                  <AppointmentStatusBadge status={item.status} />
+                  <StatusBadge status={item.status} />
                 </td>
                 <td className={clsx(CELL, "text-right")}>
                   <Link
@@ -106,7 +106,7 @@ export function RequestQueue({
             );
           })}
         </tbody>
-      </TableFrame>
+      </Table>
       {limitReached ? (
         <p className="text-sm text-ink-secondary">Showing the first {REQUEST_QUEUE_LIMIT} requests. Narrow the filters to
           see more.</p>

@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import Link from "next/link";
 
-import { AppointmentStatusBadge } from "@/components/appointments/appointment-status-badge";
+import { StatusBadge } from "@/components/ui/badge";
 import { formatManilaTime } from "@/lib/appointments/format";
 import { BOOKING_SOURCE_LABELS, formatRequestId } from "@/lib/front-desk/requests";
 import {
@@ -11,8 +11,8 @@ import {
 } from "@/lib/front-desk/schedule";
 
 import { AttendanceActions } from "./attendance-actions";
-import { EmptyState } from "./empty-state";
-import { CELL, HEADER_CELL, ROW, TableFrame } from "./table-frame";
+import { EmptyState } from "@/components/ui/data";
+import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
 
 
 /**
@@ -41,7 +41,7 @@ export function DailySchedule({
       <p className="text-sm text-ink-secondary">
         {items.length === 1 ? "1 appointment" : `${items.length} appointments`}
       </p>
-      <TableFrame label="Daily schedule" minWidthClass="min-w-[60rem]">
+      <Table label="Daily schedule" minWidthClass="min-w-[60rem]">
         <thead>
           <tr>
             <th scope="col" className={HEADER_CELL}>Time</th>
@@ -75,7 +75,7 @@ export function DailySchedule({
                     : "Not specified"}
                 </td>
                 <td className={CELL}>
-                  <AppointmentStatusBadge status={item.status} />
+                  <StatusBadge status={item.status} />
                 </td>
                 <td className={CELL}>
                   <span className="inline-flex items-center rounded-full border border-line bg-surface-muted px-2.5 py-0.5 text-xs font-medium text-ink-secondary">
@@ -102,7 +102,7 @@ export function DailySchedule({
             );
           })}
         </tbody>
-      </TableFrame>
+      </Table>
       {limitReached ? (
         <p className="text-sm text-ink-secondary">
           {`Showing the first ${SCHEDULE_LIMIT} appointments. Narrow the filters to see more.`}

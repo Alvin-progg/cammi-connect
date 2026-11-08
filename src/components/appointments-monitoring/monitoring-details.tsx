@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { AppointmentStatusBadge } from "@/components/appointments/appointment-status-badge";
+import { StatusBadge } from "@/components/ui/badge";
 import { AppointmentTimeline } from "@/components/appointments/appointment-timeline";
 import { formatManilaDateTime } from "@/lib/appointments/format";
 import type { MonitoringDetails } from "@/lib/appointments/monitoring";
@@ -44,7 +44,7 @@ export function MonitoringDetailsView({ appointment }: { appointment: Monitoring
             <span className="font-mono text-xs">{formatRequestId(appointment.id)}</span>
           </Field>
           <Field label="Status">
-            <AppointmentStatusBadge status={appointment.status} />
+            <StatusBadge status={appointment.status} />
           </Field>
           <Field label="Doctor">{appointment.doctorName}</Field>
           <Field label="Department">{appointment.departmentName ?? "No department"}</Field>

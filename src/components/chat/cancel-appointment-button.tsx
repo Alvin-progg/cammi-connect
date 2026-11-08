@@ -3,15 +3,13 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { buttonVariants } from "@/components/ui/button";
 import {
   cancelPatientAppointmentAction,
   type AppointmentActionState,
 } from "@/server/appointments/actions";
 
 const IDLE_STATE: AppointmentActionState = { status: "idle" };
-
-const BUTTON_BASE =
-  "focus-ring inline-flex min-h-11 items-center justify-center rounded-lg border px-4 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none";
 
 /**
  * Cancel for one upcoming appointment on the My appointments page. A modal
@@ -52,7 +50,7 @@ export function CancelAppointmentButton({
           setIsOpen(true);
           dialogRef.current?.showModal();
         }}
-        className={`${BUTTON_BASE} border-line-strong bg-surface text-danger hover:bg-danger-soft`}
+        className={buttonVariants({ variant: "outlineDanger" })}
       >
         Cancel
       </button>
@@ -87,7 +85,7 @@ export function CancelAppointmentButton({
               <button
                 type="button"
                 onClick={closeDialog}
-                className={`${BUTTON_BASE} border-transparent bg-transparent text-ink hover:bg-surface-muted`}
+                className={buttonVariants({ variant: "ghost" })}
               >
                 Keep appointment
               </button>
@@ -95,7 +93,7 @@ export function CancelAppointmentButton({
                 type="submit"
                 disabled={pending}
                 aria-busy={pending || undefined}
-                className={`${BUTTON_BASE} border-danger bg-danger text-danger-ink hover:bg-danger-hover`}
+                className={buttonVariants({ variant: "danger" })}
               >
                 {pending ? "Cancelling…" : "Yes, cancel it"}
               </button>

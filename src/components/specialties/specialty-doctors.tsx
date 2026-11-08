@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import { ActiveBadge } from "@/components/admin/active-badge";
-import { EmptyState } from "@/components/admin/empty-state";
+import { ActiveBadge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/data";
 import type { DoctorSummary } from "@/lib/directory/types";
 
 /** Doctors who have the specialty, with a link to manage them under Doctors. */

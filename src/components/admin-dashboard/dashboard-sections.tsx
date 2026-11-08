@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { EmptyState } from "@/components/admin/empty-state";
+import { EmptyState } from "@/components/ui/data";
 import { DataTable } from "@/components/analytics/data-table";
 import { AUDIT_ACTION_LABELS } from "@/components/appointments/appointment-timeline";
 import { formatRate } from "@/lib/analytics/display";

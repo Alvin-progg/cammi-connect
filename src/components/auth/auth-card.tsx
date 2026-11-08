@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { StethoscopeIcon } from "@/components/doctor/icons";
+import { StethoscopeIcon } from "lucide-react";
 
 import { HospitalIllustration } from "./hospital-illustration";
 import { MascotStage } from "./mascot-stage";

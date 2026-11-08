@@ -6,7 +6,7 @@ import {
   type NotificationType,
 } from "@/lib/notifications/types";
 
-import { BellIcon } from "./icons";
+import { BellIcon } from "lucide-react";
 import { MarkAllReadButton, MarkReadButton } from "./notification-actions";
 
 const TYPE_TONES: Record<NotificationType, string> = {

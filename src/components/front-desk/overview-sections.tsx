@@ -2,7 +2,7 @@ import clsx from "clsx";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { AppointmentStatusBadge } from "@/components/appointments/appointment-status-badge";
+import { StatusBadge } from "@/components/ui/badge";
 import { formatManilaDateTime, formatManilaTime } from "@/lib/appointments/format";
 import type { AppointmentSearchItem, RecentAppointment } from "@/lib/front-desk/overview";
 import {
@@ -12,8 +12,8 @@ import {
 } from "@/lib/front-desk/requests";
 import type { ScheduleItem } from "@/lib/front-desk/schedule";
 
-import { EmptyState } from "./empty-state";
-import { CELL, HEADER_CELL, ROW, TableFrame } from "./table-frame";
+import { EmptyState } from "@/components/ui/data";
+import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
 
 /** Overview lists (SPEC-frontdesk §4). Each links to the full view for more. */
 
@@ -98,7 +98,7 @@ export function TodayScheduleList({
               <span className="text-sm font-medium tabular-nums text-ink">
                 {formatManilaTime(item.scheduledAt)}
               </span>
-              <AppointmentStatusBadge status={item.status} />
+              <StatusBadge status={item.status} />
             </span>
             <span className="text-sm text-ink">{item.patientName}</span>
             <span className="text-sm text-ink-secondary">{item.doctorName}</span>
@@ -130,7 +130,7 @@ export function RecentActivityList({
         <Row key={item.id} id={item.id}>
           <span className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium text-ink">{item.patientName}</span>
-            <AppointmentStatusBadge status={item.status} />
+            <StatusBadge status={item.status} />
           </span>
           <span className="text-sm text-ink-secondary">
             {`${formatManilaDateTime(item.scheduledAt)} · ${item.doctorName}`}
@@ -166,7 +166,7 @@ export function AppointmentSearchResults({
     return <EmptyState>{`No appointments match “${query}”.`}</EmptyState>;
   }
   return (
-    <TableFrame label={`Search results for “${query}”`} minWidthClass="min-w-[48rem]">
+    <Table label={`Search results for “${query}”`} minWidthClass="min-w-[48rem]">
       <thead>
         <tr>
           <th scope="col" className={HEADER_CELL}>Appointment</th>
@@ -191,7 +191,7 @@ export function AppointmentSearchResults({
             </td>
             <td className={CELL}>{item.doctorName}</td>
             <td className={CELL}>
-              <AppointmentStatusBadge status={item.status} />
+              <StatusBadge status={item.status} />
             </td>
             <td className={CELL}>{BOOKING_SOURCE_LABELS[item.bookingSource]}</td>
             <td className={clsx(CELL, "text-right")}>
@@ -200,6 +200,6 @@ export function AppointmentSearchResults({
           </tr>
         ))}
       </tbody>
-    </TableFrame>
+    </Table>
   );
 }

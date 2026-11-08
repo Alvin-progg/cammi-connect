@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { AppointmentStatusBadge } from "@/components/appointments/appointment-status-badge";
+import { StatusBadge } from "@/components/ui/badge";
 import { AppointmentTimeline } from "@/components/appointments/appointment-timeline";
 import { todayInManila } from "@/lib/appointments/filters";
 import {
@@ -79,7 +79,7 @@ export function RequestDetailsView({
             <span className="font-mono text-xs">{formatRequestId(request.id)}</span>
           </Field>
           <Field label="Status">
-            <AppointmentStatusBadge status={request.status} />
+            <StatusBadge status={request.status} />
           </Field>
           <Field label="Doctor">{request.doctorName}</Field>
           <Field label="Specialty">

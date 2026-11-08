@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { DIALOG_BACKDROP_CLASS } from "./dialog-styles";
 import { FRONT_DESK_NAV_ITEMS } from "./nav-items";
 
-import { AppointmentStatusBadge } from "@/components/appointments/appointment-status-badge";
+import { StatusBadge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { formatManilaDateTime } from "@/lib/appointments/format";
 import { PATIENT_SEARCH_MIN_LENGTH } from "@/lib/front-desk/booking";
@@ -158,7 +158,7 @@ export function CommandPalette() {
                           {`${formatManilaDateTime(item.scheduledAt)} · ${item.doctorName}`}
                         </span>
                       </span>
-                      <AppointmentStatusBadge status={item.status} />
+                      <StatusBadge status={item.status} />
                     </Command.Item>
                   ))}
                 </Command.Group>

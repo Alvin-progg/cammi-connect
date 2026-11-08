@@ -23,7 +23,7 @@ import {
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
 import type { AppointmentStatus } from "@/lib/appointments/status";
 
-import { ChevronLeftIcon, ChevronRightIcon } from "./icons";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 
 const STATUS_DOT_CLASSES: Record<AppointmentStatus, string> = {
   requested: "bg-warning",

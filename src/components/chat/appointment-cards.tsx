@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 
-import { AppointmentStatusBadge } from "@/components/appointments/appointment-status-badge";
+import { buttonVariants } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/badge";
 import { formatManilaDate, formatManilaTime } from "@/lib/appointments/format";
 import { manilaDateOf } from "@/lib/chat/booking";
 import type { ChatMessagePayload } from "@/lib/chat/schemas";
 
 import {
-  BUTTON_BASE,
-  GHOST_BUTTON,
   SummaryRow,
   type CardProps,
 } from "./booking-cards";
@@ -29,8 +28,6 @@ export function isAppointmentPayload(payload: ChatMessagePayload): payload is Ap
   return APPOINTMENT_KINDS.has(payload.kind);
 }
 
-const DANGER_BUTTON = `${BUTTON_BASE} border-danger bg-danger text-danger-ink hover:bg-danger-hover`;
-const CANCEL_ROW_BUTTON = `${BUTTON_BASE} border-line-strong bg-surface text-danger hover:bg-danger-soft`;
 
 function formatWhen(start: string): string {
   return `${formatManilaDate(manilaDateOf(start))} · ${formatManilaTime(start)}`;
@@ -73,7 +70,7 @@ function AppointmentsList({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="break-words text-sm font-semibold text-ink">{item.doctorName}</p>
-                <AppointmentStatusBadge status={item.status} />
+                <StatusBadge status={item.status} />
               </div>
               {item.departmentName ? (
                 <p className="break-words text-sm text-ink-muted">{item.departmentName}</p>
@@ -88,7 +85,7 @@ function AppointmentsList({
               disabled={!interactive || busy}
               aria-label={`Cancel appointment with ${item.doctorName} on ${formatWhen(item.start)}`}
               onClick={() => onEvent({ type: "request_cancellation", appointmentId: item.id })}
-              className={CANCEL_ROW_BUTTON}
+              className={buttonVariants({ variant: "outlineDanger" })}
             >
               Cancel
             </button>
@@ -128,7 +125,7 @@ function CancelConfirmation({
             setChoice("cancel");
             onEvent({ type: "confirm_cancellation", appointmentId: payload.appointmentId });
           }}
-          className={DANGER_BUTTON}
+          className={buttonVariants({ variant: "danger" })}
         >
           {pendingCancel ? "Cancelling…" : "Yes, cancel it"}
         </button>
@@ -136,7 +133,7 @@ function CancelConfirmation({
           type="button"
           disabled={disabled}
           onClick={() => setChoice("keep")}
-          className={GHOST_BUTTON}
+          className={buttonVariants({ variant: "ghost" })}
         >
           Keep appointment
         </button>
@@ -160,7 +157,7 @@ function CancelResult({
     <div className="mt-3 rounded-lg border border-line bg-surface-muted p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-ink">Appointment cancelled</p>
-        <AppointmentStatusBadge status="cancelled" />
+        <StatusBadge status="cancelled" />
       </div>
       <dl className="mt-2 space-y-1.5 text-sm">
         <SummaryRow term="Doctor">{payload.doctorName}</SummaryRow>

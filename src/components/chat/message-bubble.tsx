@@ -6,7 +6,7 @@ import type { CardEvent, ChatMessagePayload, ChatRole } from "@/lib/chat/schemas
 
 import { AppointmentCard, isAppointmentPayload } from "./appointment-cards";
 import { BookingCard, isBookingPayload } from "./booking-cards";
-import { CheckCircleIcon, SparkleIcon } from "./icons";
+import { CircleCheckIcon, SparklesIcon } from "lucide-react";
 
 const WORD_INTERVAL_MS = 30;
 // Long replies reveal several words per tick so typing never takes much longer than this.
@@ -59,7 +59,7 @@ function AssistantAvatar() {
       aria-hidden="true"
       className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent"
     >
-      <SparkleIcon className="size-4" />
+      <SparklesIcon className="size-4" />
     </span>
   );
 }
@@ -137,7 +137,7 @@ function AssistantMessage({
       <div className="min-w-0 max-w-[70ch] sm:max-w-[85%]">
         {reveal ? (
           <p className="mb-1.5 flex h-8 items-center gap-1.5 text-xs text-ink-secondary">
-            <CheckCircleIcon className="size-4 text-success" />
+            <CircleCheckIcon className="size-4 text-success" />
             Replied in {formatSeconds(reveal.elapsedMs)}
           </p>
         ) : null}

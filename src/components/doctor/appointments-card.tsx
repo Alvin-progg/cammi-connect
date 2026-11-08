@@ -8,7 +8,7 @@ import {
   type AppointmentStatus,
 } from "@/lib/appointments/status";
 
-import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "./icons";
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "lucide-react";
 
 const PRESSABLE =
   "focus-ring pressable";

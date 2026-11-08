@@ -7,15 +7,7 @@ import { RAIL_ITEM_BASE as ITEM_BASE, RailLabel, initialsOf } from "@/components
 import type { DoctorView } from "@/lib/appointments/dashboard";
 import { signOutAction } from "@/server/auth/actions";
 
-import {
-  BellIcon,
-  CalendarIcon,
-  ChartIcon,
-  ChevronRightIcon,
-  ClipboardIcon,
-  SignOutIcon,
-  StethoscopeIcon,
-} from "./icons";
+import { BellIcon, CalendarIcon, ChartColumnIcon, ChevronRightIcon, ClipboardListIcon, LogOutIcon, StethoscopeIcon } from "lucide-react";
 import { useOpenNotifications } from "./notifications-dialog";
 
 type RailItem = {
@@ -30,7 +22,7 @@ const RAIL_ITEMS: RailItem[] = [
     label: "Appointments",
     href: "/doctor?view=week",
     views: ["week"],
-    icon: ClipboardIcon,
+    icon: ClipboardListIcon,
   },
   {
     label: "Availability",
@@ -42,7 +34,7 @@ const RAIL_ITEMS: RailItem[] = [
     label: "Statistics",
     href: "/doctor?view=stats",
     views: ["stats"],
-    icon: ChartIcon,
+    icon: ChartColumnIcon,
   },
 ];
 
@@ -194,7 +186,7 @@ export function DoctorRail({
               type="submit"
               className={`${ITEM_BASE} w-full text-ink-muted hover:bg-danger-soft hover:text-danger-soft-ink`}
             >
-              <SignOutIcon className="size-5 shrink-0" />
+              <LogOutIcon className="size-5 shrink-0" />
               <RailLabel expanded={expanded}>Sign out</RailLabel>
             </button>
           </form>

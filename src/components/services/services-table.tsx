@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-import { ActiveBadge } from "@/components/admin/active-badge";
-import { EmptyState } from "@/components/admin/empty-state";
-import { CELL, HEADER_CELL, ROW, TableFrame } from "@/components/front-desk/table-frame";
+import { ActiveBadge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/data";
+import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
 import { SERVICE_BOOKING_MODE_LABELS, type HospitalService } from "@/lib/services/types";
 
 export function ServicesTable({ services }: { services: HospitalService[] }) {
@@ -11,7 +11,7 @@ export function ServicesTable({ services }: { services: HospitalService[] }) {
   }
 
   return (
-    <TableFrame label="Services" minWidthClass="min-w-[44rem]">
+    <Table label="Services" minWidthClass="min-w-[44rem]">
       <thead>
         <tr>
           <th scope="col" className={HEADER_CELL}>Name</th>
@@ -43,6 +43,6 @@ export function ServicesTable({ services }: { services: HospitalService[] }) {
           </tr>
         ))}
       </tbody>
-    </TableFrame>
+    </Table>
   );
 }

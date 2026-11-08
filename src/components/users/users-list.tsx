@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-import { ActiveBadge } from "@/components/admin/active-badge";
-import { EmptyState } from "@/components/admin/empty-state";
-import { CELL, HEADER_CELL, ROW, TableFrame } from "@/components/front-desk/table-frame";
+import { ActiveBadge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/data";
+import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
 import { buttonVariants } from "@/components/ui/button";
 import { formatManilaDateTime, formatManilaShortDate } from "@/lib/appointments/format";
 import { USER_ROLE_LABELS, USER_ROLES } from "@/lib/auth/roles";
@@ -106,7 +106,7 @@ export function UsersTable({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-ink-secondary">{total === 1 ? "1 account" : `${total} accounts`}</p>
-      <TableFrame label="Accounts" minWidthClass="min-w-[52rem]">
+      <Table label="Accounts" minWidthClass="min-w-[52rem]">
         <thead>
           <tr>
             <th scope="col" className={HEADER_CELL}>Name</th>
@@ -137,7 +137,7 @@ export function UsersTable({
             </tr>
           ))}
         </tbody>
-      </TableFrame>
+      </Table>
       <nav aria-label="Pagination" className="flex items-center justify-between gap-3 text-sm">
         <span className="text-ink-secondary">{`Page ${page} of ${pageCount}`}</span>
         <div className="flex gap-2">

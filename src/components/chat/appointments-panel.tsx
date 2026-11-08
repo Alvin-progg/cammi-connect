@@ -1,13 +1,13 @@
 import Link from "next/link";
 
-import { AppointmentStatusBadge } from "@/components/appointments/appointment-status-badge";
+import { StatusBadge } from "@/components/ui/badge";
 import type { PatientAppointmentGroups } from "@/lib/appointments/patient";
 import type { PatientAppointment } from "@/lib/appointments/types";
 import { MANILA_TIME_ZONE } from "@/lib/appointments/filters";
 import { formatManilaTime } from "@/lib/appointments/format";
 
 import { CancelAppointmentButton } from "./cancel-appointment-button";
-import { CalendarIcon } from "./icons";
+import { CalendarIcon } from "lucide-react";
 
 const MONTH_FORMATTER = new Intl.DateTimeFormat("en-PH", {
   timeZone: MANILA_TIME_ZONE,
@@ -53,7 +53,7 @@ function AppointmentCard({
               <p className="truncate text-sm text-ink-muted">{appointment.departmentName}</p>
             ) : null}
           </div>
-          <AppointmentStatusBadge status={appointment.status} />
+          <StatusBadge status={appointment.status} />
         </div>
         <p className="mt-2 text-sm text-ink-secondary">
           <time dateTime={appointment.scheduledAt}>{whenLabel}</time>{" "}

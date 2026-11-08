@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { EmptyState } from "@/components/admin/empty-state";
+import { EmptyState } from "@/components/ui/data";
 import { SMALL_SAMPLE_NOTE } from "@/lib/analytics/display";
 
 /**

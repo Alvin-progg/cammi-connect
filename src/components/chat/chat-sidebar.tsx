@@ -6,13 +6,7 @@ import { useState } from "react";
 import type { ConversationSummary } from "@/lib/chat/schemas";
 import { signOutAction } from "@/server/auth/actions";
 
-import {
-  CalendarIcon,
-  PencilSquareIcon,
-  SearchIcon,
-  SidebarIcon,
-  SignOutIcon,
-} from "./icons";
+import { CalendarIcon, LogOutIcon, PanelLeftIcon, SearchIcon, SquarePenIcon } from "lucide-react";
 
 /**
  * Width and label visibility are driven by `data-state` on the aside:
@@ -91,7 +85,7 @@ export function ChatSidebar({
           aria-expanded={state === "auto" ? undefined : isOpen}
           className="focus-ring inline-flex size-12 shrink-0 items-center justify-center rounded-xl text-ink-secondary transition-colors hover:bg-surface-muted hover:text-ink motion-reduce:transition-none"
         >
-          <SidebarIcon className="size-5" />
+          <PanelLeftIcon className="size-5" />
         </button>
         <span className={`${LABEL} text-base font-semibold tracking-tight text-ink`}>
           CamiConnect
@@ -101,7 +95,7 @@ export function ChatSidebar({
       <nav aria-label="Chat actions" className="mt-2 flex flex-col gap-0.5 px-2">
         <Link href="/chat" onClick={onNavigate} className={ROW}>
           <span className={ICON_SLOT}>
-            <PencilSquareIcon className="size-5" />
+            <SquarePenIcon className="size-5" />
           </span>
           <span className={LABEL}>New conversation</span>
         </Link>
@@ -215,7 +209,7 @@ export function ChatSidebar({
             className={`${ROW} w-auto justify-center text-ink-muted hover:bg-danger-soft hover:text-danger-soft-ink`}
           >
             <span className={ICON_SLOT}>
-              <SignOutIcon className="size-5" />
+              <LogOutIcon className="size-5" />
             </span>
           </button>
         </form>

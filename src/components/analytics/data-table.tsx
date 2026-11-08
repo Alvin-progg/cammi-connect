@@ -1,4 +1,4 @@
-import { CELL, HEADER_CELL } from "@/components/front-desk/table-frame";
+import { CELL, HEADER_CELL } from "@/components/ui/data";
 
 /** The accessible table alternative to a chart (design.md §4.6, A11Y-09). */
 export function DataTable({
