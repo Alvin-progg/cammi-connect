@@ -2,12 +2,12 @@
 
 import { FormFooter } from "@/components/admin/form-parts";
 import { useAdminForm } from "@/components/admin/use-admin-form";
-import { Button } from "@/components/ui/button";
 import { canTransitionKnowledge } from "@/lib/knowledge/transitions";
 import type { KnowledgeDocumentSummary } from "@/lib/knowledge/types";
 import {
   archiveKnowledgeDocumentAction,
   publishKnowledgeDocumentAction,
+  reprocessKnowledgeDocumentAction,
   restoreKnowledgeDocumentAction,
   type KnowledgeActionState,
 } from "@/server/knowledge/actions";
@@ -57,7 +57,7 @@ export function KnowledgeLifecycle({ document }: { document: KnowledgeDocumentSu
         <StatusForm
           documentId={document.id}
           action={publishKnowledgeDocumentAction}
-          description="Publishing queues the document for processing. Cami starts using it once processing is ready."
+          description="Publishing processes the document right away. Cami starts using it once processing is ready."
           label="Publish"
           pendingLabel="Publishing…"
         />
@@ -82,15 +82,16 @@ export function KnowledgeLifecycle({ document }: { document: KnowledgeDocumentSu
           variant="secondary"
         />
       ) : null}
-      <div className="flex flex-col gap-3">
-        <p className="text-sm text-ink-secondary">
-          Reprocessing rebuilds the document&apos;s search index. It arrives with the ingestion
-          pipeline.
-        </p>
-        <Button variant="secondary" disabled className="self-start">
-          Reprocess
-        </Button>
-      </div>
+      {document.status === "published" ? (
+        <StatusForm
+          documentId={document.id}
+          action={reprocessKnowledgeDocumentAction}
+          description="Reprocessing rebuilds the document's search index. Cami keeps using the current index until the new one is ready."
+          label="Reprocess"
+          pendingLabel="Reprocessing…"
+          variant="secondary"
+        />
+      ) : null}
     </div>
   );
 }

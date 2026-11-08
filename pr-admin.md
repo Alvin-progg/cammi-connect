@@ -766,6 +766,15 @@ create table knowledge_documents (
 - RLS: non-admin cannot read drafts.
 - E2E: create draft → publish → appears with processing "pending".
 
+## Status as built (2026-11-08)
+- Route is `/admin/knowledge-base` (list, `/new`, `/[id]`), not `/admin/knowledge`.
+- `0025` extends the existing `knowledge_documents` table from `0005` (text `check` constraints, not enums), drops `is_published`, and makes retrieval search only `published` documents.
+- RLS: no policies; anon/authenticated have no table access and the audited functions re-check the admin (ADR-0003), like the rest of the module.
+- Extra transition archived → draft (Restore), audited as `knowledge.restore`.
+- Uploads: `.txt`/`.md`/`.pdf` up to 5 MB, PDF text via `unpdf`; the file itself is not stored, only `source_file_name`.
+- `npm run kb:ingest` also writes the corpus files' content and category.
+- E2E not run (Playwright not installed).
+
 
 ---
 
@@ -821,6 +830,18 @@ Per category: # published docs, # ready, # failed, last updated. Flags categorie
 - Integration: draft doc never ingested; forced call → error.
 - Integration: failed embedding → status `failed`, error visible, prior version still retrievable.
 - Security: Gemini key not present in any client bundle (build-output grep test).
+
+## Status as built (2026-11-08)
+- Ingestion runs inline in the publish, save, and Reprocess Server Actions (ADR-0004 interim decision); no queue or Edge Function.
+- No `is_active` column: the existing `knowledge_chunks` table (0005) stays the one vector table. `cammi_connect_store_knowledge_chunks` (0026) swaps a version's chunks in one transaction after embedding, guarded by status and version (`stale` otherwise), so old chunks serve until then and survive a failure.
+- Chunking reuses `chunkMarkdown` (~2,000 chars ≈ 500 tokens, 300-char overlap, split on headings then paragraphs). The embedded text is prefixed with title, category, and section; the stored chunk is not.
+- Embedding reuses `embedTexts` (RETRIEVAL_DOCUMENT, 768 dims, retry on 429/5xx/timeouts), in batches of 50.
+- Archiving deletes the document's chunks (`0026` redefines the status function), so archived text can't return when a later restore → edit → publish fails to ingest.
+- Failures store a fixed message (provider busy, no text, save failed, unexpected), never provider text.
+- Retrieval keeps the existing `cammi_connect_match_knowledge_chunks` (published only). The `categories` parameter waits for ADM-15 (`chatbot.enabled_categories`).
+- Coverage table on `/admin/knowledge-base`: per category, published, ready, failed, and last updated; flags categories with no published document.
+- A title-only edit does not re-embed; use Reprocess.
+- Tests: unit tests for ingestion (fakes), coverage, reprocess, actions, and components. No SQL integration tests (no local DB). The bundle key check was a manual grep of `.next/static` after `npm run build`.
 
 
 ---

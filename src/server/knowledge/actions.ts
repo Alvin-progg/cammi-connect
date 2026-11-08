@@ -6,11 +6,20 @@ import { z } from "zod";
 
 import { knowledgeFormSchema } from "@/lib/knowledge/schemas";
 import type { KnowledgeStatus } from "@/lib/knowledge/types";
+import { embedTexts } from "@/server/ai/gemini-embeddings";
 import { getAdminSession } from "@/server/auth/dal";
 
-import { supabaseKnowledgeAdminRepository } from "./admin-repository";
-import { changeKnowledgeDocumentStatus, saveKnowledgeDocument } from "./admin-service";
+import {
+  supabaseKnowledgeAdminRepository,
+  supabaseKnowledgeIngestionRepository,
+} from "./admin-repository";
+import {
+  changeKnowledgeDocumentStatus,
+  reprocessKnowledgeDocument,
+  saveKnowledgeDocument,
+} from "./admin-service";
 import { extractKnowledgeText } from "./extract-text";
+import { ingestKnowledgeDocument } from "./ingest";
 
 export type KnowledgeActionState =
   | { status: "idle" }
@@ -38,6 +47,25 @@ function text(formData: FormData, key: string): string | null {
 async function requireAdminActor(): Promise<string | null> {
   const session = await getAdminSession(KNOWLEDGE_PATH);
   return session?.admin.id ?? null;
+}
+
+/**
+ * Ingests the document inline (ADR-0004 interim decision) and adds the
+ * outcome to the action's message. Ingestion itself skips documents that
+ * aren't published and pending, so callers don't have to check.
+ */
+async function ingestAfter(documentId: string, message: string): Promise<KnowledgeActionState> {
+  const ingestion = await ingestKnowledgeDocument(documentId, {
+    store: supabaseKnowledgeIngestionRepository,
+    embedDocuments: (texts) => embedTexts(texts, "RETRIEVAL_DOCUMENT"),
+  });
+  if (ingestion.outcome === "failed") {
+    return { status: "error", message: `${message} Processing failed: ${ingestion.error}` };
+  }
+  if (ingestion.outcome === "ready") {
+    return { status: "success", message: `${message} Cami can use it now.` };
+  }
+  return { status: "success", message };
 }
 
 /** An attached file, or null when the file input was left empty. */
@@ -88,11 +116,15 @@ export async function saveKnowledgeDocumentAction(
   if (!result.ok) {
     return { status: "error", message: result.message };
   }
-  revalidatePath("/admin", "layout");
   if (documentId === null) {
-    redirect(`${KNOWLEDGE_PATH}/${result.documentId}`);
+    // A new document is always a draft, so there is nothing to ingest.
+    revalidatePath("/admin", "layout");
+    return redirect(`${KNOWLEDGE_PATH}/${result.documentId}`);
   }
-  return { status: "success", message: result.message };
+  // Editing a published document's content marks it pending (0025).
+  const state = await ingestAfter(documentId, result.message);
+  revalidatePath("/admin", "layout");
+  return state;
 }
 
 async function changeStatus(
@@ -115,8 +147,12 @@ async function changeStatus(
   if (!result.ok) {
     return { status: "error", message: result.message };
   }
+  const state =
+    status === "published"
+      ? await ingestAfter(documentId, result.message)
+      : ({ status: "success", message: result.message } as const);
   revalidatePath("/admin", "layout");
-  return { status: "success", message: result.message };
+  return state;
 }
 
 export async function publishKnowledgeDocumentAction(
@@ -138,4 +174,29 @@ export async function restoreKnowledgeDocumentAction(
   formData: FormData,
 ): Promise<KnowledgeActionState> {
   return changeStatus(formData, "draft");
+}
+
+export async function reprocessKnowledgeDocumentAction(
+  _previous: KnowledgeActionState,
+  formData: FormData,
+): Promise<KnowledgeActionState> {
+  const actorId = await requireAdminActor();
+  if (!actorId) {
+    return NOT_AUTHORIZED;
+  }
+  const documentId = z.uuid().safeParse(text(formData, "documentId")).data;
+  if (!documentId) {
+    return INVALID_DOCUMENT;
+  }
+
+  const result = await reprocessKnowledgeDocument(
+    { actorId, documentId },
+    supabaseKnowledgeAdminRepository,
+  );
+  if (!result.ok) {
+    return { status: "error", message: result.message };
+  }
+  const state = await ingestAfter(documentId, result.message);
+  revalidatePath("/admin", "layout");
+  return state;
 }
