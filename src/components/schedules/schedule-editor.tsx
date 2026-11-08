@@ -137,10 +137,13 @@ function PeriodFields({
   idPrefix,
   period,
   defaultEffectiveFrom,
+  defaultSlotMinutes,
 }: {
   idPrefix: string;
   period: WeeklySchedule | null;
   defaultEffectiveFrom: string;
+  /** For a new period: the admin's `appointment.default_slot_minutes`. */
+  defaultSlotMinutes: number;
 }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -177,7 +180,7 @@ function PeriodFields({
         <select
           id={`${idPrefix}-duration`}
           name="slotDurationMinutes"
-          defaultValue={String(period?.slotDurationMinutes ?? 30)}
+          defaultValue={String(period?.slotDurationMinutes ?? defaultSlotMinutes)}
           className={FIELD_CLASS}
         >
           {SLOT_DURATIONS.map((duration) => (
@@ -283,6 +286,7 @@ function PeriodRow({
           idPrefix={`period-${period.id}`}
           period={period}
           defaultEffectiveFrom={period.effectiveFrom}
+          defaultSlotMinutes={period.slotDurationMinutes}
         />
         <p className="text-xs text-ink-muted">
           Uncheck Active to retire this period without deleting it.
@@ -303,7 +307,11 @@ function PeriodRow({
   );
 }
 
-function AddPeriodForm({ today, ...editorProps }: EditorProps & { today: string }) {
+function AddPeriodForm({
+  today,
+  defaultSlotMinutes,
+  ...editorProps
+}: EditorProps & { today: string; defaultSlotMinutes: number }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [detailsRef, closeDetails] = useCloseDisclosure();
   const [state, formAction, pending] = useActionState(
@@ -346,7 +354,12 @@ function AddPeriodForm({ today, ...editorProps }: EditorProps & { today: string 
             ))}
           </select>
         </div>
-        <PeriodFields idPrefix="new-period" period={null} defaultEffectiveFrom={today} />
+        <PeriodFields
+          idPrefix="new-period"
+          period={null}
+          defaultEffectiveFrom={today}
+          defaultSlotMinutes={defaultSlotMinutes}
+        />
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
@@ -372,8 +385,9 @@ function AddPeriodForm({ today, ...editorProps }: EditorProps & { today: string 
 export function SchedulePeriodsSection({
   schedules,
   today,
+  defaultSlotMinutes,
   ...editorProps
-}: EditorProps & { schedules: WeeklySchedule[]; today: string }) {
+}: EditorProps & { schedules: WeeklySchedule[]; today: string; defaultSlotMinutes: number }) {
   const days = groupPeriodsByWeekday(schedules);
 
   return (
@@ -433,7 +447,7 @@ export function SchedulePeriodsSection({
             })}
           </div>
         )}
-        <AddPeriodForm today={today} {...editorProps} />
+        <AddPeriodForm today={today} defaultSlotMinutes={defaultSlotMinutes} {...editorProps} />
       </div>
     </section>
   );

@@ -22,6 +22,8 @@ import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import { supabaseDoctorAdminRepository } from "@/server/doctors/repository";
 import { supabaseDoctorSchedulesRepository } from "@/server/schedules/repository";
 import { listDoctorSchedules } from "@/server/schedules/service";
+import { supabaseSettingsRepository } from "@/server/settings/repository";
+import { getSettings } from "@/server/settings/service";
 
 import { ADMIN_ACCESS_DENIED_MESSAGE } from "../../_shared/placeholder-page";
 
@@ -94,7 +96,10 @@ async function ProfileTab({ doctor }: { doctor: AdminDoctorDetail }) {
 
 /** The doctor's week at a glance, then the period editor. Exceptions stay on /admin/schedules. */
 async function ScheduleTab({ doctorId }: { doctorId: string }) {
-  const schedules = await listDoctorSchedules(doctorId, supabaseDoctorSchedulesRepository);
+  const [schedules, settings] = await Promise.all([
+    listDoctorSchedules(doctorId, supabaseDoctorSchedulesRepository),
+    getSettings(supabaseSettingsRepository),
+  ]);
   const today = todayInManila();
   return (
     <div className="flex flex-col gap-8">
@@ -109,6 +114,7 @@ async function ScheduleTab({ doctorId }: { doctorId: string }) {
         doctorId={doctorId}
         schedules={schedules}
         today={today}
+        defaultSlotMinutes={settings["appointment.default_slot_minutes"]}
       />
       <Link
         href={`/admin/schedules?doctor=${doctorId}`}

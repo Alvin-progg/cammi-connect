@@ -91,6 +91,7 @@ function turn(text: string, history: { role: "user" | "assistant"; content: stri
     event: { type: "message" as const, text },
     state: IDLE_STATE,
     now: NOW,
+    bookingHorizonDays: 60,
   };
 }
 

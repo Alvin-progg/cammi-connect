@@ -103,7 +103,15 @@ export type ChatToolDeps = {
   booker: AppointmentBooker;
   patientAppointments: PatientAppointmentsStore;
   now: () => Date;
+  /**
+   * The admin's `appointment.min_lead_hours`. Cami offers, and so books, only
+   * slots that start more than this many hours from now. Front desk booking
+   * does not use these tools, so walk-ins are unaffected.
+   */
+  minLeadHours: () => Promise<number>;
 };
+
+const HOUR_MILLISECONDS = 60 * 60 * 1000;
 
 export function createChatTools({
   directory,
@@ -111,6 +119,7 @@ export function createChatTools({
   booker,
   patientAppointments,
   now,
+  minLeadHours,
 }: ChatToolDeps): ChatTools {
   return {
     async getDepartments() {
@@ -143,8 +152,9 @@ export function createChatTools({
     async getDoctorAvailability(input) {
       const { doctorId, specialtyId, fromDate, days, preferredTime } =
         availabilityInputSchema.parse(input);
+      const earliestStart = new Date(now().getTime() + (await minLeadHours()) * HOUR_MILLISECONDS);
       const [doctor] = await getAvailableSlots(
-        { doctorId, specialtyId, fromDate, days, now: now() },
+        { doctorId, specialtyId, fromDate, days, now: earliestStart },
         availability,
       );
       return filterSlotsByTime(doctor?.slots ?? [], preferredTime);

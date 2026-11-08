@@ -43,11 +43,13 @@ const SUGGESTIONS: Suggestion[] = [
 export function ChatEmptyState({
   salutation,
   firstName,
+  welcomeMessage,
   disabled,
   onSuggestion,
 }: {
   salutation: string;
   firstName: string;
+  welcomeMessage: string;
   disabled: boolean;
   onSuggestion: (message: string) => void;
 }) {
@@ -59,9 +61,7 @@ export function ChatEmptyState({
       <h1 className="mt-4 text-3xl font-medium tracking-tight text-ink text-balance">
         {salutation}, <span className="text-ink-muted">{firstName}</span>
       </h1>
-      <p className="mt-2 text-sm text-ink-secondary">
-        Hi, I&apos;m Cami! How can I help with your hospital visit today?
-      </p>
+      <p className="mt-2 max-w-xl text-sm text-ink-secondary">{welcomeMessage}</p>
 
       <ul className="mt-8 grid w-full max-w-3xl gap-3 text-left sm:grid-cols-3">
         {SUGGESTIONS.map((suggestion) => (

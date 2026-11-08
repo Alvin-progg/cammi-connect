@@ -72,6 +72,7 @@ function renderShell(
     <ChatShell
       salutation="Good Morning"
       firstName="Ana"
+      welcomeMessage="Welcome to the clinic! Ask me anything about your visit."
       patientName="Ana Dela Cruz"
       conversations={CONVERSATIONS}
       conversationId={overrides.conversationId ?? null}
@@ -111,6 +112,15 @@ describe("ChatShell empty state", () => {
     const heading = screen.getByRole("heading", { level: 1 });
     expect(heading).toHaveTextContent("Good Morning, Ana");
     expect(within(heading).getByText("Ana")).toHaveClass("text-ink-muted");
+  });
+
+  it("shows the admin's welcome message (chatbot.welcome_message)", () => {
+    renderShell();
+
+    expect(
+      screen.getByText("Welcome to the clinic! Ask me anything about your visit."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Hi, I'm Cami!/)).not.toBeInTheDocument();
   });
 
   it("shows the three suggestion cards with their actions", () => {

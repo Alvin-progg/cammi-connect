@@ -272,18 +272,25 @@ export function ScheduleManager({
   month,
   today,
   grid,
+  defaultSlotMinutes,
 }: {
   schedules: WeeklySchedule[];
   exceptions: ScheduleException[];
   month: string;
   today: string;
   grid: CalendarMonthGrid;
+  defaultSlotMinutes: number;
 }) {
   return (
     <div className="flex flex-col gap-10">
       <MonthCalendar month={month} grid={grid} />
 
-      <SchedulePeriodsSection editor="doctor" schedules={schedules} today={today} />
+      <SchedulePeriodsSection
+        editor="doctor"
+        schedules={schedules}
+        today={today}
+        defaultSlotMinutes={defaultSlotMinutes}
+      />
 
       <ScheduleExceptionsSection editor="doctor" exceptions={exceptions} />
     </div>
