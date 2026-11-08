@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { analyticsPeriodBounds, analyticsPeriodMonths } from "@/lib/analytics/period";
+import {
+  analyticsPeriodBounds,
+  analyticsPeriodDays,
+  analyticsPeriodMonths,
+  previousPeriod,
+} from "@/lib/analytics/period";
 
 const QUERY = { from: "2026-10-01", to: "2026-12-01", doctorId: null, departmentId: null };
 
@@ -28,5 +33,37 @@ describe("analyticsPeriodMonths", () => {
       "2027-01",
     ]);
     expect(analyticsPeriodMonths({ ...QUERY, from: "2026-11-05", to: "2026-11-06" })).toEqual(["2026-11"]);
+  });
+});
+
+describe("analyticsPeriodDays", () => {
+  it("lists every Manila date in [from, to)", () => {
+    expect(analyticsPeriodDays({ ...QUERY, from: "2026-10-30", to: "2026-11-02" })).toEqual([
+      "2026-10-30",
+      "2026-10-31",
+      "2026-11-01",
+    ]);
+  });
+});
+
+describe("previousPeriod", () => {
+  it("is the equal-length window that ends where the period starts", () => {
+    // A Monday-to-Sunday week becomes the previous Monday-to-Sunday week.
+    expect(previousPeriod({ ...QUERY, from: "2026-11-02", to: "2026-11-09" })).toEqual({
+      ...QUERY,
+      from: "2026-10-26",
+      to: "2026-11-02",
+    });
+    expect(previousPeriod({ ...QUERY, from: "2026-11-05", to: "2026-11-06", doctorId: "d" })).toEqual({
+      ...QUERY,
+      from: "2026-11-04",
+      to: "2026-11-05",
+      doctorId: "d",
+    });
+    // November has 30 days, so the previous window is the 30 days before it.
+    expect(previousPeriod({ ...QUERY, from: "2026-11-01", to: "2026-12-01" })).toMatchObject({
+      from: "2026-10-02",
+      to: "2026-11-01",
+    });
   });
 });

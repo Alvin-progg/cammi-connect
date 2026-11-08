@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   byDoctor,
   computeKpis,
+  dailyVolume,
+  dashboardCards,
   deriveAnalyticsRow,
   heatmap,
   HOUR_BUCKETS,
@@ -10,6 +12,8 @@ import {
   rate,
   ratesBySlot,
   statusByMonth,
+  statusDistribution,
+  trendPercent,
   WEEKDAYS,
   type AnalyticsAppointment,
 } from "@/lib/analytics/metrics";
@@ -267,5 +271,56 @@ describe("ratesBySlot", () => {
       { weekday: "Sat", hourBucket: "22–24", dueCount: 1, cancellationRate: 0, noShowRate: 0 },
       { weekday: "Sun", hourBucket: "00–02", dueCount: 1, cancellationRate: 0, noShowRate: 0 },
     ]);
+  });
+});
+
+describe("statusDistribution", () => {
+  it("counts every non-rejected appointment by current status", () => {
+    expect(statusDistribution(FIXTURE)).toEqual({
+      requested: 3,
+      confirmed: 5,
+      cancelled: 4,
+      checked_in: 1,
+      completed: 16,
+      no_show: 4,
+    });
+  });
+});
+
+describe("dashboardCards", () => {
+  it("counts scheduled-date cards from the rows and takes cancellations by cancellation date", () => {
+    // 4 rows in the fixture are cancelled, but the card uses the separate cancellation-date count (D4).
+    expect(dashboardCards(FIXTURE, 7)).toEqual({
+      total: 33,
+      confirmed: 5,
+      completed: 16,
+      noShow: 4,
+      cancelled: 7,
+    });
+  });
+
+  it("is all zero with no appointments", () => {
+    expect(dashboardCards([], 0)).toEqual({ total: 0, confirmed: 0, completed: 0, noShow: 0, cancelled: 0 });
+  });
+});
+
+describe("dailyVolume", () => {
+  it("counts non-rejected appointments per Manila day, zero-filling the given days", () => {
+    const rows = [...FIXTURE, appointment(DOCTOR_B, OCT_31_LATE, "rejected")];
+    expect(dailyVolume(rows, ["2026-10-30", "2026-10-31", "2026-11-01"])).toEqual([
+      { date: "2026-10-30", total: 0 },
+      // 23:30 Manila on the 31st stays on the 31st; 00:30 Manila on the 1st is the 1st.
+      { date: "2026-10-31", total: 1 },
+      { date: "2026-11-01", total: 1 },
+    ]);
+  });
+});
+
+describe("trendPercent", () => {
+  it("is the percent change from the previous period, or null with nothing to compare", () => {
+    expect(trendPercent(15, 10)).toBe(50);
+    expect(trendPercent(5, 10)).toBe(-50);
+    expect(trendPercent(1, 3)).toBe(-66.67);
+    expect(trendPercent(4, 0)).toBeNull();
   });
 });

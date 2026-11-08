@@ -33,3 +33,17 @@ export function formatRate(rate: number | null): string {
 export function isSmallSample(dueCount: number): boolean {
   return dueCount > 0 && dueCount < SMALL_SAMPLE_SIZE;
 }
+
+const DAY_FORMATTER = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+/** "Nov 2" for "2026-11-02". */
+export function formatDay(date: string): string {
+  return DAY_FORMATTER.format(new Date(`${date}T00:00:00Z`));
+}
+
+/** "▲ 12.50% vs previous period" for the ADM-12 trend. */
+export function formatTrend(percent: number | null): string {
+  if (percent === null) return "No previous data to compare";
+  if (percent === 0) return "No change vs previous period";
+  return `${percent > 0 ? "▲" : "▼"} ${Math.abs(percent).toFixed(2)}% vs previous period`;
+}

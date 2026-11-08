@@ -47,3 +47,21 @@ Rates are percentages rounded to 2 decimals, and they are `null` (not 0) when th
 | Heatmap | weekday × hour bucket → total | full 7 × 12 grid |
 | Status by month | month → count per status except `rejected` | all cancellations, by scheduled month |
 | Rates by slot | weekday × hour bucket → due count, cancellation and no-show rates | only cells with due appointments |
+
+## Dashboard (ADM-12)
+
+Added on 2026-11-08. The admin dashboard (`/admin`) reuses the definitions above.
+
+| Card or section | Definition |
+|---|---|
+| Total appointments | Total (as above) for the selected range. |
+| Pending requests | Pending snapshot (as above), respecting the doctor and department filters. |
+| Confirmed, Completed, No-show | Cohort rows whose **current** status is `confirmed`, `completed`, or `no_show`. |
+| Cancelled | Appointments now `cancelled` whose cancellation date (the `cancelled` audit row's `created_at`) is in the range, whatever their scheduled date (D4). |
+| Trend | `(total − previous total) ÷ previous total`, as a percentage rounded to 2 decimals; `null` when the previous total is 0. The previous period is the equal-length window ending where the range starts (this week → the previous Monday–Sunday). |
+| Appointment activity | Total per Manila day of `scheduled_at`, every day in the range, empty days as 0. |
+| Status distribution | Cohort rows per current status, except `rejected`. |
+| Doctor performance | The first 5 rows of "By doctor". |
+| Front desk queue | Current `requested` count, the oldest request's `created_at`, and the count per department. |
+
+Range presets: Today, This week (Manila Monday–Sunday), This month, and Custom (inclusive dates, up to 24 months). There is no status filter.
