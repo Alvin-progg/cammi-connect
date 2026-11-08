@@ -3,6 +3,9 @@
 import { useState, type ChangeEvent } from "react";
 
 import { CircleAlertIcon, EyeIcon, EyeOffIcon } from "lucide-react";
+
+import { Input, Label } from "@/components/ui/field";
+
 import { useMascot } from "./mascot-stage";
 
 export type FormFieldProps = {
@@ -45,11 +48,9 @@ export function FormField({
       data-mascot-field={name}
       data-mascot-secret={isPassword ? "true" : undefined}
     >
-      <label htmlFor={id} className="text-sm font-medium text-ink">
-        {label}
-      </label>
+      <Label htmlFor={id}>{label}</Label>
       <div className="relative">
-        <input
+        <Input
           id={id}
           name={name}
           type={isPassword && revealed ? "text" : type}
@@ -59,9 +60,7 @@ export function FormField({
           required
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
-          className={`min-h-12 w-full rounded-xl border border-control-line bg-surface px-3 text-base text-ink transition-colors duration-150 placeholder:text-ink-muted focus:border-primary focus-ring motion-reduce:transition-none aria-[invalid=true]:border-danger [@media(hover:hover)]:hover:border-ink-muted ${
-            isPassword ? "pr-12" : ""
-          }`}
+          className={isPassword ? "h-11 pr-11 text-base sm:text-sm" : "h-11 text-base sm:text-sm"}
         />
         {isPassword ? (
           <button
@@ -72,12 +71,12 @@ export function FormField({
               setRevealed(!revealed);
               setPasswordRevealed(name, !revealed);
             }}
-            className="focus-ring absolute right-1.5 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:text-ink motion-reduce:transition-none"
+            className="focus-ring absolute right-1 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink motion-reduce:transition-none"
           >
             {revealed ? (
-              <EyeOffIcon className="size-5" />
+              <EyeOffIcon aria-hidden="true" className="size-4.5" />
             ) : (
-              <EyeIcon className="size-5" />
+              <EyeIcon aria-hidden="true" className="size-4.5" />
             )}
             <span className="sr-only">
               {`${revealed ? "Hide" : "Show"} ${label.toLowerCase()}`}
@@ -86,16 +85,16 @@ export function FormField({
         ) : null}
       </div>
       {hint ? (
-        <p id={hintId} className="text-sm leading-6 text-ink-muted">
+        <p id={hintId} className="text-xs text-ink-muted">
           {hint}
         </p>
       ) : null}
       {error ? (
         <p
           id={errorId}
-          className="flex items-start gap-1.5 text-sm leading-6 text-danger"
+          className="flex items-start gap-1.5 text-sm text-danger"
         >
-          <CircleAlertIcon className="mt-1 size-4 shrink-0" />
+          <CircleAlertIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
           <span className="sr-only">Error:</span>{" "}
           <span>{error[0]}</span>
         </p>

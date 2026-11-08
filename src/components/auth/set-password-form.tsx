@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 
+import { Alert } from "@/components/ui/data";
 import type { AuthFormState } from "@/lib/auth/form-state";
 import { PASSWORD_MIN_LENGTH } from "@/lib/auth/schemas";
 import { updatePasswordAction } from "@/server/auth/actions";
@@ -18,9 +19,7 @@ export function SetPasswordForm() {
   return (
     <form action={formAction} noValidate className="flex flex-col gap-5">
       {state.formError ? (
-        <p role="alert" className="rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-soft-ink">
-          {state.formError}
-        </p>
+        <Alert tone="danger">{state.formError}</Alert>
       ) : null}
       {/* Uncontrolled, so React clears them after the action and a failed
           submit never leaves the passwords in the DOM. */}
