@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandMark } from "@/components/ui/brand-mark";
 
 /**
  * Neutral denial state for signed-in users without the dashboard's role. It
@@ -19,8 +20,9 @@ export function AccessDenied({
       <div className="page-container flex flex-1 flex-col items-center justify-center py-12 lg:py-24">
         <Link
           href="/"
-          className="mb-6 w-full max-w-md rounded-lg text-base font-semibold tracking-tight text-ink focus-ring"
+          className="mb-6 flex w-full max-w-md items-center gap-2.5 rounded-lg text-base font-semibold tracking-tight text-ink focus-ring"
         >
+          <BrandMark className="size-7" />
           CamiConnect
         </Link>
         <div className="w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-card sm:p-8">

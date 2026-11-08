@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { BrandMark } from "@/components/ui/brand-mark";
 import { LinkButton } from "@/components/ui/button";
 
 import { MascotStage } from "./mascot-stage";
@@ -12,12 +13,7 @@ function AuthTopBar() {
   return (
     <header className="mx-auto flex w-full max-w-[1040px] items-center justify-between px-6 pt-6">
       <Link href="/" className="focus-ring flex items-center gap-2.5 rounded-lg">
-        <span
-          aria-hidden="true"
-          className="inline-flex size-7 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-ink"
-        >
-          C
-        </span>
+        <BrandMark className="size-7" />
         <span className="text-[17px] font-semibold tracking-tight text-ink">CamiConnect</span>
       </Link>
       <LinkButton variant="ghost" size="sm" href="/">

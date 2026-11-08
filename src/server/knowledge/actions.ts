@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -8,6 +8,7 @@ import { knowledgeFormSchema } from "@/lib/knowledge/schemas";
 import type { KnowledgeStatus } from "@/lib/knowledge/types";
 import { embedTexts } from "@/server/ai/gemini-embeddings";
 import { getAdminSession } from "@/server/auth/dal";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 
 import {
   supabaseKnowledgeAdminRepository,
@@ -118,11 +119,13 @@ export async function saveKnowledgeDocumentAction(
   }
   if (documentId === null) {
     // A new document is always a draft, so there is nothing to ingest.
+    updateTag(REFERENCE_CACHE_TAG);
     revalidatePath("/admin", "layout");
     return redirect(`${KNOWLEDGE_PATH}/${result.documentId}`);
   }
   // Editing a published document's content marks it pending (0025).
   const state = await ingestAfter(documentId, result.message);
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath("/admin", "layout");
   return state;
 }
@@ -151,6 +154,7 @@ async function changeStatus(
     status === "published"
       ? await ingestAfter(documentId, result.message)
       : ({ status: "success", message: result.message } as const);
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath("/admin", "layout");
   return state;
 }
@@ -197,6 +201,7 @@ export async function reprocessKnowledgeDocumentAction(
     return { status: "error", message: result.message };
   }
   const state = await ingestAfter(documentId, result.message);
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath("/admin", "layout");
   return state;
 }

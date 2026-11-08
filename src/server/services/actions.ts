@@ -1,11 +1,12 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { serviceFormSchema } from "@/lib/services/schemas";
 import { getAdminSession } from "@/server/auth/dal";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 
 import { supabaseServiceAdminRepository } from "./repository";
 import { saveService, setServiceActive } from "./service";
@@ -74,6 +75,7 @@ export async function saveServiceAction(
   if (!result.ok) {
     return { status: "error", message: result.message };
   }
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath("/admin", "layout");
   if (serviceId === null) {
     redirect(`${SERVICES_PATH}/${result.serviceId}`);
@@ -102,6 +104,7 @@ export async function setServiceActiveAction(
   if (!result.ok) {
     return { status: "error", message: result.message };
   }
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath("/admin", "layout");
   return { status: "success", message: result.message };
 }

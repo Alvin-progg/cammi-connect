@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getAdminSession } from "@/server/auth/dal";
@@ -20,7 +20,7 @@ import { extractKnowledgeText } from "@/server/knowledge/extract-text";
 import { ingestKnowledgeDocument } from "@/server/knowledge/ingest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/server/auth/dal", () => ({ getAdminSession: vi.fn() }));
 vi.mock("@/server/knowledge/admin-repository", () => ({
@@ -101,6 +101,7 @@ describe("knowledge document actions", () => {
       {},
     );
     expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");
+    expect(updateTag).toHaveBeenCalledWith("reference");
     expect(redirect).toHaveBeenCalledWith(`/admin/knowledge-base/${DOCUMENT_ID}`);
   });
 
@@ -179,6 +180,7 @@ describe("knowledge document actions", () => {
       {},
     );
     expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");
+    expect(updateTag).toHaveBeenCalledWith("reference");
   });
 
   it("passes service refusals through", async () => {
@@ -187,6 +189,7 @@ describe("knowledge document actions", () => {
       archiveKnowledgeDocumentAction(IDLE, formData({ documentId: DOCUMENT_ID })),
     ).resolves.toEqual({ status: "error", message: "Nope." });
     expect(revalidatePath).not.toHaveBeenCalled();
+    expect(updateTag).not.toHaveBeenCalled();
   });
 
   it("ingests a published document right after publishing it", async () => {
@@ -212,6 +215,7 @@ describe("knowledge document actions", () => {
       message: "Done. Processing failed: The document has no text to process.",
     });
     expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");
+    expect(updateTag).toHaveBeenCalledWith("reference");
   });
 
   it("ingests an edited document but never a new draft", async () => {

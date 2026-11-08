@@ -3,6 +3,7 @@ import { LogOut } from "lucide-react";
 import { Suspense } from "react";
 
 import { LinkButton, buttonVariants } from "@/components/ui/button";
+import { BrandMark } from "@/components/ui/brand-mark";
 import { Avatar, Card, CardHeader } from "@/components/ui/card";
 import { ListRow, ListRows } from "@/components/ui/data";
 import { initialsOf } from "@/components/ui/rail";
@@ -15,7 +16,10 @@ export default function AccountPage() {
   return (
     <div className="flex min-h-dvh flex-1 flex-col bg-canvas text-ink">
       <header className="flex items-center justify-between border-b border-line px-4 py-3.5 sm:px-8">
-        <span className="text-[17px] font-semibold tracking-tight">CamiConnect</span>
+        <span className="flex items-center gap-2.5 text-[17px] font-semibold tracking-tight">
+          <BrandMark className="size-7" />
+          CamiConnect
+        </span>
         <LinkButton variant="outline" size="sm" href="/">
           Back to home
         </LinkButton>

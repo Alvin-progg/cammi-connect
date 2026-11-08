@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getAdminSession } from "@/server/auth/dal";
@@ -18,7 +18,7 @@ import {
 } from "@/server/requirements/service";
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/server/auth/dal", () => ({ getAdminSession: vi.fn() }));
 vi.mock("@/server/requirements/repository", () => ({ supabaseRequirementAdminRepository: {} }));
@@ -109,6 +109,7 @@ describe("requirement actions", () => {
       expect.anything(),
     );
     expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");
+    expect(updateTag).toHaveBeenCalledWith("reference");
     expect(redirect).toHaveBeenCalledWith(`/admin/requirements/${REQUIREMENT_ID}`);
   });
 
@@ -164,6 +165,7 @@ describe("requirement actions", () => {
       publishRequirementAction(IDLE, formData({ requirementId: REQUIREMENT_ID })),
     ).resolves.toEqual({ status: "error", message: "Only a draft can be published." });
     expect(revalidatePath).not.toHaveBeenCalled();
+    expect(updateTag).not.toHaveBeenCalled();
   });
 
   it("supersedes and opens the new draft", async () => {

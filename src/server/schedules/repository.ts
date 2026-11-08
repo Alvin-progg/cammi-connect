@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cacheLife, cacheTag } from "next/cache";
+
 import { SLOT_HOLDING_STATUSES } from "@/lib/appointments/status";
 import type {
   ScheduleConflict,
@@ -8,6 +10,7 @@ import type {
   WeeklySchedule,
 } from "@/lib/schedules/types";
 import { supabaseDoctorAppointmentsRepository } from "@/server/appointments/repository";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
 import type { DoctorSchedulesStore, StoreWriteOutcome } from "./service";
@@ -58,7 +61,12 @@ function toScheduleException(row: {
   };
 }
 
+/** Weekly consultation periods. Cached until a schedule write clears the reference tag. */
 async function loadSchedules(doctorIds: string[]): Promise<WeeklySchedule[]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
+
   const { data, error } = await getSupabaseAdminClient()
     .from("doctor_schedules")
     .select(
@@ -86,6 +94,52 @@ async function loadSchedules(doctorIds: string[]): Promise<WeeklySchedule[]> {
   );
 }
 
+/**
+ * Schedule exceptions and hospital holidays.
+ * Cached until a write action calls `updateTag(REFERENCE_CACHE_TAG)`.
+ */
+async function cachedListExceptionsForDoctor(
+  { doctorId, start, end }: Parameters<DoctorSchedulesStore["listExceptionsForDoctor"]>[0],
+): ReturnType<DoctorSchedulesStore["listExceptionsForDoctor"]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
+
+  const { data, error } = await getSupabaseAdminClient()
+    .from("schedule_exceptions")
+    .select(EXCEPTION_COLUMNS)
+    .or(`doctor_id.eq.${doctorId},doctor_id.is.null`)
+    .lt("start_datetime", end)
+    .gt("end_datetime", start)
+    .order("start_datetime", { ascending: true });
+
+  if (error) {
+    throw new Error("Unable to load schedule exceptions.");
+  }
+  return (data ?? []).map(toScheduleException);
+}
+
+async function cachedListHolidays(
+  { start, end }: Parameters<DoctorSchedulesStore["listHolidays"]>[0],
+): ReturnType<DoctorSchedulesStore["listHolidays"]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
+
+  const { data, error } = await getSupabaseAdminClient()
+    .from("schedule_exceptions")
+    .select(EXCEPTION_COLUMNS)
+    .is("doctor_id", null)
+    .lt("start_datetime", end)
+    .gt("end_datetime", start)
+    .order("start_datetime", { ascending: true });
+
+  if (error) {
+    throw new Error("Unable to load hospital holidays.");
+  }
+  return (data ?? []).map(toScheduleException);
+}
+
 export const supabaseDoctorSchedulesRepository: DoctorSchedulesStore = {
   listSchedulesForDoctor(doctorId) {
     return loadSchedules([doctorId]);
@@ -96,35 +150,9 @@ export const supabaseDoctorSchedulesRepository: DoctorSchedulesStore = {
   },
 
   /** The doctor's own exceptions plus hospital holidays, which apply to everyone. */
-  async listExceptionsForDoctor({ doctorId, start, end }) {
-    const { data, error } = await getSupabaseAdminClient()
-      .from("schedule_exceptions")
-      .select(EXCEPTION_COLUMNS)
-      .or(`doctor_id.eq.${doctorId},doctor_id.is.null`)
-      .lt("start_datetime", end)
-      .gt("end_datetime", start)
-      .order("start_datetime", { ascending: true });
+  listExceptionsForDoctor: cachedListExceptionsForDoctor,
 
-    if (error) {
-      throw new Error("Unable to load schedule exceptions.");
-    }
-    return (data ?? []).map(toScheduleException);
-  },
-
-  async listHolidays({ start, end }) {
-    const { data, error } = await getSupabaseAdminClient()
-      .from("schedule_exceptions")
-      .select(EXCEPTION_COLUMNS)
-      .is("doctor_id", null)
-      .lt("start_datetime", end)
-      .gt("end_datetime", start)
-      .order("start_datetime", { ascending: true });
-
-    if (error) {
-      throw new Error("Unable to load hospital holidays.");
-    }
-    return (data ?? []).map(toScheduleException);
-  },
+  listHolidays: cachedListHolidays,
 
   async savePeriod({ actorId, doctorId, periodId, ...period }) {
     const { error } = await getSupabaseAdminClient().rpc("cammi_connect_save_schedule_period", {

@@ -1,31 +1,20 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { DoctorRail } from "@/components/doctor/doctor-rail";
-import { NotificationsDialogProvider } from "@/components/doctor/notifications-dialog";
+
+const pathname = vi.hoisted(() => ({ value: "/doctor" }));
+vi.mock("next/navigation", () => ({ usePathname: () => pathname.value }));
 
 vi.mock("@/server/auth/actions", () => ({
   signOutAction: vi.fn(),
 }));
 
-// jsdom does not implement modal dialogs; mimic the open contract.
-beforeAll(() => {
-  HTMLDialogElement.prototype.showModal = function showModal() {
-    this.setAttribute("open", "");
-  };
-});
-
-function renderRail(activeView: "week" | "calendar" = "week") {
+function renderRail(path = "/doctor") {
+  pathname.value = path;
   return render(
-    <NotificationsDialogProvider panel={<p>Synthetic notification feed</p>}>
-      <DoctorRail
-        activeView={activeView}
-        doctorName="Dr. Synthetic Doctor"
-        specialty="Cardiology"
-        unreadCount={3}
-      />
-    </NotificationsDialogProvider>,
+    <DoctorRail doctorName="Dr. Synthetic Doctor" specialty="Cardiology" />,
   );
 }
 
@@ -43,44 +32,47 @@ describe("DoctorRail", () => {
     ).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("links each view to its own route", () => {
+    renderRail();
+    expect(screen.getByRole("link", { name: /Appointments/ })).toHaveAttribute("href", "/doctor");
+    expect(screen.getByRole("link", { name: /Availability/ })).toHaveAttribute(
+      "href",
+      "/doctor/schedule",
+    );
+    expect(screen.getByRole("link", { name: /Statistics/ })).toHaveAttribute(
+      "href",
+      "/doctor/stats",
+    );
+  });
+
   it("marks Appointments current for the week schedule", () => {
-    renderRail("week");
+    renderRail("/doctor");
     expect(screen.getByRole("link", { name: /Appointments/ })).toHaveAttribute(
       "aria-current",
       "page",
     );
   });
 
-  it("links availability and announces unread notifications", () => {
-    renderRail("calendar");
+  it("marks Availability current on the schedule route", () => {
+    renderRail("/doctor/schedule");
     expect(screen.getByRole("link", { name: /Availability/ })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(
-      screen.getByRole("button", { name: /Notifications, 3 unread/ }),
-    ).toBeInTheDocument();
   });
 
-  it("opens the notifications modal from the rail", async () => {
-    const user = userEvent.setup();
+  it("leaves notifications to the header bell", () => {
     renderRail();
-
-    await user.click(
-      screen.getByRole("button", { name: /Notifications, 3 unread/ }),
-    );
-
     expect(
-      screen.getByRole("dialog", { name: "Notifications" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Synthetic notification feed")).toBeInTheDocument();
+      screen.queryByRole("button", { name: /Notifications/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("puts the doctor profile and sign-out in the menu", () => {
     renderRail();
     expect(
       screen.getByRole("link", { name: /Dr\. Synthetic Doctor/ }),
-    ).toHaveAttribute("href", "/doctor?view=profile");
+    ).toHaveAttribute("href", "/doctor/profile");
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
   });
 });

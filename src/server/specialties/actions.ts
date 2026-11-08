@@ -1,11 +1,12 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { specialtyFormSchema } from "@/lib/specialties/schemas";
 import { getAdminSession } from "@/server/auth/dal";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 
 import { supabaseSpecialtyAdminRepository } from "./repository";
 import { saveSpecialty, setSpecialtyActive } from "./service";
@@ -44,6 +45,7 @@ async function requireAdminActor(): Promise<string | null> {
 
 /** Doctors and the other admin pages show specialty names and status. */
 function refreshAdmin() {
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath("/admin", "layout");
 }
 

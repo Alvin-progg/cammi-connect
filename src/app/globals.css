@@ -415,3 +415,14 @@ body {
   background-size: 64px 64px;
   mask-image: linear-gradient(to bottom, black 25%, transparent 90%);
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* The sticky landing header must not cover the top of an anchored section. */
+section[id] {
+  scroll-margin-top: 4.5rem;
+}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Avatar } from "@/components/ui/card";
+import { BrandMark } from "@/components/ui/brand-mark";
 import { Breadcrumb } from "@/components/ui/navigation";
 import { initialsOf } from "@/components/ui/rail";
 import { cn } from "@/lib/cn";
@@ -64,12 +65,7 @@ export function StaffSidebar({
         aria-label={`CamiConnect ${navLabel.toLowerCase()} home`}
         className="focus-ring mb-1 flex items-center gap-2.5 rounded-lg px-2 py-1"
       >
-        <span
-          aria-hidden="true"
-          className="inline-flex size-7 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-ink"
-        >
-          C
-        </span>
+        <BrandMark className="size-7" />
         <span className="text-[17px] font-semibold tracking-tight text-ink">CamiConnect</span>
       </Link>
       <p className="px-2 pb-2 text-xs text-ink-muted">{roleLabel}</p>

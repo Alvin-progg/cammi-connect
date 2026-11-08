@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 
 vi.mock("server-only", () => ({}));
+// Cache directives only work inside Next; here every call reads through.
+vi.mock("next/cache", () => ({ cacheLife: vi.fn(), cacheTag: vi.fn() }));
 
 const DOCTOR_ID = "00000000-0000-4000-8000-000000000101";
 const DEPARTMENT_ID = "00000000-0000-4000-8000-000000000501";

@@ -63,7 +63,7 @@ export function DoctorStatsPanel({
           return (
             <Link
               key={item}
-              href={`/doctor?view=stats&period=${item}`}
+              href={`/doctor/stats?period=${item}`}
               aria-current={active ? "true" : undefined}
               className={`focus-ring pressable rounded-md px-3 py-1.5 text-sm font-medium ${
                 active

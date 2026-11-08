@@ -1,6 +1,7 @@
 import { Avatar } from "@/components/ui/card";
 import { initialsOf } from "@/components/ui/rail";
 
+import { DoctorViewTitle } from "./doctor-view-title";
 import { NotificationsBellButton } from "./notifications-dialog";
 
 /**
@@ -8,13 +9,11 @@ import { NotificationsBellButton } from "./notifications-dialog";
  * button, and the signed-in doctor (redesign).
  */
 export function DoctorHeader({
-  title,
   todayLabel,
   unreadCount,
   doctorName,
   specialty,
 }: {
-  title: string;
   todayLabel: string;
   unreadCount: number;
   doctorName: string;
@@ -24,7 +23,9 @@ export function DoctorHeader({
     <header className="border-b border-line bg-surface">
       <div className="mx-auto flex min-h-16 w-full max-w-[90rem] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-7">
         <div className="flex min-w-0 items-baseline gap-3">
-          <h1 className="truncate text-2xl font-semibold tracking-tight text-ink">{title}</h1>
+          <h1 className="truncate text-2xl font-semibold tracking-tight text-ink">
+            <DoctorViewTitle />
+          </h1>
           <p className="hidden truncate text-sm text-ink-muted sm:block">{todayLabel} · PHT</p>
         </div>
         <div className="flex items-center gap-3">

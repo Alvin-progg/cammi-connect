@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 
 import { updateDoctorProfileSchema } from "@/lib/profiles/schemas";
 import { getDoctorSession } from "@/server/auth/dal";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 
 import { updateDoctorContact } from "./service";
 
@@ -41,6 +42,7 @@ export async function updateDoctorProfileAction(
     phone: parsed.data.phone,
     clinicNote: parsed.data.clinicNote,
   });
-  revalidatePath("/doctor");
+  updateTag(REFERENCE_CACHE_TAG);
+  revalidatePath("/doctor", "layout");
   return { status: "success", message: "Profile updated." };
 }

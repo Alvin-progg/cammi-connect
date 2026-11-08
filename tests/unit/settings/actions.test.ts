@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { DEFAULT_SETTINGS } from "@/lib/settings/schema";
@@ -13,7 +13,7 @@ import {
 import { getSettings, saveSettingGroup } from "@/server/settings/service";
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/server/auth/dal", () => ({ getAdminSession: vi.fn() }));
 vi.mock("@/server/settings/repository", () => ({ supabaseSettingsRepository: {} }));
@@ -104,6 +104,7 @@ describe("saveSettingsAction", () => {
     );
     expect(revalidatePath).toHaveBeenCalledWith("/admin/settings");
     expect(revalidatePath).toHaveBeenCalledWith("/chat");
+    expect(updateTag).not.toHaveBeenCalled();
   });
 
   it("returns the service refusal without revalidating", async () => {
@@ -176,6 +177,7 @@ describe("sendPolicyToKnowledgeBaseAction", () => {
       {},
     );
     expect(redirect).toHaveBeenCalledWith(`/admin/knowledge-base/${DOCUMENT_ID}`);
+    expect(updateTag).toHaveBeenCalledWith("reference");
   });
 
   it("returns the knowledge refusal", async () => {
@@ -191,5 +193,6 @@ describe("sendPolicyToKnowledgeBaseAction", () => {
       ),
     ).resolves.toEqual({ status: "error", message: "Nope." });
     expect(redirect).not.toHaveBeenCalled();
+    expect(updateTag).not.toHaveBeenCalled();
   });
 });

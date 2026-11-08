@@ -46,6 +46,49 @@ export function parseDashboardView(
     : "week";
 }
 
+/** Each view is its own route so navigation gets its own loading.tsx. */
+export const DOCTOR_VIEW_PATHS: Record<DoctorView, string> = {
+  week: "/doctor",
+  calendar: "/doctor/schedule",
+  stats: "/doctor/stats",
+  profile: "/doctor/profile",
+};
+
+/** The view a doctor route shows; the rail and header follow the URL. */
+export function doctorViewForPath(pathname: string): DoctorView {
+  return DOCTOR_VIEWS.find((view) => DOCTOR_VIEW_PATHS[view] === pathname) ?? "week";
+}
+
+/** Parameters each view route reads, carried over from old `?view=` links. */
+const VIEW_PARAMS: Record<DoctorView, string[]> = {
+  week: [],
+  calendar: ["month"],
+  stats: ["period"],
+  profile: [],
+};
+
+/**
+ * Where an old `/doctor?view=` URL now lives, or null when it already is the
+ * week view at `/doctor`.
+ */
+export function legacyDoctorViewPath(
+  params: Record<string, string | string[] | undefined>,
+): string | null {
+  const view = parseDashboardView(params.view);
+  if (view === "week") {
+    return null;
+  }
+  const query = new URLSearchParams();
+  for (const name of VIEW_PARAMS[view]) {
+    const value = firstValue(params[name]);
+    if (value) {
+      query.set(name, value);
+    }
+  }
+  const search = query.toString();
+  return search ? `${DOCTOR_VIEW_PATHS[view]}?${search}` : DOCTOR_VIEW_PATHS[view];
+}
+
 export function parseAppointmentStatusFilter(
   value: string | string[] | undefined,
 ): AppointmentStatus | null {

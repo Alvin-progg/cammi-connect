@@ -13,8 +13,9 @@ import type { ReactNode } from "react";
 
 import Link from "next/link";
 
-import { BlurText, FadeIn, RevealGroup, RevealItem, RevealListItem, SpotlightCard } from "@/components/landing/landing-motion";
+import { BlurText, FadeIn, HeroParallax, RevealDelayed, RevealGroup, RevealItem, RevealListItem, ScrollHeader, ScrollProgressLine, SpotlightCard } from "@/components/landing/landing-motion";
 import { Badge } from "@/components/ui/badge";
+import { BrandMark } from "@/components/ui/brand-mark";
 import { LinkButton } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
@@ -49,9 +50,12 @@ function TimeChip({ children, picked, taken }: { children: ReactNode; picked?: b
 
 function Header() {
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur-sm">
+    <ScrollHeader className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur-sm transition-shadow duration-300 data-[scrolled=true]:shadow-[0_6px_16px_-10px_rgb(15_35_66/0.2)]">
       <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-7 px-4 sm:px-8">
-        <span className="text-[17px] font-semibold tracking-tight text-ink">CamiConnect</span>
+        <span className="flex items-center gap-2.5 text-[17px] font-semibold tracking-tight text-ink">
+          <BrandMark className="size-7" />
+          CamiConnect
+        </span>
         <nav aria-label="Main" className="hidden flex-1 gap-1 md:flex">
           {[
             ["How it works", "#how"],
@@ -72,7 +76,7 @@ function Header() {
           </LinkButton>
         </div>
       </div>
-    </header>
+    </ScrollHeader>
   );
 }
 
@@ -105,7 +109,8 @@ function Hero() {
         </div>
         <p className="mt-3.5 text-xs text-ink-muted">No app to install · Answers are AI-generated, not medical advice</p>
 
-        <FadeIn delay={0.6} className="mt-14 w-full max-w-[980px] overflow-hidden rounded-2xl border border-line bg-surface text-left shadow-[0_30px_60px_-30px_rgb(15_35_66/0.3),0_1px_2px_rgb(15_35_66/0.05)]">
+        <HeroParallax className="mt-14 w-full max-w-[980px]">
+        <FadeIn delay={0.6} className="w-full overflow-hidden rounded-2xl border border-line bg-surface text-left shadow-[0_30px_60px_-30px_rgb(15_35_66/0.3),0_1px_2px_rgb(15_35_66/0.05)]">
           <div className="flex items-center gap-1.5 border-b border-line px-3.5 py-2.5" aria-hidden>
             <span className="size-2.5 rounded-full bg-line" />
             <span className="size-2.5 rounded-full bg-line" />
@@ -136,6 +141,7 @@ function Hero() {
             </div>
           </div>
         </FadeIn>
+        </HeroParallax>
       </div>
     </section>
   );
@@ -179,20 +185,24 @@ function CalmCare() {
           </div>
         </RevealItem>
 
-        <RevealItem role="img" aria-label="Wayfinding signs: Outpatient clinics, Laboratory, Emergency Room" className="flex flex-col gap-2.5 rounded-[20px] bg-primary p-5.5 md:col-span-5 md:row-span-2">
-          <Sign label="Outpatient clinics" icon={<ArrowRight aria-hidden className="size-7" />} />
-          <Sign label="Laboratory" icon={<ArrowUp aria-hidden className="size-7" />} />
-          <Sign label="Emergency Room" icon={<ArrowLeft aria-hidden className="size-7" />} emergency />
+        <RevealItem role="img" aria-label="Wayfinding signs: Outpatient clinics, Laboratory, Emergency Room" className="group flex flex-col gap-2.5 rounded-[20px] bg-primary p-5.5 md:col-span-5 md:row-span-2">
+          <Sign label="Outpatient clinics" icon={<ArrowRight aria-hidden className="size-7 transition-transform duration-300 ease-out motion-safe:group-hover:translate-x-1.5" />} />
+          <Sign label="Laboratory" icon={<ArrowUp aria-hidden className="size-7 transition-transform duration-300 ease-out motion-safe:group-hover:-translate-y-1.5" />} />
+          <Sign label="Emergency Room" icon={<ArrowLeft aria-hidden className="size-7 transition-transform duration-300 ease-out motion-safe:group-hover:-translate-x-1.5" />} emergency />
         </RevealItem>
 
         <RevealItem className="flex flex-col gap-2.5 rounded-[20px] border border-line bg-surface p-5.5 md:col-span-3 md:row-span-2">
           <p className="font-mono text-xs text-ink-muted">ASK CAMI</p>
-          <p className="self-end rounded-xl bg-primary-soft px-3 py-2 text-sm">What should I bring if I use PhilHealth or an HMO?</p>
-          <p className="rounded-xl border border-line px-3 py-2 text-sm">Your member ID card and any letter of authorization (LOA) your HMO requires.</p>
+          <RevealDelayed delay={0.25} className="self-end">
+            <p className="rounded-xl bg-primary-soft px-3 py-2 text-sm">What should I bring if I use PhilHealth or an HMO?</p>
+          </RevealDelayed>
+          <RevealDelayed delay={0.7}>
+            <p className="rounded-xl border border-line px-3 py-2 text-sm">Your member ID card and any letter of authorization (LOA) your HMO requires.</p>
+          </RevealDelayed>
         </RevealItem>
 
-        <RevealItem aria-hidden className="relative flex flex-col justify-between overflow-hidden rounded-[20px] border border-line bg-[linear-gradient(160deg,#e0f2fe_0%,#e9f1ff_45%,#ffffff_100%)] p-5.5 md:col-span-3 md:row-span-2">
-          <span className="absolute -right-10 -top-10 size-40 rounded-full bg-[radial-gradient(circle,rgb(255_255_255/0.95),transparent_70%)]" />
+        <RevealItem aria-hidden className="group relative flex flex-col justify-between overflow-hidden rounded-[20px] border border-line bg-[linear-gradient(160deg,#e0f2fe_0%,#e9f1ff_45%,#ffffff_100%)] p-5.5 md:col-span-3 md:row-span-2">
+          <span className="absolute -right-10 -top-10 size-40 rounded-full transition-transform duration-700 ease-out motion-safe:group-hover:scale-150 bg-[radial-gradient(circle,rgb(255_255_255/0.95),transparent_70%)]" />
           <div className="relative grid h-[150px] grid-cols-3 gap-2">
             {[0.7, 0.85, 0.6].map((o) => (
               <span key={o} className="rounded-t-[10px] rounded-b-sm border border-[#cfe0ff]" style={{ background: `rgb(255 255 255 / ${o})` }} />
@@ -206,11 +216,13 @@ function CalmCare() {
           <div className="relative flex flex-col gap-3 p-6.5">
             <p className="font-mono text-xs text-ink-muted">WHAT CAMI WON&apos;T DO</p>
             <ul className="flex flex-col divide-y divide-line text-sm">
-              {["Never diagnoses or gives medical advice", 'Never calls a request "booked" before staff confirm it', "Never shares your chat with hospital staff"].map((t) => (
+              {["Never diagnoses or gives medical advice", 'Never calls a request "booked" before staff confirm it', "Never shares your chat with hospital staff"].map((t, i) => (
                 <li key={t} className="flex items-center gap-3 py-2.5">
-                  <span className="inline-flex size-6 items-center justify-center rounded-full bg-success-soft text-success">
-                    <Check aria-hidden className="size-3.5" />
-                  </span>
+                  <RevealDelayed delay={0.3 + i * 0.15} className="shrink-0">
+                    <span className="inline-flex size-6 items-center justify-center rounded-full bg-success-soft text-success">
+                      <Check aria-hidden className="size-3.5" />
+                    </span>
+                  </RevealDelayed>
                   {t}
                 </li>
               ))}
@@ -219,13 +231,15 @@ function CalmCare() {
         </RevealItem>
 
         <RevealItem className="flex flex-col justify-center gap-2.5 rounded-[20px] border border-line bg-surface px-5.5 py-5 md:col-span-4">
-          <div role="img" aria-label="Example notification: confirmed by the front desk" className="flex items-start gap-3 rounded-xl border border-line px-4 py-3 shadow-[0_12px_28px_-18px_rgb(15_35_66/0.4)]">
-            <CheckCircle2 aria-hidden className="mt-0.5 size-4.5 text-success" />
-            <div>
-              <p className="text-sm font-medium">Confirmed by the front desk</p>
-              <p className="text-xs text-ink-muted">Mon, Nov 9 · 9:30 AM · Dr. Ana Reyes</p>
+          <RevealDelayed delay={0.35}>
+            <div role="img" aria-label="Example notification: confirmed by the front desk" className="flex items-start gap-3 rounded-xl border border-line px-4 py-3 shadow-[0_12px_28px_-18px_rgb(15_35_66/0.4)]">
+              <CheckCircle2 aria-hidden className="mt-0.5 size-4.5 text-success" />
+              <div>
+                <p className="text-sm font-medium">Confirmed by the front desk</p>
+                <p className="text-xs text-ink-muted">Mon, Nov 9 · 9:30 AM · Dr. Ana Reyes</p>
+              </div>
             </div>
-          </div>
+          </RevealDelayed>
           <p className="text-sm text-ink-secondary">A person checks every request.</p>
         </RevealItem>
       </RevealGroup>
@@ -259,36 +273,38 @@ function HowItWorks() {
         <p className="max-w-[360px] text-sm text-ink-secondary">Each step is a message or a tap. Nothing is booked until the hospital confirms it.</p>
       </div>
       {/* Stair layout: each step is taller than the last and they share a baseline. */}
-      <RevealGroup as="ol" stagger={0.15} className="relative mt-14 grid items-end gap-4 md:grid-cols-3">
-        <Step n="01" height="md:h-[300px]" accent="text-line-strong" title="Tell Cami what you need" body="A specialty, a doctor's name, or your concern in your own words.">
-          <p className="ml-auto w-fit rounded-xl bg-primary-soft px-3 py-2 text-sm">My son has had a cough for a week</p>
-        </Step>
-        <Step n="02" height="md:h-[380px]" accent="text-[#9dbcf8]" title="Pick an open time" body="Only real openings from the doctor's schedule, in Philippine time.">
-          <div className="grid grid-cols-3 gap-2">
-            <TimeChip>8:30</TimeChip>
-            <TimeChip picked>9:30</TimeChip>
-            <TimeChip>10:30</TimeChip>
-            <TimeChip>1:00</TimeChip>
-            <TimeChip>2:00</TimeChip>
-            <TimeChip taken>3:30</TimeChip>
-          </div>
-        </Step>
-        <Step n="03" height="md:h-[460px]" accent="text-primary" title="The front desk confirms" body="They check it against the doctor's schedule. You see the status change in My appointments.">
-          <ol className="flex flex-col gap-3 border-l-2 border-line pl-5 text-sm">
-            {[
-              ["Request sent", <Badge key="a" tone="warning">Pending confirmation</Badge>],
-              ["Front desk reviewed", <span key="b" className="text-xs text-ink-muted tabular-nums">2:40 PM</span>],
-              ["Mon, Nov 9 · 9:30 AM", <Badge key="c" tone="info">Confirmed</Badge>],
-            ].map(([label, right], i) => (
-              <li key={i} className="relative flex items-center justify-between gap-2">
-                <span aria-hidden className="absolute -left-[27px] size-3 rounded-full bg-primary" />
-                <span className="font-medium">{label}</span>
-                {right}
-              </li>
-            ))}
-          </ol>
-        </Step>
-      </RevealGroup>
+      <ScrollProgressLine className="mt-14">
+        <RevealGroup as="ol" stagger={0.15} className="relative grid items-end gap-4 md:grid-cols-3">
+          <Step n="01" height="md:h-[300px]" accent="text-line-strong" title="Tell Cami what you need" body="A specialty, a doctor's name, or your concern in your own words.">
+            <p className="ml-auto w-fit rounded-xl bg-primary-soft px-3 py-2 text-sm">My son has had a cough for a week</p>
+          </Step>
+          <Step n="02" height="md:h-[380px]" accent="text-[#9dbcf8]" title="Pick an open time" body="Only real openings from the doctor's schedule, in Philippine time.">
+            <div className="grid grid-cols-3 gap-2">
+              <TimeChip>8:30</TimeChip>
+              <TimeChip picked>9:30</TimeChip>
+              <TimeChip>10:30</TimeChip>
+              <TimeChip>1:00</TimeChip>
+              <TimeChip>2:00</TimeChip>
+              <TimeChip taken>3:30</TimeChip>
+            </div>
+          </Step>
+          <Step n="03" height="md:h-[460px]" accent="text-primary" title="The front desk confirms" body="They check it against the doctor's schedule. You see the status change in My appointments.">
+            <ol className="flex flex-col gap-3 border-l-2 border-line pl-5 text-sm">
+              {[
+                ["Request sent", <Badge key="a" tone="warning">Pending confirmation</Badge>],
+                ["Front desk reviewed", <span key="b" className="text-xs text-ink-muted tabular-nums">2:40 PM</span>],
+                ["Mon, Nov 9 · 9:30 AM", <Badge key="c" tone="info">Confirmed</Badge>],
+              ].map(([label, right], i) => (
+                <li key={i} className="relative flex items-center justify-between gap-2">
+                  <span aria-hidden className="absolute -left-[27px] size-3 rounded-full bg-primary" />
+                  <span className="font-medium">{label}</span>
+                  {right}
+                </li>
+              ))}
+            </ol>
+          </Step>
+        </RevealGroup>
+      </ScrollProgressLine>
     </section>
   );
 }

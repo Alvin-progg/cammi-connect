@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { redirectIfSignedIn } from "@/server/auth/dal";
 import { AuthCard } from "@/components/auth/auth-card";
 import { LoginForm } from "@/components/auth/login-form";
 
@@ -19,6 +20,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<LoginSearchParams>;
 }) {
+  await redirectIfSignedIn();
   const { next, error } = await searchParams;
 
   return (

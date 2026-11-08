@@ -403,7 +403,7 @@ describe("ChatShell thread", () => {
       ],
     });
 
-    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector('img[src="x"]')).toBeNull();
     expect(container.querySelector("b")).toBeNull();
     expect(screen.getAllByText(markup)).toHaveLength(2);
   });
@@ -464,7 +464,7 @@ describe("ChatShell thread", () => {
       ],
     });
 
-    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector('img[src="x"]')).toBeNull();
     expect(screen.getByText(markup)).toBeInTheDocument();
   });
 
@@ -628,7 +628,7 @@ describe("ChatShell appointments view", () => {
       },
     });
 
-    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector('img[src="x"]')).toBeNull();
   });
 
   it("offers Cancel on upcoming appointments only", () => {

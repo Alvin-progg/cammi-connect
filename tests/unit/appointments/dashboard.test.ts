@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   DOCTOR_VIEW_LABELS,
   calendarMonthLabel,
+  doctorViewForPath,
+  legacyDoctorViewPath,
   parseAppointmentStatusFilter,
   parseCalendarMonth,
   parseDashboardView,
@@ -32,6 +34,38 @@ describe("parseDashboardView", () => {
     expect(parseDashboardView("calendar")).toBe("calendar");
     expect(parseDashboardView("stats")).toBe("stats");
     expect(parseDashboardView("profile")).toBe("profile");
+  });
+});
+
+describe("doctorViewForPath", () => {
+  it("maps each doctor route to its view", () => {
+    expect(doctorViewForPath("/doctor")).toBe("week");
+    expect(doctorViewForPath("/doctor/schedule")).toBe("calendar");
+    expect(doctorViewForPath("/doctor/stats")).toBe("stats");
+    expect(doctorViewForPath("/doctor/profile")).toBe("profile");
+  });
+
+  it("falls back to the week view for other paths", () => {
+    expect(doctorViewForPath("/doctor/unknown")).toBe("week");
+  });
+});
+
+describe("legacyDoctorViewPath", () => {
+  it("maps old ?view= URLs to the view routes, keeping their parameters", () => {
+    expect(legacyDoctorViewPath({ view: "calendar", month: "2026-12" })).toBe(
+      "/doctor/schedule?month=2026-12",
+    );
+    expect(legacyDoctorViewPath({ view: "calendar" })).toBe("/doctor/schedule");
+    expect(legacyDoctorViewPath({ view: "stats", period: "7d" })).toBe(
+      "/doctor/stats?period=7d",
+    );
+    expect(legacyDoctorViewPath({ view: "profile" })).toBe("/doctor/profile");
+  });
+
+  it("returns null when the week view is already the right page", () => {
+    expect(legacyDoctorViewPath({})).toBeNull();
+    expect(legacyDoctorViewPath({ view: "week", week: "2026-11-01" })).toBeNull();
+    expect(legacyDoctorViewPath({ view: "board" })).toBeNull();
   });
 });
 

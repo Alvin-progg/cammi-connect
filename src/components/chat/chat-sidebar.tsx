@@ -7,6 +7,7 @@ import type { ConversationSummary } from "@/lib/chat/schemas";
 import { signOutAction } from "@/server/auth/actions";
 
 import { CalendarIcon, LogOutIcon, PanelLeftIcon, SearchIcon, PlusIcon } from "lucide-react";
+import { BrandMark } from "@/components/ui/brand-mark";
 
 /**
  * Width and label visibility are driven by `data-state` on the aside:
@@ -87,7 +88,8 @@ export function ChatSidebar({
         >
           <PanelLeftIcon className="size-5" />
         </button>
-        <span className={`${LABEL} text-base font-semibold tracking-tight text-ink`}>
+        <span className={`${LABEL} flex items-center gap-2.5 text-base font-semibold tracking-tight text-ink`}>
+          <BrandMark className="size-7" />
           CamiConnect
         </span>
       </div>

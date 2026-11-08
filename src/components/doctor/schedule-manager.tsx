@@ -145,17 +145,17 @@ function MonthCalendar({ month, grid }: { month: string; grid: CalendarMonthGrid
           className="inline-flex divide-x divide-line-strong overflow-hidden rounded-lg border border-line-strong bg-surface"
         >
           <Link
-            href={`/doctor?view=calendar&month=${shiftCalendarMonth(month, -1)}`}
+            href={`/doctor/schedule?month=${shiftCalendarMonth(month, -1)}`}
             aria-label="Previous month"
             className={NAV_LINK_CLASS}
           >
             <ChevronLeftIcon className="size-4" />
           </Link>
-          <Link href="/doctor?view=calendar" className={NAV_LINK_CLASS}>
+          <Link href="/doctor/schedule" className={NAV_LINK_CLASS}>
             Today
           </Link>
           <Link
-            href={`/doctor?view=calendar&month=${shiftCalendarMonth(month, 1)}`}
+            href={`/doctor/schedule?month=${shiftCalendarMonth(month, 1)}`}
             aria-label="Next month"
             className={NAV_LINK_CLASS}
           >
@@ -200,7 +200,7 @@ function MonthCalendar({ month, grid }: { month: string; grid: CalendarMonthGrid
                 >
                   {day.inMonth ? (
                     <Link
-                      href={`/doctor?view=week&week=${day.date}`}
+                      href={`/doctor?week=${day.date}`}
                       aria-label={dayAccessibleName(day, total)}
                       title={
                         day.block

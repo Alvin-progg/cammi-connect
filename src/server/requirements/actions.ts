@@ -1,11 +1,12 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { requirementFormSchema, supersedeRequirementSchema } from "@/lib/requirements/schemas";
 import { getAdminSession } from "@/server/auth/dal";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 
 import { supabaseRequirementAdminRepository } from "./repository";
 import {
@@ -84,6 +85,7 @@ export async function saveRequirementAction(
   if (!result.ok) {
     return { status: "error", message: result.message };
   }
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath("/admin", "layout");
   if (requirementId === null) {
     redirect(`${REQUIREMENTS_PATH}/${result.requirementId}`);
@@ -111,6 +113,7 @@ export async function publishRequirementAction(
   if (!result.ok) {
     return { status: "error", message: result.message };
   }
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath("/admin", "layout");
   return { status: "success", message: result.message };
 }
@@ -135,6 +138,7 @@ export async function archiveRequirementAction(
   if (!result.ok) {
     return { status: "error", message: result.message };
   }
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath("/admin", "layout");
   return { status: "success", message: result.message };
 }
@@ -165,6 +169,7 @@ export async function supersedeRequirementAction(
   if (!result.ok) {
     return { status: "error", message: result.message };
   }
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath("/admin", "layout");
   redirect(`${REQUIREMENTS_PATH}/${result.requirementId}`);
 }

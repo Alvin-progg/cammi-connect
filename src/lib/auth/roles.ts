@@ -8,3 +8,11 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   admin: "Administrator",
   front_desk: "Front desk",
 };
+
+/** Each role's home page after sign-in, or when a signed-in user opens /login. */
+export const ROLE_LANDING_PATHS: Record<UserRole, string> = {
+  doctor: "/doctor",
+  admin: "/admin",
+  patient: "/chat",
+  front_desk: "/front-desk",
+};

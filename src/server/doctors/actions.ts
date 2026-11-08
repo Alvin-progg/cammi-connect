@@ -1,12 +1,13 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { doctorFormSchema } from "@/lib/doctors/schemas";
 import type { DoctorConflict } from "@/lib/doctors/types";
 import { getAdminSession } from "@/server/auth/dal";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 
 import { supabaseDoctorAdminRepository } from "./repository";
 import { linkDoctorAccount, saveDoctor, setDoctorActive } from "./service";
@@ -45,8 +46,9 @@ async function requireAdminActor(): Promise<string | null> {
 
 /** Department/specialty pages list doctors, and doctors see their own profile. */
 function refreshAfterDoctorChange() {
+  updateTag(REFERENCE_CACHE_TAG);
   revalidatePath("/admin", "layout");
-  revalidatePath("/doctor");
+  revalidatePath("/doctor", "layout");
 }
 
 export async function saveDoctorAction(

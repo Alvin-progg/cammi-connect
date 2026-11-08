@@ -1,10 +1,13 @@
 import "server-only";
 
+import { cacheLife, cacheTag } from "next/cache";
+
 import type {
   AdminDoctorListItem,
   DoctorAppointmentRow,
   DoctorConflict,
 } from "@/lib/doctors/types";
+import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 import { loadDepartmentNames, loadDoctorSpecialties } from "@/server/directory/repository";
 
@@ -59,57 +62,77 @@ async function toListItems(rows: DoctorRow[]): Promise<AdminDoctorListItem[]> {
   }));
 }
 
-export const supabaseDoctorAdminRepository: DoctorAdminStore = {
-  async listDoctors({ departmentId, specialtyId, status }) {
-    const supabase = getSupabaseAdminClient();
+/**
+ * Admin doctor list and detail.
+ * Cached until a write action calls `updateTag(REFERENCE_CACHE_TAG)`.
+ */
+async function cachedListDoctors(
+  { departmentId, specialtyId, status }: Parameters<DoctorAdminStore["listDoctors"]>[0],
+): ReturnType<DoctorAdminStore["listDoctors"]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
 
-    let doctorIdsForSpecialty: string[] | null = null;
-    if (specialtyId) {
-      const { data, error } = await supabase
-        .from("doctor_specialties")
-        .select("doctor_id")
-        .eq("specialty_id", specialtyId);
-      if (error) {
-        throw new Error("Unable to load doctors.");
-      }
-      doctorIdsForSpecialty = (data ?? []).map((row) => row.doctor_id);
-      if (doctorIdsForSpecialty.length === 0) {
-        return [];
-      }
-    }
+  const supabase = getSupabaseAdminClient();
 
-    let query = supabase.from("doctors").select("id, full_name, department_id, is_active");
-    if (departmentId) query = query.eq("department_id", departmentId);
-    if (status !== "all") query = query.eq("is_active", status === "active");
-    if (doctorIdsForSpecialty) query = query.in("id", doctorIdsForSpecialty);
-
-    const { data, error } = await query.order("full_name", { ascending: true }).limit(200);
+  let doctorIdsForSpecialty: string[] | null = null;
+  if (specialtyId) {
+    const { data, error } = await supabase
+      .from("doctor_specialties")
+      .select("doctor_id")
+      .eq("specialty_id", specialtyId);
     if (error) {
       throw new Error("Unable to load doctors.");
     }
-    return toListItems(data ?? []);
-  },
+    doctorIdsForSpecialty = (data ?? []).map((row) => row.doctor_id);
+    if (doctorIdsForSpecialty.length === 0) {
+      return [];
+    }
+  }
 
-  async getDoctor(doctorId) {
-    const { data, error } = await getSupabaseAdminClient()
-      .from("doctors")
-      .select("id, full_name, department_id, is_active, contact_email, contact_phone, bio")
-      .eq("id", doctorId)
-      .maybeSingle();
-    if (error) {
-      throw new Error("Unable to load the doctor.");
-    }
-    if (!data) {
-      return null;
-    }
-    const [doctor] = await toListItems([data]);
-    return {
-      ...doctor,
-      contactEmail: data.contact_email,
-      contactPhone: data.contact_phone,
-      bio: data.bio,
-    };
-  },
+  let query = supabase.from("doctors").select("id, full_name, department_id, is_active");
+  if (departmentId) query = query.eq("department_id", departmentId);
+  if (status !== "all") query = query.eq("is_active", status === "active");
+  if (doctorIdsForSpecialty) query = query.in("id", doctorIdsForSpecialty);
+
+  const { data, error } = await query.order("full_name", { ascending: true }).limit(200);
+  if (error) {
+    throw new Error("Unable to load doctors.");
+  }
+  return toListItems(data ?? []);
+}
+
+async function cachedGetDoctor(
+  doctorId: Parameters<DoctorAdminStore["getDoctor"]>[0],
+): ReturnType<DoctorAdminStore["getDoctor"]> {
+  "use cache";
+  cacheTag(REFERENCE_CACHE_TAG);
+  cacheLife("hours");
+
+  const { data, error } = await getSupabaseAdminClient()
+    .from("doctors")
+    .select("id, full_name, department_id, is_active, contact_email, contact_phone, bio")
+    .eq("id", doctorId)
+    .maybeSingle();
+  if (error) {
+    throw new Error("Unable to load the doctor.");
+  }
+  if (!data) {
+    return null;
+  }
+  const [doctor] = await toListItems([data]);
+  return {
+    ...doctor,
+    contactEmail: data.contact_email,
+    contactPhone: data.contact_phone,
+    bio: data.bio,
+  };
+}
+
+export const supabaseDoctorAdminRepository: DoctorAdminStore = {
+  listDoctors: cachedListDoctors,
+
+  getDoctor: cachedGetDoctor,
 
   async listLinkableAccounts() {
     const { data, error } = await getSupabaseAdminClient().rpc(

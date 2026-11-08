@@ -91,7 +91,7 @@ describe("confirmRequestAction", () => {
     });
     expect(revalidatePath).toHaveBeenCalledWith("/front-desk/requests");
     expect(revalidatePath).toHaveBeenCalledWith(`/front-desk/requests/${APPOINTMENT_ID}`);
-    expect(revalidatePath).toHaveBeenCalledWith("/doctor");
+    expect(revalidatePath).toHaveBeenCalledWith("/doctor", "layout");
   });
 
   it("refuses accounts that are not front desk staff without writing", async () => {
@@ -188,7 +188,7 @@ describe("recordAttendanceAction", () => {
     });
     expect(revalidatePath).toHaveBeenCalledWith("/front-desk/schedule");
     expect(revalidatePath).toHaveBeenCalledWith(`/front-desk/requests/${APPOINTMENT_ID}`);
-    expect(revalidatePath).toHaveBeenCalledWith("/doctor");
+    expect(revalidatePath).toHaveBeenCalledWith("/doctor", "layout");
   });
 
   it("ignores a staff id sent in the form", async () => {
@@ -283,7 +283,7 @@ describe("rescheduleAppointmentAction", () => {
     });
     expect(revalidatePath).toHaveBeenCalledWith(`/front-desk/requests/${APPOINTMENT_ID}`);
     expect(revalidatePath).toHaveBeenCalledWith("/front-desk/schedule");
-    expect(revalidatePath).toHaveBeenCalledWith("/doctor");
+    expect(revalidatePath).toHaveBeenCalledWith("/doctor", "layout");
   });
 
   it("refuses accounts that are not front desk staff without writing", async () => {
@@ -478,7 +478,7 @@ describe("bookForPatientAction", () => {
     });
     expect(revalidatePath).toHaveBeenCalledWith("/front-desk/requests");
     expect(revalidatePath).toHaveBeenCalledWith("/front-desk/schedule");
-    expect(revalidatePath).toHaveBeenCalledWith("/doctor");
+    expect(revalidatePath).toHaveBeenCalledWith("/doctor", "layout");
     expect(redirect).toHaveBeenCalledWith(`/front-desk/requests/${APPOINTMENT_ID}`);
   });
 

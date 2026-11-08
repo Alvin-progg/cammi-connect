@@ -1,19 +1,54 @@
 import "server-only";
 
 import { redirect } from "next/navigation";
+import { cache } from "react";
+
+import { ROLE_LANDING_PATHS } from "@/lib/auth/roles";
 
 import { getProfileForAuthUser, type Profile } from "@/server/profiles/service";
 
-import { getUser, type SessionUser } from "./service";
+import { getUser as fetchUser, type SessionUser } from "./service";
+
+/**
+ * Layouts and pages each run their guard, so one request would otherwise
+ * repeat the Supabase auth and profile lookups. React `cache` memoizes per
+ * request only; nothing is shared between users or requests.
+ */
+const getUser = cache(fetchUser);
 
 /**
  * The signed-in user's profile, or null when there is none or an admin has
  * deactivated it. Every session guard goes through this, so a deactivated
  * account is denied for every role.
  */
-async function loadActiveProfile(authUserId: string): Promise<Profile | null> {
+const loadActiveProfile = cache(async (authUserId: string): Promise<Profile | null> => {
   const profile = await getProfileForAuthUser(authUserId);
   return profile?.isActive ? profile : null;
+});
+
+/**
+ * Sends an already signed-in user from /login or /register to their role's
+ * home page. Deactivated or profile-less accounts stay on the page, and so
+ * does everyone when the lookup fails, so a database problem cannot block
+ * sign-in.
+ */
+export async function redirectIfSignedIn(): Promise<void> {
+  const user = await getUser();
+  if (!user) {
+    return;
+  }
+
+  let profile: Profile | null;
+  try {
+    profile = await loadActiveProfile(user.id);
+  } catch {
+    console.error("Unable to resolve the signed-in user's landing path.");
+    return;
+  }
+
+  if (profile) {
+    redirect(ROLE_LANDING_PATHS[profile.role]);
+  }
 }
 
 export type DoctorSession = {

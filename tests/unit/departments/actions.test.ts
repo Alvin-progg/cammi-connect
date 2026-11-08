@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getAdminSession } from "@/server/auth/dal";
@@ -11,7 +11,7 @@ import {
 import { saveDepartment, setDepartmentActive } from "@/server/departments/service";
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/server/auth/dal", () => ({ getAdminSession: vi.fn() }));
 vi.mock("@/server/departments/repository", () => ({ supabaseDepartmentAdminRepository: {} }));
@@ -78,6 +78,7 @@ describe("department actions", () => {
       expect.anything(),
     );
     expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");
+    expect(updateTag).toHaveBeenCalledWith("reference");
     expect(redirect).toHaveBeenCalledWith(`/admin/departments/${DEPARTMENT_ID}`);
   });
 
@@ -118,6 +119,7 @@ describe("department actions", () => {
       expect.anything(),
     );
     expect(revalidatePath).not.toHaveBeenCalled();
+    expect(updateTag).not.toHaveBeenCalled();
   });
 
   it("rejects a malformed department id", async () => {

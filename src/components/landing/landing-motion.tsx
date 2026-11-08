@@ -1,14 +1,15 @@
 "use client";
 
-import { motion, useReducedMotion, type Variants } from "motion/react";
-import type { ComponentProps, PointerEvent, ReactNode } from "react";
+import { motion, useReducedMotion, useScroll, useTransform, type Variants } from "motion/react";
+import { useEffect, useRef, useState, type ComponentProps, type PointerEvent, type ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
 /*
  * Landing-page motion (design.md 0.1.2: React Bits effects, landing only).
- * Every effect plays once, nothing loops or autoplays, and under
- * prefers-reduced-motion each one renders its final state.
+ * Nothing loops or autoplays: entrance effects play once and scroll-linked
+ * effects (ScrollHeader, HeroParallax, ScrollProgressLine) only move while the
+ * visitor scrolls. Under prefers-reduced-motion each one renders its final state.
  */
 
 const EASE_OUT = [0.22, 1, 0.36, 1] as const;
@@ -107,6 +108,8 @@ export function RevealGroup({
   );
 }
 
+const HOVER_LIFT = { y: -3, transition: { duration: 0.2, ease: EASE_OUT } };
+
 type RevealItemProps = {
   className?: string;
   children?: ReactNode;
@@ -119,14 +122,34 @@ type RevealItemProps = {
 export function RevealItem(props: RevealItemProps) {
   const reduced = useReducedMotion();
   if (reduced) return <div {...props} />;
-  return <motion.div variants={ITEM_VARIANTS} {...props} />;
+  return <motion.div variants={ITEM_VARIANTS} whileHover={HOVER_LIFT} {...props} />;
 }
 
 /** One list item in an `<ol>` `RevealGroup`. */
 export function RevealListItem(props: RevealItemProps) {
   const reduced = useReducedMotion();
   if (reduced) return <li {...props} />;
-  return <motion.li variants={ITEM_VARIANTS} {...props} />;
+  return <motion.li variants={ITEM_VARIANTS} whileHover={HOVER_LIFT} {...props} />;
+}
+
+/**
+ * Content inside a `RevealItem` that appears `delay` seconds after its tile,
+ * once (e.g. a chat reply after the question). Follows the group's variants.
+ */
+export function RevealDelayed({ delay, className, children }: { delay: number; className?: string; children: ReactNode }) {
+  const reduced = useReducedMotion();
+  if (reduced) return <div className={className}>{children}</div>;
+  return (
+    <motion.div
+      className={className}
+      variants={{
+        hidden: { opacity: 0, y: 8, scale: 0.96 },
+        shown: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, delay, ease: EASE_OUT } },
+      }}
+    >
+      {children}
+    </motion.div>
+  );
 }
 
 /**
@@ -159,5 +182,59 @@ export function SpotlightCard({ className, children, ...props }: ComponentProps<
       )}
       {children}
     </article>
+  );
+}
+
+const SCROLLED_AFTER_PX = 8;
+
+/** Sticky header that gains a soft shadow (via `data-scrolled`) once the page scrolls. */
+export function ScrollHeader({ className, children }: { className?: string; children: ReactNode }) {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    function updateScrolled() {
+      setScrolled(window.scrollY > SCROLLED_AFTER_PX);
+    }
+    updateScrolled();
+    window.addEventListener("scroll", updateScrolled, { passive: true });
+    return () => window.removeEventListener("scroll", updateScrolled);
+  }, []);
+  return (
+    <header className={className} data-scrolled={scrolled}>
+      {children}
+    </header>
+  );
+}
+
+/** Hero mockup drifts up 24 px while it crosses the viewport. */
+export function HeroParallax({ className, children }: { className?: string; children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const ref = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
+  const y = useTransform(scrollYProgress, [0, 1], [0, -24]);
+  if (reduced) return <div ref={ref} className={className}>{children}</div>;
+  return (
+    <motion.div ref={ref} className={className} style={{ y }}>
+      {children}
+    </motion.div>
+  );
+}
+
+/** Wraps the steps list; a baseline fills left to right as it scrolls through (md and up). */
+export function ScrollProgressLine({ className, children }: { className?: string; children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const ref = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start 80%", "end 60%"] });
+  const fillClassName = "absolute inset-0 origin-left bg-primary";
+  return (
+    <div ref={ref} className={cn("relative", className)}>
+      {children}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 -bottom-4 hidden h-0.5 bg-line md:block">
+        {reduced ? (
+          <div data-testid="progress-line-fill" className={fillClassName} style={{ transform: "none" }} />
+        ) : (
+          <motion.div data-testid="progress-line-fill" className={fillClassName} style={{ scaleX: scrollYProgress }} />
+        )}
+      </div>
+    </div>
   );
 }
