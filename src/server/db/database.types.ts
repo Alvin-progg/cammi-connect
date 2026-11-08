@@ -1023,6 +1023,14 @@ export type Database = {
         Args: { p_actor_profile_id: string; p_document_id: string; p_status: KnowledgeStatus };
         Returns: undefined;
       };
+      cammi_connect_admin_reprocess_knowledge_document: {
+        Args: { p_actor_profile_id: string; p_document_id: string };
+        Returns: undefined;
+      };
+      cammi_connect_store_knowledge_chunks: {
+        Args: { p_document_id: string; p_version: number; p_chunks: Json };
+        Returns: undefined;
+      };
       cammi_connect_replace_document_chunks: {
         Args: {
           p_document: Json;

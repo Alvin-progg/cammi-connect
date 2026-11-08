@@ -7,7 +7,6 @@ import type {
   KnowledgeCategoryFilter,
   KnowledgeDocument,
   KnowledgeDocumentSummary,
-  KnowledgeProcessingStatus,
   KnowledgeStatus,
   KnowledgeStatusFilter,
 } from "@/lib/knowledge/types";
@@ -18,10 +17,10 @@ type CreatedOutcome = { ok: true; documentId: string } | { ok: false; code: stri
 export type KnowledgeListFilters = {
   status: KnowledgeStatusFilter;
   category: KnowledgeCategoryFilter;
-  processingStatus?: KnowledgeProcessingStatus;
 };
 
 type StatusChange = { actorId: string; documentId: string; status: KnowledgeStatus };
+type Reprocess = { actorId: string; documentId: string };
 
 /**
  * Data access for admin knowledge document management (separate from the chat
@@ -40,6 +39,8 @@ export type KnowledgeAdminStore = {
     } & KnowledgeFormInput,
   ): Promise<CreatedOutcome>;
   setStatus(input: StatusChange): Promise<DatabaseOutcome>;
+  /** Marks a published document pending again and audits knowledge.reprocess (0026). */
+  reprocess(input: Reprocess): Promise<DatabaseOutcome>;
 };
 
 const REFUSAL_MESSAGES: Record<KnowledgeRefusal, string> = {
@@ -50,7 +51,7 @@ const REFUSAL_MESSAGES: Record<KnowledgeRefusal, string> = {
 };
 
 const STATUS_MESSAGES: Record<KnowledgeStatus, string> = {
-  published: "Document published. Cami will use it once processing finishes.",
+  published: "Document published.",
   archived: "Document archived. Cami no longer uses it.",
   draft: "Document restored as a draft.",
 };
@@ -120,4 +121,20 @@ export async function changeKnowledgeDocumentStatus(
     return { ok: false, message: refusalMessage(outcome.code) };
   }
   return { ok: true, message: STATUS_MESSAGES[input.status] };
+}
+
+/** Queues a published document for ingestion again; the caller then ingests it. */
+export async function reprocessKnowledgeDocument(
+  input: Reprocess,
+  store: KnowledgeAdminStore,
+): Promise<Result> {
+  const outcome = await store.reprocess(input);
+  if (!outcome.ok) {
+    const message =
+      outcome.code === "invalid_transition"
+        ? "Only a published document can be reprocessed."
+        : refusalMessage(outcome.code);
+    return { ok: false, message };
+  }
+  return { ok: true, message: "Document reprocessed." };
 }

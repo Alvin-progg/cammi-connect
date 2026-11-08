@@ -1,7 +1,11 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { FailedDocumentsPanel, KnowledgeList } from "@/components/knowledge/knowledge-list";
+import {
+  FailedDocumentsPanel,
+  KnowledgeCoveragePanel,
+  KnowledgeList,
+} from "@/components/knowledge/knowledge-list";
 import { KnowledgeForm } from "@/components/knowledge/knowledge-form";
 import { KnowledgeLifecycle } from "@/components/knowledge/knowledge-lifecycle";
 import type { KnowledgeDocument } from "@/lib/knowledge/types";
@@ -11,6 +15,7 @@ vi.mock("@/server/knowledge/actions", () => ({
   publishKnowledgeDocumentAction: vi.fn(),
   archiveKnowledgeDocumentAction: vi.fn(),
   restoreKnowledgeDocumentAction: vi.fn(),
+  reprocessKnowledgeDocumentAction: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 
@@ -111,11 +116,19 @@ describe("KnowledgeLifecycle", () => {
     expect(screen.queryByRole("button", { name: "Restore as draft" })).not.toBeInTheDocument();
   });
 
-  it("offers only archive for a published document, and Reprocess stays disabled", () => {
+  it("offers archive and Reprocess for a published document", () => {
     render(<KnowledgeLifecycle document={PUBLISHED} />);
     expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Archive" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Reprocess" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reprocess" })).toBeEnabled();
+  });
+
+  it.each([
+    ["a draft", DRAFT],
+    ["an archived document", { ...PUBLISHED, status: "archived" as const }],
+  ])("does not offer Reprocess for %s", (_label, document) => {
+    render(<KnowledgeLifecycle document={document} />);
+    expect(screen.queryByRole("button", { name: "Reprocess" })).not.toBeInTheDocument();
   });
 
   it("offers only restore for an archived document", () => {
@@ -123,5 +136,22 @@ describe("KnowledgeLifecycle", () => {
     expect(screen.getByRole("button", { name: "Restore as draft" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
+  });
+});
+
+describe("KnowledgeCoveragePanel", () => {
+  it("shows per-category counts and flags categories with nothing published", () => {
+    render(<KnowledgeCoveragePanel documents={[DRAFT, PUBLISHED, FAILED]} />);
+    const table = screen.getByRole("table", { name: "Knowledge coverage by category" });
+    const hospitalRow = within(table).getByRole("row", { name: /Hospital information/ });
+    expect(within(hospitalRow).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
+      "Hospital information",
+      "2",
+      "1",
+      "1",
+      expect.any(String),
+    ]);
+    const servicesRow = within(table).getByRole("row", { name: /Services/ });
+    expect(within(servicesRow).getByText("No published documents")).toBeInTheDocument();
   });
 });

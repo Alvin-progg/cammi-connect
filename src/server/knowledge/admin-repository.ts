@@ -5,6 +5,7 @@ import { getSupabaseAdminClient } from "@/server/db/admin-client";
 import type { Database } from "@/server/db/database.types";
 
 import type { KnowledgeAdminStore } from "./admin-service";
+import type { KnowledgeIngestionStore } from "./ingest";
 
 type DocumentRow = Database["public"]["Tables"]["knowledge_documents"]["Row"];
 
@@ -39,7 +40,7 @@ function toSummary(row: Omit<DocumentRow, "content" | "created_at" | "created_by
 }
 
 export const supabaseKnowledgeAdminRepository: KnowledgeAdminStore = {
-  async listDocuments({ status, category, processingStatus }) {
+  async listDocuments({ status, category }) {
     let query = getSupabaseAdminClient()
       .from("knowledge_documents")
       .select(SUMMARY_COLUMNS)
@@ -49,9 +50,6 @@ export const supabaseKnowledgeAdminRepository: KnowledgeAdminStore = {
     }
     if (category !== "all") {
       query = query.eq("category", category);
-    }
-    if (processingStatus) {
-      query = query.eq("processing_status", processingStatus);
     }
     const { data, error } = await query;
     if (error) {
@@ -97,5 +95,76 @@ export const supabaseKnowledgeAdminRepository: KnowledgeAdminStore = {
       { p_actor_profile_id: actorId, p_document_id: documentId, p_status: status },
     );
     return error ? { ok: false, code: refusalCode(error) } : { ok: true };
+  },
+
+  async reprocess({ actorId, documentId }) {
+    const { error } = await getSupabaseAdminClient().rpc(
+      "cammi_connect_admin_reprocess_knowledge_document",
+      { p_actor_profile_id: actorId, p_document_id: documentId },
+    );
+    return error ? { ok: false, code: refusalCode(error) } : { ok: true };
+  },
+};
+
+/** Ingestion writes, each guarded by status and version (0026). */
+export const supabaseKnowledgeIngestionRepository: KnowledgeIngestionStore = {
+  async getIngestionSource(documentId) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from("knowledge_documents")
+      .select("id, title, category, content, status, processing_status, version")
+      .eq("id", documentId)
+      .maybeSingle();
+    if (error) {
+      throw new Error("Unable to load the knowledge document.");
+    }
+    return data
+      ? {
+          id: data.id,
+          title: data.title,
+          category: data.category,
+          content: data.content,
+          status: data.status,
+          processingStatus: data.processing_status,
+          version: data.version,
+        }
+      : null;
+  },
+
+  async markProcessing(documentId, version) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from("knowledge_documents")
+      .update({ processing_status: "processing", processing_error: null })
+      .eq("id", documentId)
+      .eq("version", version)
+      .eq("status", "published")
+      .select("id");
+    if (error) {
+      throw new Error("Unable to start processing the knowledge document.");
+    }
+    return (data ?? []).length > 0;
+  },
+
+  async markFailed(documentId, version, processingError) {
+    const { error } = await getSupabaseAdminClient()
+      .from("knowledge_documents")
+      .update({ processing_status: "failed", processing_error: processingError })
+      .eq("id", documentId)
+      .eq("version", version)
+      .eq("status", "published");
+    if (error) {
+      console.error("Unable to mark a knowledge document as failed.");
+    }
+  },
+
+  async storeChunks(documentId, version, chunks) {
+    const { error } = await getSupabaseAdminClient().rpc("cammi_connect_store_knowledge_chunks", {
+      p_document_id: documentId,
+      p_version: version,
+      p_chunks: chunks,
+    });
+    if (!error) return "stored";
+    if (error.code === "P0001" && error.message === "stale") return "stale";
+    console.error("Unable to store knowledge chunks.");
+    return "error";
   },
 };

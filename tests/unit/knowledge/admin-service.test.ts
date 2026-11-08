@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { hashKnowledgeContent } from "@/lib/knowledge/content";
 import {
   changeKnowledgeDocumentStatus,
+  reprocessKnowledgeDocument,
   saveKnowledgeDocument,
   type KnowledgeAdminStore,
 } from "@/server/knowledge/admin-service";
@@ -20,6 +21,7 @@ function fakeStore(overrides: Partial<KnowledgeAdminStore> = {}): KnowledgeAdmin
     getDocument: vi.fn(),
     save: vi.fn().mockResolvedValue({ ok: true, documentId: DOCUMENT_ID }),
     setStatus: vi.fn().mockResolvedValue({ ok: true }),
+    reprocess: vi.fn().mockResolvedValue({ ok: true }),
     ...overrides,
   };
 }
@@ -60,7 +62,7 @@ describe("saveKnowledgeDocument", () => {
 
 describe("changeKnowledgeDocumentStatus", () => {
   it.each([
-    ["published", "Document published. Cami will use it once processing finishes."],
+    ["published", "Document published."],
     ["archived", "Document archived. Cami no longer uses it."],
     ["draft", "Document restored as a draft."],
   ] as const)("moves the document to %s", async (status, message) => {
@@ -88,5 +90,26 @@ describe("changeKnowledgeDocumentStatus", () => {
       ok: false,
       message: "The document's status changed. Reload the page and try again.",
     });
+  });
+});
+
+describe("reprocessKnowledgeDocument", () => {
+  it("queues a published document for processing as the session admin", async () => {
+    const store = fakeStore();
+    await expect(
+      reprocessKnowledgeDocument({ actorId: ADMIN_ID, documentId: DOCUMENT_ID }, store),
+    ).resolves.toEqual({ ok: true, message: "Document reprocessed." });
+    expect(store.reprocess).toHaveBeenCalledWith({ actorId: ADMIN_ID, documentId: DOCUMENT_ID });
+  });
+
+  it.each([
+    ["not_admin", "Only an active administrator can manage knowledge documents."],
+    ["invalid_transition", "Only a published document can be reprocessed."],
+    [undefined, "Something went wrong. Try again."],
+  ])("maps refusal %s to a message", async (code, message) => {
+    const store = fakeStore({ reprocess: vi.fn().mockResolvedValue({ ok: false, code }) });
+    await expect(
+      reprocessKnowledgeDocument({ actorId: ADMIN_ID, documentId: DOCUMENT_ID }, store),
+    ).resolves.toEqual({ ok: false, message });
   });
 });

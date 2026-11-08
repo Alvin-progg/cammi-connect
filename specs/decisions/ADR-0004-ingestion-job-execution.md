@@ -61,6 +61,25 @@ Approved by the human owner through `PLN-002`:
 - Admin knowledge-base upload (FR-002), `ingestion_jobs`, leases, and any queue, cron,
   or background worker remain undecided and out of scope.
 
+## Interim decision (2026-11-08, ADM-14)
+
+Approved by the human owner for admin-authored knowledge documents:
+
+- Trigger: the admin Server Action (publish, edit of a published document's content,
+  Reprocess) chunks and embeds the document inline and awaits the result. No queue,
+  cron job, worker, `ingestion_jobs` table, or lease is added.
+- Idempotency: every write is guarded by document status and version. Chunks are stored
+  by `cammi_connect_store_knowledge_chunks` (0026) only while the document is still
+  published at the embedded version; otherwise it raises `stale` and changes nothing.
+- Atomic swap: the old chunks are deleted and the new ones inserted in one transaction,
+  after embedding succeeds, so readers never see a gap and a failure keeps the old chunks.
+- Retry policy: Gemini calls retry 429, 5xx, and timeouts with bounded backoff
+  (`fetchJson`). A failed run sets `processing_status = 'failed'` with a fixed message,
+  and the admin retries with Reprocess.
+- Step budget: documents are at most 200,000 characters (about 120 chunks, 3 embedding
+  batches of 50), which fits one invocation at capstone scale. If it stops fitting, move
+  ingestion to a job model under the decision below.
+
 ## Decision
 
 TBD for job-based ingestion. Record trigger, lease model, checkpoint fields, step

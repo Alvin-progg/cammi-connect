@@ -7,25 +7,34 @@ import { getAdminSession } from "@/server/auth/dal";
 import {
   archiveKnowledgeDocumentAction,
   publishKnowledgeDocumentAction,
+  reprocessKnowledgeDocumentAction,
   restoreKnowledgeDocumentAction,
   saveKnowledgeDocumentAction,
 } from "@/server/knowledge/actions";
 import {
   changeKnowledgeDocumentStatus,
+  reprocessKnowledgeDocument,
   saveKnowledgeDocument,
 } from "@/server/knowledge/admin-service";
 import { extractKnowledgeText } from "@/server/knowledge/extract-text";
+import { ingestKnowledgeDocument } from "@/server/knowledge/ingest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/server/auth/dal", () => ({ getAdminSession: vi.fn() }));
-vi.mock("@/server/knowledge/admin-repository", () => ({ supabaseKnowledgeAdminRepository: {} }));
+vi.mock("@/server/knowledge/admin-repository", () => ({
+  supabaseKnowledgeAdminRepository: {},
+  supabaseKnowledgeIngestionRepository: {},
+}));
 vi.mock("@/server/knowledge/admin-service", () => ({
   saveKnowledgeDocument: vi.fn(),
   changeKnowledgeDocumentStatus: vi.fn(),
+  reprocessKnowledgeDocument: vi.fn(),
 }));
 vi.mock("@/server/knowledge/extract-text", () => ({ extractKnowledgeText: vi.fn() }));
+vi.mock("@/server/knowledge/ingest", () => ({ ingestKnowledgeDocument: vi.fn() }));
+vi.mock("@/server/ai/gemini-embeddings", () => ({ embedTexts: vi.fn() }));
 
 const IDLE = { status: "idle" } as const;
 const ADMIN_ID = "00000000-0000-4000-8000-000000000001";
@@ -56,6 +65,8 @@ beforeEach(() => {
     message: "Document saved.",
   });
   vi.mocked(changeKnowledgeDocumentStatus).mockResolvedValue({ ok: true, message: "Done." });
+  vi.mocked(reprocessKnowledgeDocument).mockResolvedValue({ ok: true, message: "Reprocessed." });
+  vi.mocked(ingestKnowledgeDocument).mockResolvedValue({ outcome: "skipped" });
 });
 
 describe("knowledge document actions", () => {
@@ -67,7 +78,10 @@ describe("knowledge document actions", () => {
     await expect(publishKnowledgeDocumentAction(IDLE, statusForm)).resolves.toEqual(DENIED);
     await expect(archiveKnowledgeDocumentAction(IDLE, statusForm)).resolves.toEqual(DENIED);
     await expect(restoreKnowledgeDocumentAction(IDLE, statusForm)).resolves.toEqual(DENIED);
+    await expect(reprocessKnowledgeDocumentAction(IDLE, statusForm)).resolves.toEqual(DENIED);
     expect(saveKnowledgeDocument).not.toHaveBeenCalled();
+    expect(reprocessKnowledgeDocument).not.toHaveBeenCalled();
+    expect(ingestKnowledgeDocument).not.toHaveBeenCalled();
     expect(changeKnowledgeDocumentStatus).not.toHaveBeenCalled();
     expect(extractKnowledgeText).not.toHaveBeenCalled();
   });
@@ -173,5 +187,65 @@ describe("knowledge document actions", () => {
       archiveKnowledgeDocumentAction(IDLE, formData({ documentId: DOCUMENT_ID })),
     ).resolves.toEqual({ status: "error", message: "Nope." });
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("ingests a published document right after publishing it", async () => {
+    vi.mocked(ingestKnowledgeDocument).mockResolvedValue({ outcome: "ready", chunkCount: 3 });
+    await expect(
+      publishKnowledgeDocumentAction(IDLE, formData({ documentId: DOCUMENT_ID })),
+    ).resolves.toEqual({ status: "success", message: "Done. Cami can use it now." });
+    expect(ingestKnowledgeDocument).toHaveBeenCalledWith(
+      DOCUMENT_ID,
+      expect.objectContaining({ store: {}, embedDocuments: expect.any(Function) }),
+    );
+  });
+
+  it("reports a processing failure after the status change succeeded", async () => {
+    vi.mocked(ingestKnowledgeDocument).mockResolvedValue({
+      outcome: "failed",
+      error: "The document has no text to process.",
+    });
+    await expect(
+      publishKnowledgeDocumentAction(IDLE, formData({ documentId: DOCUMENT_ID })),
+    ).resolves.toEqual({
+      status: "error",
+      message: "Done. Processing failed: The document has no text to process.",
+    });
+    expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");
+  });
+
+  it("ingests an edited document but never a new draft", async () => {
+    await saveKnowledgeDocumentAction(IDLE, formData({ ...FORM_FIELDS, documentId: DOCUMENT_ID }));
+    expect(ingestKnowledgeDocument).toHaveBeenCalledWith(DOCUMENT_ID, expect.anything());
+
+    vi.mocked(ingestKnowledgeDocument).mockClear();
+    await saveKnowledgeDocumentAction(IDLE, formData(FORM_FIELDS));
+    expect(ingestKnowledgeDocument).not.toHaveBeenCalled();
+  });
+
+  it("does not ingest after archiving or restoring", async () => {
+    await archiveKnowledgeDocumentAction(IDLE, formData({ documentId: DOCUMENT_ID }));
+    await restoreKnowledgeDocumentAction(IDLE, formData({ documentId: DOCUMENT_ID }));
+    expect(ingestKnowledgeDocument).not.toHaveBeenCalled();
+  });
+
+  it("reprocesses as the session admin, then ingests", async () => {
+    vi.mocked(ingestKnowledgeDocument).mockResolvedValue({ outcome: "ready", chunkCount: 1 });
+    await expect(
+      reprocessKnowledgeDocumentAction(IDLE, formData({ documentId: DOCUMENT_ID })),
+    ).resolves.toEqual({ status: "success", message: "Reprocessed. Cami can use it now." });
+    expect(reprocessKnowledgeDocument).toHaveBeenCalledWith(
+      { actorId: ADMIN_ID, documentId: DOCUMENT_ID },
+      {},
+    );
+    expect(ingestKnowledgeDocument).toHaveBeenCalledWith(DOCUMENT_ID, expect.anything());
+  });
+
+  it("does not ingest when reprocessing is refused", async () => {
+    vi.mocked(reprocessKnowledgeDocument).mockResolvedValue({ ok: false, message: "Nope." });
+    await expect(
+      reprocessKnowledgeDocumentAction(IDLE, formData({ documentId: DOCUMENT_ID })),
+    ).resolves.toEqual({ status: "error", message: "Nope." });
+    expect(ingestKnowledgeDocument).not.toHaveBeenCalled();
   });
 });

@@ -3,7 +3,11 @@ import Link from "next/link";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AccessDenied } from "@/components/auth/access-denied";
-import { FailedDocumentsPanel, KnowledgeList } from "@/components/knowledge/knowledge-list";
+import {
+  FailedDocumentsPanel,
+  KnowledgeCoveragePanel,
+  KnowledgeList,
+} from "@/components/knowledge/knowledge-list";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { parseKnowledgeCategoryFilter, parseKnowledgeStatusFilter } from "@/lib/knowledge/params";
 import {
@@ -37,13 +41,12 @@ export default async function AdminKnowledgeBasePage({
 
   const status = parseKnowledgeStatusFilter(params.status);
   const category = parseKnowledgeCategoryFilter(params.category);
-  const [documents, failed] = await Promise.all([
+  // The failed panel and coverage are hospital-wide, so they ignore the filters.
+  const [documents, allDocuments] = await Promise.all([
     listKnowledgeDocuments({ status, category }, supabaseKnowledgeAdminRepository),
-    listKnowledgeDocuments(
-      { status: "all", category: "all", processingStatus: "failed" },
-      supabaseKnowledgeAdminRepository,
-    ),
+    listKnowledgeDocuments({ status: "all", category: "all" }, supabaseKnowledgeAdminRepository),
   ]);
+  const failed = allDocuments.filter((document) => document.processingStatus === "failed");
 
   return (
     <AdminShell
@@ -100,6 +103,12 @@ export default async function AdminKnowledgeBasePage({
           </Link>
         </div>
         <KnowledgeList documents={documents} />
+        <section aria-labelledby="knowledge-coverage-heading" className="flex flex-col gap-2">
+          <h2 id="knowledge-coverage-heading" className="text-base font-semibold text-ink">
+            Coverage
+          </h2>
+          <KnowledgeCoveragePanel documents={allDocuments} />
+        </section>
       </div>
     </AdminShell>
   );

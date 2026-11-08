@@ -3,6 +3,7 @@ import Link from "next/link";
 import { EmptyState } from "@/components/admin/empty-state";
 import { CELL, HEADER_CELL, ROW, TableFrame } from "@/components/front-desk/table-frame";
 import { formatManilaDateTime } from "@/lib/appointments/format";
+import { knowledgeCoverage } from "@/lib/knowledge/coverage";
 import { KNOWLEDGE_CATEGORY_LABELS, type KnowledgeDocumentSummary } from "@/lib/knowledge/types";
 
 import { KnowledgeProcessingBadge, KnowledgeStatusBadge } from "./knowledge-badges";
@@ -79,5 +80,39 @@ export function FailedDocumentsPanel({ documents }: { documents: KnowledgeDocume
         ))}
       </ul>
     </section>
+  );
+}
+
+/** Per-category counts of what Cami can answer from (ADM-14). */
+export function KnowledgeCoveragePanel({ documents }: { documents: KnowledgeDocumentSummary[] }) {
+  return (
+    <TableFrame label="Knowledge coverage by category" minWidthClass="min-w-[40rem]">
+      <thead>
+        <tr>
+          <th scope="col" className={HEADER_CELL}>Category</th>
+          <th scope="col" className={HEADER_CELL}>Published</th>
+          <th scope="col" className={HEADER_CELL}>Ready</th>
+          <th scope="col" className={HEADER_CELL}>Failed</th>
+          <th scope="col" className={HEADER_CELL}>Last updated</th>
+        </tr>
+      </thead>
+      <tbody>
+        {knowledgeCoverage(documents).map((row) => (
+          <tr key={row.category} className={ROW}>
+            <td className={CELL}>{KNOWLEDGE_CATEGORY_LABELS[row.category]}</td>
+            <td className={`${CELL} tabular-nums`}>{row.published}</td>
+            <td className={`${CELL} tabular-nums`}>{row.ready}</td>
+            <td className={`${CELL} tabular-nums`}>{row.failed}</td>
+            <td className={`${CELL} tabular-nums`}>
+              {row.lastUpdated ? (
+                formatManilaDateTime(row.lastUpdated)
+              ) : (
+                <span className="font-medium text-warning-soft-ink">No published documents</span>
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </TableFrame>
   );
 }

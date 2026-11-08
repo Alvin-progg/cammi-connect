@@ -88,7 +88,8 @@ then `db/migrations/0021_admin_services.sql` once, then
 `db/migrations/0023_fix_admin_save_create.sql` once, then
 `db/migrations/0024_requirement_resupersede.sql` once, then
 `db/migrations/0025_admin_knowledge_documents.sql` once, then rerun
-`npm run kb:ingest` so the corpus documents get their content and category.
+`npm run kb:ingest` so the corpus documents get their content and category, then
+`db/migrations/0026_admin_knowledge_ingestion.sql` once.
 After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
@@ -422,6 +423,19 @@ now fail.
   `cammi_connect_admin_set_knowledge_document_status` (publish, archive, restore), used by
   `/admin/knowledge-base`. Editing a published document's content bumps its version and
   sets processing to `pending`; its old chunks stay searchable until ADM-14 re-ingests it.
+
+`0026_admin_knowledge_ingestion.sql` (ADM-14):
+
+- adds the audited `cammi_connect_admin_reprocess_knowledge_document` (published
+  documents only; sets processing back to `pending`, audit action `knowledge.reprocess`).
+- adds `cammi_connect_store_knowledge_chunks`, which swaps a document's chunks in one
+  transaction and sets processing to `ready`. It raises `stale` and changes nothing when
+  the document is no longer published at the embedded version.
+- redefines `cammi_connect_admin_set_knowledge_document_status`: archiving also deletes
+  the document's chunks, so archived text can't come back if a later re-publish fails.
+- Publish, edit, and Reprocess at `/admin/knowledge-base` now chunk and embed the
+  document inline (needs `GEMINI_API_KEY` in the app's environment). A failed run sets
+  processing to `failed` with a fixed message and leaves the previous chunks searchable.
 
 #### Supabase Auth email templates (ADM-01, manual)
 
