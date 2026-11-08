@@ -22,7 +22,7 @@ export function DoctorProfileView({
     <div className="grid gap-6 lg:grid-cols-2">
       <section
         aria-labelledby="profile-assignment-heading"
-        className="rounded-xl border border-line bg-surface p-4 sm:p-6"
+        className="rounded-xl border border-line bg-surface p-4 shadow-soft sm:p-6"
       >
         <h2
           id="profile-assignment-heading"
@@ -64,7 +64,7 @@ export function DoctorProfileView({
 
       <section
         aria-labelledby="profile-contact-heading"
-        className="rounded-xl border border-line bg-surface p-4 sm:p-6"
+        className="rounded-xl border border-line bg-surface p-4 shadow-soft sm:p-6"
       >
         <h2
           id="profile-contact-heading"

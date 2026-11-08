@@ -1,10 +1,10 @@
+import { Plus } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AccessDenied } from "@/components/auth/access-denied";
 import { DoctorsTable } from "@/components/doctors/doctors-table";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { parseRecordIdParam } from "@/lib/admin/dashboard";
 import { parseDoctorStatusFilter } from "@/lib/doctors/params";
 import { getAdminSession } from "@/server/auth/dal";
@@ -38,7 +38,14 @@ export default async function AdminDoctorsPage({ searchParams }: PageProps<"/adm
   ]);
 
   return (
-    <AdminShell adminName={session.admin.fullName} active="doctors" crumbs={[{ label: "Doctors" }]}>
+    <AdminShell adminName={session.admin.fullName} active="doctors" crumbs={[{ label: "Doctors" }]}
+      actions={
+        <LinkButton size="sm" href="/admin/doctors/new">
+          <Plus aria-hidden="true" />
+          New doctor
+        </LinkButton>
+      }
+    >
       <div className="flex flex-col gap-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <form
@@ -97,9 +104,6 @@ export default async function AdminDoctorsPage({ searchParams }: PageProps<"/adm
               Filter
             </Button>
           </form>
-          <Link href="/admin/doctors/new" className={buttonVariants()}>
-            New doctor
-          </Link>
         </div>
         <DoctorsTable doctors={doctors} />
       </div>

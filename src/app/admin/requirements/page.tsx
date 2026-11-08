@@ -1,11 +1,11 @@
+import { Plus } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { connection } from "next/server";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AccessDenied } from "@/components/auth/access-denied";
 import { RequirementsList } from "@/components/requirements/requirements-list";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { todayInManila } from "@/lib/appointments/filters";
 import {
   parseRequirementKindFilter,
@@ -48,6 +48,12 @@ export default async function AdminRequirementsPage({
       adminName={session.admin.fullName}
       active="requirements"
       crumbs={[{ label: "Requirements" }]}
+      actions={
+        <LinkButton size="sm" href="/admin/requirements/new">
+          <Plus aria-hidden="true" />
+          New requirement
+        </LinkButton>
+      }
     >
       <div className="flex flex-col gap-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -84,9 +90,6 @@ export default async function AdminRequirementsPage({
               Filter
             </Button>
           </form>
-          <Link href="/admin/requirements/new" className={buttonVariants()}>
-            New requirement
-          </Link>
         </div>
         <RequirementsList requirements={requirements} today={todayInManila()} />
       </div>

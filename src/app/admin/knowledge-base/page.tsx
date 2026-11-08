@@ -1,5 +1,5 @@
+import { Plus } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AccessDenied } from "@/components/auth/access-denied";
@@ -8,7 +8,7 @@ import {
   KnowledgeCoveragePanel,
   KnowledgeList,
 } from "@/components/knowledge/knowledge-list";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { parseKnowledgeCategoryFilter, parseKnowledgeStatusFilter } from "@/lib/knowledge/params";
 import {
   KNOWLEDGE_CATEGORIES,
@@ -52,6 +52,12 @@ export default async function AdminKnowledgeBasePage({
       adminName={session.admin.fullName}
       active="knowledge-base"
       crumbs={[{ label: "Knowledge Base" }]}
+      actions={
+        <LinkButton size="sm" href="/admin/knowledge-base/new">
+          <Plus aria-hidden="true" />
+          New document
+        </LinkButton>
+      }
     >
       <div className="flex flex-col gap-6">
         <FailedDocumentsPanel documents={failed} />
@@ -97,9 +103,6 @@ export default async function AdminKnowledgeBasePage({
               Filter
             </Button>
           </form>
-          <Link href="/admin/knowledge-base/new" className={buttonVariants()}>
-            New document
-          </Link>
         </div>
         <KnowledgeList documents={documents} />
         <section aria-labelledby="knowledge-coverage-heading" className="flex flex-col gap-2">

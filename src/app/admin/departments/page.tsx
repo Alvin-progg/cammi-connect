@@ -1,10 +1,10 @@
+import { Plus } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AccessDenied } from "@/components/auth/access-denied";
 import { DepartmentsTable } from "@/components/departments/departments-table";
-import { buttonVariants } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/button";
 import { getAdminSession } from "@/server/auth/dal";
 import { supabaseDepartmentAdminRepository } from "@/server/departments/repository";
 import { listDepartmentsOverview } from "@/server/departments/service";
@@ -28,13 +28,14 @@ export default async function AdminDepartmentsPage() {
       adminName={session.admin.fullName}
       active="departments"
       crumbs={[{ label: "Departments" }]}
+      actions={
+        <LinkButton size="sm" href="/admin/departments/new">
+          <Plus aria-hidden="true" />
+          New department
+        </LinkButton>
+      }
     >
       <div className="flex flex-col gap-6">
-        <div className="flex justify-end">
-          <Link href="/admin/departments/new" className={buttonVariants()}>
-            New department
-          </Link>
-        </div>
         <DepartmentsTable departments={departments} />
       </div>
     </AdminShell>

@@ -1,9 +1,9 @@
+import { UserPlus } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AccessDenied } from "@/components/auth/access-denied";
-import { buttonVariants } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/button";
 import { UsersFilters, UsersTable } from "@/components/users/users-list";
 import { parseUserListFilters } from "@/lib/users/schemas";
 import { getAdminSession } from "@/server/auth/dal";
@@ -27,13 +27,17 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
   const { users, total, page, pageCount } = await listUsers(filters, supabaseUserAdminRepository);
 
   return (
-    <AdminShell adminName={session.admin.fullName} active="users" crumbs={[{ label: "Users" }]}>
+    <AdminShell adminName={session.admin.fullName} active="users" crumbs={[{ label: "Users" }]}
+      actions={
+        <LinkButton size="sm" href="/admin/users/new">
+          <UserPlus aria-hidden="true" />
+          Invite staff
+        </LinkButton>
+      }
+    >
       <div className="flex flex-col gap-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <UsersFilters filters={filters} />
-          <Link href="/admin/users/new" className={buttonVariants()}>
-            Invite staff
-          </Link>
         </div>
         <UsersTable users={users} total={total} page={page} pageCount={pageCount} filters={filters} />
       </div>

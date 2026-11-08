@@ -48,9 +48,9 @@ const CHART_HEIGHT = 288;
 
 const SERIES = {
   volume: "var(--chart-1)",
-  completed: "var(--chart-1)",
-  cancelled: "var(--chart-5)",
-  noShow: "var(--chart-4)",
+  completed: "var(--series-completed)",
+  cancelled: "var(--series-cancelled)",
+  noShow: "var(--series-noshow)",
   requested: "var(--chart-6)",
   confirmed: "var(--chart-2)",
 } as const;

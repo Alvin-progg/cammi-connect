@@ -1,10 +1,10 @@
+import { Plus } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AccessDenied } from "@/components/auth/access-denied";
 import { ServicesTable } from "@/components/services/services-table";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { parseRecordIdParam } from "@/lib/admin/dashboard";
 import { parseServiceStatusFilter } from "@/lib/services/params";
 import { getAdminSession } from "@/server/auth/dal";
@@ -37,7 +37,14 @@ export default async function AdminServicesPage({ searchParams }: PageProps<"/ad
   ]);
 
   return (
-    <AdminShell adminName={session.admin.fullName} active="services" crumbs={[{ label: "Services" }]}>
+    <AdminShell adminName={session.admin.fullName} active="services" crumbs={[{ label: "Services" }]}
+      actions={
+        <LinkButton size="sm" href="/admin/services/new">
+          <Plus aria-hidden="true" />
+          New service
+        </LinkButton>
+      }
+    >
       <div className="flex flex-col gap-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <form
@@ -78,9 +85,6 @@ export default async function AdminServicesPage({ searchParams }: PageProps<"/ad
               Filter
             </Button>
           </form>
-          <Link href="/admin/services/new" className={buttonVariants()}>
-            New service
-          </Link>
         </div>
         <ServicesTable services={services} />
       </div>

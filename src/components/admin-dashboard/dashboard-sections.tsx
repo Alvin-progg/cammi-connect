@@ -19,7 +19,7 @@ function Section({ id, title, description, children }: { id: string; title: stri
   return (
     <section
       aria-labelledby={headingId}
-      className="flex min-w-0 flex-col gap-4 rounded-xl border border-line bg-surface p-5 shadow-card"
+      className="flex min-w-0 flex-col gap-4 rounded-xl border border-line bg-surface p-6 shadow-soft"
     >
       <header className="flex flex-col gap-1">
         <h2 id={headingId} className="text-base font-semibold text-ink">

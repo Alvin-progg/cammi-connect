@@ -11,7 +11,7 @@ export function AppointmentFilters({
   return (
     <section
       aria-labelledby="appointment-filters-heading"
-      className="rounded-xl border border-line bg-surface p-4 sm:p-5"
+      className="rounded-xl border border-line bg-surface p-4 shadow-soft sm:p-5"
     >
       <h2
         id="appointment-filters-heading"
