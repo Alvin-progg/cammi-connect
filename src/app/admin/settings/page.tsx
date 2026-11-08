@@ -1,7 +1,6 @@
-import clsx from "clsx";
 import type { Metadata } from "next";
-import Link from "next/link";
 
+import { LinkTabs } from "@/components/ui/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { TaskCard } from "@/components/admin/form-parts";
 import { AccessDenied } from "@/components/auth/access-denied";
@@ -41,29 +40,14 @@ export default async function AdminSettingsPage({ searchParams }: PageProps<"/ad
   return (
     <AdminShell adminName={session.admin.fullName} active="settings" crumbs={[{ label: "Settings" }]}>
       <div className="flex flex-col gap-6">
-        <nav aria-label="Settings sections" className="border-b border-line">
-          <ul className="-mb-px flex gap-1 overflow-x-auto">
-            {SETTING_GROUPS.map((group) => {
-              const current = group === tab;
-              return (
-                <li key={group}>
-                  <Link
-                    href={group === "appointment" ? "/admin/settings" : `/admin/settings?tab=${group}`}
-                    aria-current={current ? "page" : undefined}
-                    className={clsx(
-                      "inline-flex min-h-11 items-center border-b-2 px-4 text-sm font-medium focus-ring",
-                      current
-                        ? "border-primary text-ink"
-                        : "border-transparent text-ink-secondary hover:text-ink",
-                    )}
-                  >
-                    {SETTING_GROUP_LABELS[group]}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
+        <LinkTabs
+          label="Settings sections"
+          items={SETTING_GROUPS.map((group) => ({
+            href: group === "appointment" ? "/admin/settings" : `/admin/settings?tab=${group}`,
+            label: SETTING_GROUP_LABELS[group],
+            current: group === tab,
+          }))}
+        />
 
         <TaskCard title={`${SETTING_GROUP_LABELS[tab]} settings`} description={TAB_DESCRIPTIONS[tab]}>
           {/* A new key per tab gives each tab a fresh form and action state. */}
