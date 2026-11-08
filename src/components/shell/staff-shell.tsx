@@ -32,10 +32,11 @@ function groupItems(items: readonly StaffNavItem[]) {
 }
 
 /**
- * The staff sidebar (admin and front desk): grouped 240px column that stays
+ * The staff sidebar (admin and front desk). Without a `personName` (while a
+ * page loads) the foot shows a placeholder instead of the account controls.: grouped 240px column that stays
  * in view on large screens and stacks above the page below `lg`.
  */
-function StaffSidebar({
+export function StaffSidebar({
   navLabel,
   roleLabel,
   homeHref,
@@ -51,7 +52,7 @@ function StaffSidebar({
   homeHref: string;
   items: readonly StaffNavItem[];
   activeKey: string;
-  personName: string;
+  personName?: string;
   personRole: string;
   initialsFallback: string;
   search?: ReactNode;
@@ -107,6 +108,7 @@ function StaffSidebar({
           </div>
         ))}
       </nav>
+      {personName ? (
       <div className="mt-auto flex items-center gap-2.5 border-t border-line px-2 pt-3">
         <Avatar initials={initialsOf(personName, initialsFallback)} />
         <div className="min-w-0 flex-1">
@@ -124,6 +126,12 @@ function StaffSidebar({
           </button>
         </form>
       </div>
+      ) : (
+        <div aria-hidden="true" className="mt-auto flex items-center gap-2.5 border-t border-line px-2 pt-3">
+          <span className="size-8 shrink-0 rounded-full bg-surface-muted motion-safe:animate-pulse" />
+          <span className="h-4 flex-1 rounded-md bg-surface-muted motion-safe:animate-pulse" />
+        </div>
+      )}
     </aside>
   );
 }

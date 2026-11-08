@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import { Suspense } from "react";
 
 import { AccessDenied } from "@/components/auth/access-denied";
 import { AppointmentsCard } from "@/components/doctor/appointments-card";
@@ -11,6 +12,7 @@ import { NotificationsPanel } from "@/components/doctor/notifications-panel";
 import { toHistoryItems } from "@/components/doctor/history-items";
 import { ScheduleManager } from "@/components/doctor/schedule-manager";
 import { WeekSchedule } from "@/components/doctor/week-schedule";
+import { CardSkeleton, DashboardPageSkeleton, DetailPageSkeleton } from "@/components/ui/skeleton";
 import {
   DOCTOR_VIEW_LABELS,
   parseAppointmentStatusFilter,
@@ -21,6 +23,7 @@ import {
   resolveStatsPeriodBounds,
   shiftCalendarMonth,
   shiftWeek,
+  type DoctorView,
 } from "@/lib/appointments/dashboard";
 import { formatManilaDate } from "@/lib/appointments/format";
 import {
@@ -232,6 +235,19 @@ async function ProfileWorkspace({
   );
 }
 
+function ViewSkeleton({ view }: { view: DoctorView }) {
+  return (
+    <div aria-busy="true" className="flex flex-col gap-6">
+      <p role="status" className="sr-only">
+        Loading…
+      </p>
+      {view === "stats" ? <DashboardPageSkeleton /> : null}
+      {view === "profile" ? <DetailPageSkeleton /> : null}
+      {view === "week" || view === "calendar" ? <CardSkeleton lines={12} className="min-h-[32rem]" /> : null}
+    </div>
+  );
+}
+
 export default async function DoctorPage({
   searchParams,
 }: {
@@ -272,18 +288,22 @@ export default async function DoctorPage({
         specialty={details?.specialty ?? null}
       />
       <div className="mx-auto w-full max-w-[90rem] px-4 py-6 sm:px-6 lg:px-8">
-        {view === "week" ? (
-          <AppointmentsWorkspace doctorId={doctorId} params={params} />
-        ) : null}
-        {view === "calendar" ? (
-          <CalendarWorkspace doctorId={doctorId} params={params} />
-        ) : null}
-        {view === "stats" ? (
-          <StatsWorkspace doctorId={doctorId} params={params} />
-        ) : null}
-        {view === "profile" ? (
-          <ProfileWorkspace details={details} doctorId={doctorId} />
-        ) : null}
+        {/* Keyed by view: switching views only changes ?view=, which does not
+            show loading.tsx, so each view gets its own skeleton. */}
+        <Suspense key={view} fallback={<ViewSkeleton view={view} />}>
+          {view === "week" ? (
+            <AppointmentsWorkspace doctorId={doctorId} params={params} />
+          ) : null}
+          {view === "calendar" ? (
+            <CalendarWorkspace doctorId={doctorId} params={params} />
+          ) : null}
+          {view === "stats" ? (
+            <StatsWorkspace doctorId={doctorId} params={params} />
+          ) : null}
+          {view === "profile" ? (
+            <ProfileWorkspace details={details} doctorId={doctorId} />
+          ) : null}
+        </Suspense>
       </div>
     </DoctorShell>
   );
