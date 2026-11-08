@@ -60,7 +60,7 @@ describe("DailySchedule", () => {
     expect(within(confirmed).getByText("Confirmed")).toBeInTheDocument();
     expect(within(confirmed).getByText("Cami (AI assistant)")).toBeInTheDocument();
     expect(
-      within(confirmed).getByRole("link", { name: "View appointment AB12CD34" }),
+      within(confirmed).getByRole("link", { name: "Synthetic Patient B" }),
     ).toHaveAttribute("href", "/front-desk/requests/ab12cd34-0000-4000-8000-000000000202");
 
     expect(within(rows[2]).getByText("Front desk")).toBeInTheDocument();

@@ -5,7 +5,12 @@ import { AccessDenied } from "@/components/auth/access-denied";
 import { DailySchedule } from "@/components/front-desk/daily-schedule";
 import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
 import { buttonVariants } from "@/components/ui/button";
-import { formatManilaMediumDate } from "@/lib/appointments/format";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
+import { PrintButton } from "@/components/front-desk/print-button";
+import { LinkButton } from "@/components/ui/button";
+import { todayInManila } from "@/lib/appointments/filters";
+import { formatManilaDate } from "@/lib/appointments/format";
 import {
   APPOINTMENT_STATUSES,
   APPOINTMENT_STATUS_LABELS,
@@ -13,12 +18,14 @@ import {
 import {
   SCHEDULE_SEARCH_MAX_LENGTH,
   parseScheduleFilters,
+  shiftManilaDate,
 } from "@/lib/front-desk/schedule";
 import { getFrontDeskSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import { supabaseFrontDeskScheduleRepository } from "@/server/front-desk/repository";
 import { listDailySchedule } from "@/server/front-desk/service";
 import { CONTROL_CLASS } from "@/components/ui/field";
+import { cn } from "@/lib/cn";
 
 export const instant = false;
 
@@ -46,22 +53,36 @@ export default async function FrontDeskSchedulePage({
     supabaseDirectoryRepository.listDoctors({ activeOnly: false }),
   ]);
 
+  const items = schedule.items;
+  const checkedIn = items.filter((item) => item.status === "checked_in").length;
+  const noShows = items.filter((item) => item.status === "no_show").length;
+
+  // Day links keep the other filters.
+  function dayHref(date: string): string {
+    const query = new URLSearchParams({ date });
+    if (filters.doctorId) query.set("doctor", filters.doctorId);
+    if (filters.status !== "all") query.set("status", filters.status);
+    if (filters.search) query.set("q", filters.search);
+    return `/front-desk/schedule?${query.toString()}`;
+  }
+
   return (
     <FrontDeskShell
       staffName={session.staff.fullName}
       active="schedule"
       crumbs={[{ label: "Daily schedule" }]}
-      lead={`Appointments on ${formatManilaMediumDate(filters.date)} from every booking source. Record check-in, completion, or no-show from the appointment day onward.`}
-    >
-      <div className="flex flex-col gap-6">
-        <form
-          method="get"
-          action="/front-desk/schedule"
-          aria-label="Filter schedule"
-          className="flex flex-wrap items-end gap-3"
-        >
-          <div className="flex flex-col gap-1">
-            <label htmlFor="schedule-date" className={FIELD_LABEL_CLASS}>
+      title={formatManilaDate(filters.date)}
+      lead={`${items.length === 1 ? "1 appointment" : `${items.length} appointments`} · ${checkedIn} checked in · ${noShows} no-show. Record check-in, completion, or no-show from the appointment day onward.`}
+      actions={
+        <>
+          <LinkButton variant="outline" size="icon" href={dayHref(shiftManilaDate(filters.date, -1))} aria-label="Previous day">
+            <ChevronLeft aria-hidden="true" />
+          </LinkButton>
+          <form method="get" action="/front-desk/schedule" aria-label="Go to date" className="flex gap-2">
+            {filters.doctorId ? <input type="hidden" name="doctor" value={filters.doctorId} /> : null}
+            {filters.status !== "all" ? <input type="hidden" name="status" value={filters.status} /> : null}
+            {filters.search ? <input type="hidden" name="q" value={filters.search} /> : null}
+            <label htmlFor="schedule-date" className="sr-only">
               Date
             </label>
             <input
@@ -69,9 +90,29 @@ export default async function FrontDeskSchedulePage({
               type="date"
               name="date"
               defaultValue={filters.date}
-              className={CONTROL_CLASS}
+              className={cn(CONTROL_CLASS, "w-auto")}
             />
-          </div>
+            <button type="submit" className={SECONDARY_BUTTON_CLASS}>
+              Go
+            </button>
+          </form>
+          <LinkButton variant="outline" size="icon" href={dayHref(shiftManilaDate(filters.date, 1))} aria-label="Next day">
+            <ChevronRight aria-hidden="true" />
+          </LinkButton>
+          <LinkButton variant="outline" size="sm" href={dayHref(todayInManila(now))}>
+            Today
+          </LinkButton>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-6">
+        <form
+          method="get"
+          action="/front-desk/schedule"
+          aria-label="Filter schedule"
+          className="flex flex-wrap items-end gap-3 print:hidden"
+        >
+          <input type="hidden" name="date" value={filters.date} />
           <div className="flex flex-col gap-1">
             <label htmlFor="schedule-doctor" className={FIELD_LABEL_CLASS}>
               Doctor
@@ -125,11 +166,14 @@ export default async function FrontDeskSchedulePage({
             Filter
           </button>
           <Link
-            href="/front-desk/schedule"
+            href={`/front-desk/schedule?date=${filters.date}`}
             className="focus-ring inline-flex h-9 items-center rounded-md px-2 text-sm font-medium text-primary underline-offset-4 hover:text-primary-hover hover:underline"
           >
             Clear filters
           </Link>
+          <div className="ml-auto">
+            <PrintButton />
+          </div>
         </form>
         <DailySchedule
           items={schedule.items}
