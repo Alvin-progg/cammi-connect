@@ -457,6 +457,11 @@ now fail.
   offers no slot in the next 24 hours. "Send cancellation policy to knowledge base"
   opens a new draft document. A patient account is denied at `/admin/settings`.
 
+Audit log (ADM-16, no migration): as an admin, open `/admin/audit-log`, filter by
+"Settings (settings.*)", open an entry and check its previous and new values, then use
+**Export CSV**. A new `audit.export` row appears at the top of the log. A patient
+account is denied at `/admin/audit-log` and gets 403 from `/api/admin/audit-log/export`.
+
 #### Supabase Auth email templates (ADM-01, manual)
 
 Admin-sent invites and password resets land on `/auth/confirm`, which verifies the

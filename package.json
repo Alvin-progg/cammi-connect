@@ -12,6 +12,7 @@
     "db:seed": "node --env-file=.env.local scripts/seed.mjs",
     "kb:ingest": "node --env-file=.env.local scripts/ingest-knowledge.mts",
     "smoke:providers": "node --env-file=.env.local scripts/smoke-providers.mjs",
+    "check:bundle": "node --env-file-if-exists=.env.local scripts/check-bundle-secrets.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
