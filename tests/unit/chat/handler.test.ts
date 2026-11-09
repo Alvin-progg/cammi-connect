@@ -210,6 +210,16 @@ describe("handleChatRequest", () => {
     expect(deps.generate).not.toHaveBeenCalled();
   });
 
+  it("tells the patient the 1000-character limit before any model call", async () => {
+    const response = await handleChatRequest(chatRequest(messageBody("a".repeat(1001))), deps);
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "invalid_request", message: "Please enter a message of up to 1000 characters." },
+    });
+    expect(deps.generate).not.toHaveBeenCalled();
+  });
+
   it("returns 404 for another patient's conversation without revealing it exists", async () => {
     const foreignId = "00000000-0000-4000-8000-00000000c002";
 

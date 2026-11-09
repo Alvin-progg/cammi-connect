@@ -22,9 +22,15 @@ export async function createSupabaseServerClient() {
         // Response cache headers cannot be set from here; session-mutating
         // responses set Cache-Control explicitly (callback route, /account via
         // the proxy).
-        cookiesToSet.forEach(({ name, value, options }) => {
-          cookieStore.set(name, value, options);
-        });
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options);
+          });
+        } catch {
+          // Server Components cannot write cookies. A session refresh there is
+          // safe to drop: src/proxy.ts refreshes and writes the session cookies
+          // on every matched request. Actions and route handlers still write.
+        }
       },
     },
   });

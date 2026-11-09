@@ -328,6 +328,28 @@ describe("chat booking tools", () => {
 
     expect(result).toEqual({ ok: false, message: "That slot was just booked. Choose another time." });
   });
+
+  it("returns the booking-cap message when the patient is at the upcoming-appointment cap", async () => {
+    const deps = toolDeps();
+    vi.mocked(deps.booker.book).mockResolvedValue({
+      ok: false,
+      error: { code: "P0001", message: "too_many_upcoming" },
+    });
+    const tools = createChatTools(deps);
+
+    const result = await tools.createAppointment({
+      patientId: PATIENT_ID,
+      doctorId: DOCTOR_ID,
+      start: "2026-11-03T01:00:00.000Z",
+      reason: null,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message:
+        "You already have the maximum number of upcoming appointments. Cancel one first, or call the front desk to book another.",
+    });
+  });
 });
 
 describe("chat patient appointment tools", () => {

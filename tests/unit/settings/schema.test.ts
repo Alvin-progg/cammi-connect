@@ -22,6 +22,7 @@ const appointmentValues = {
   "appointment.request_expiry_hours": null,
   "appointment.min_lead_hours": 2,
   "appointment.max_advance_days": 60,
+  "appointment.max_upcoming_per_patient": 3,
   "appointment.cancellation_policy_text": "",
   "appointment.reschedule_policy_text": "",
 };
@@ -77,6 +78,18 @@ describe("settings group schemas", () => {
     expect(parse({ "appointment.max_advance_days": 366 })).toBe(false);
     expect(parse({ "appointment.request_expiry_hours": 24 })).toBe(true);
     expect(parse({ "appointment.request_expiry_hours": 0 })).toBe(false);
+  });
+
+  it("bounds the per-patient upcoming appointment cap to 1-20, default 3", () => {
+    const parse = (patch: Record<string, unknown>) =>
+      settingsGroupSchemas.appointment.safeParse({ ...appointmentValues, ...patch }).success;
+
+    expect(DEFAULT_SETTINGS["appointment.max_upcoming_per_patient"]).toBe(3);
+    expect(parse({ "appointment.max_upcoming_per_patient": 1 })).toBe(true);
+    expect(parse({ "appointment.max_upcoming_per_patient": 20 })).toBe(true);
+    expect(parse({ "appointment.max_upcoming_per_patient": 0 })).toBe(false);
+    expect(parse({ "appointment.max_upcoming_per_patient": 21 })).toBe(false);
+    expect(parse({ "appointment.max_upcoming_per_patient": 2.5 })).toBe(false);
   });
 
   it("requires a welcome message of at most 500 characters and one category", () => {
@@ -180,6 +193,7 @@ describe("settingsFromFormData", () => {
         ["appointment.request_expiry_hours", ""],
         ["appointment.min_lead_hours", "4"],
         ["appointment.max_advance_days", "30"],
+        ["appointment.max_upcoming_per_patient", "5"],
         ["appointment.cancellation_policy_text", " Cancel a day ahead. "],
         ["appointment.reschedule_policy_text", ""],
       ]),
@@ -189,6 +203,7 @@ describe("settingsFromFormData", () => {
       "appointment.request_expiry_hours": null,
       "appointment.min_lead_hours": 4,
       "appointment.max_advance_days": 30,
+      "appointment.max_upcoming_per_patient": 5,
       "appointment.cancellation_policy_text": "Cancel a day ahead.",
       "appointment.reschedule_policy_text": "",
     });

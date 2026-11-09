@@ -321,6 +321,8 @@ const BOOKING_REJECTION_MESSAGES: Record<string, string> = {
   past: "Choose a future appointment time.",
   outside_hours: "That time is outside the doctor's consultation hours.",
   blocked: "The doctor is unavailable at that time.",
+  too_many_upcoming:
+    "You already have the maximum number of upcoming appointments. Cancel one first, or call the front desk to book another.",
 };
 
 const RAISED_EXCEPTION = "P0001";

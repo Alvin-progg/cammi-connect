@@ -63,6 +63,15 @@ describe("SettingsForm", () => {
     expect(formData.get("appointment.min_lead_hours")).toBe("4");
   });
 
+  it("lets the admin set the per-patient upcoming appointment cap", () => {
+    render(<SettingsForm group="appointment" settings={DEFAULT_SETTINGS} />);
+
+    const field = screen.getByLabelText("Maximum upcoming appointments per patient");
+    expect(field).toHaveValue(3);
+    expect(field).toHaveAttribute("min", "1");
+    expect(field).toHaveAttribute("max", "20");
+  });
+
   it("says when nothing changed instead of opening the preview", () => {
     render(<SettingsForm group="chatbot" settings={DEFAULT_SETTINGS} />);
 
