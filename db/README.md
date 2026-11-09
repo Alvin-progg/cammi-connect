@@ -93,7 +93,8 @@ then `db/migrations/0021_admin_services.sql` once, then
 `db/migrations/0027_admin_system_settings.sql` once, then
 `db/migrations/0028_doctor_notification_confirmed.sql` on its own, then
 `db/migrations/0029_doctor_notification_trigger.sql` once, then
-`db/migrations/0030_query_indexes.sql` once.
+`db/migrations/0030_query_indexes.sql` once, then
+`db/migrations/0031_patient_booking_cap.sql` once.
 After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
@@ -481,6 +482,18 @@ date, status, or actor (front desk queue and schedule, admin monitoring, analyti
 dashboard feeds, audit log filters). No data change; safe to re-run. Optional check:
 `explain select id from appointments where scheduled_at >= now() and scheduled_at < now() + interval '1 day';`
 On a small table the planner may still choose a sequential scan, which is expected.
+
+`0031_patient_booking_cap.sql` (per-patient booking cap): replaces
+`cammi_connect_book_appointment` so a patient booking is refused with
+`too_many_upcoming` when the patient already has `appointment.max_upcoming_per_patient`
+(default 3) upcoming requested/confirmed appointments, and adds that key to the
+settings allow-list. The front desk booking function is unchanged. Safe to re-run.
+- Smoke test: as a synthetic patient, book 3 future appointments through Cami. The 4th
+  booking shows "You already have the maximum number of upcoming appointments…". As
+  front desk, book a 4th for the same patient at `/front-desk/book`: it succeeds. As an
+  admin, set the cap to 5 at `/admin/settings`; the patient can book again, and
+  `/admin/audit-log` shows a `settings.update` row. Cancel the smoke-test appointments
+  afterwards.
 
 Audit log (ADM-16, no migration): as an admin, open `/admin/audit-log`, filter by
 "Settings (settings.*)", open an entry and check its previous and new values, then use

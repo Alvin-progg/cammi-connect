@@ -7,6 +7,7 @@ export const SETTING_LABELS: Record<SettingKey, string> = {
   "appointment.request_expiry_hours": "Request expiry",
   "appointment.min_lead_hours": "Minimum booking lead time",
   "appointment.max_advance_days": "Maximum advance booking",
+  "appointment.max_upcoming_per_patient": "Maximum upcoming appointments per patient",
   "appointment.cancellation_policy_text": "Cancellation policy",
   "appointment.reschedule_policy_text": "Reschedule policy",
   "hospital.name": "Hospital name",
@@ -24,6 +25,7 @@ const UNITS: Partial<Record<SettingKey, string>> = {
   "appointment.request_expiry_hours": "hour",
   "appointment.min_lead_hours": "hour",
   "appointment.max_advance_days": "day",
+  "appointment.max_upcoming_per_patient": "appointment",
 };
 
 const TEXT_PREVIEW_LENGTH = 120;

@@ -429,6 +429,8 @@ Never commit `.env` files, production keys, or real patient data.
 - Keep audit records for sensitive administrative operations.
 - Review Google and Groq data-retention and usage terms before processing real hospital information.
 - Client: no chat content, patient names, or tokens in console output, error trackers, or analytics; clear client state on sign-out.
+- Server: `console.*` calls log fixed strings or request IDs and outcomes only, never chat message content or patient health details (guarded by `tests/unit/security/logging.test.ts`).
+- Retention (RA 10173, Data Privacy Act of 2012: proportionality and retention limits): chat conversations and their messages are deleted 12 months after the conversation's last activity (`chat_conversations.updated_at`). The purge job is not built yet; until it is, deletion is a manual admin task.
 
 ---
 

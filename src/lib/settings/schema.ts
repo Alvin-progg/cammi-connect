@@ -96,6 +96,12 @@ const settingSchemas = {
     .int()
     .min(1, "Enter at least 1 day.")
     .max(365, "Enter at most 365 days."),
+  // Enforced by cammi_connect_book_appointment (0031), whose default must match.
+  "appointment.max_upcoming_per_patient": z
+    .number()
+    .int("Enter a whole number.")
+    .min(1, "Allow at least 1 upcoming appointment.")
+    .max(20, "Enter at most 20 appointments."),
   "appointment.cancellation_policy_text": policyText,
   "appointment.reschedule_policy_text": policyText,
   "hospital.name": shortText("hospital name").min(1, "Enter the hospital name."),
@@ -131,6 +137,7 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   "appointment.request_expiry_hours": null,
   "appointment.min_lead_hours": 2,
   "appointment.max_advance_days": 60,
+  "appointment.max_upcoming_per_patient": 3,
   "appointment.cancellation_policy_text": "",
   "appointment.reschedule_policy_text": "",
   "hospital.name": "United Doctors of St. Camillus De Lellis Hospital",
@@ -218,6 +225,10 @@ export function settingsFromFormData(group: SettingGroup, formData: FormData): R
         "appointment.request_expiry_hours": numberOrNull(formData, "appointment.request_expiry_hours"),
         "appointment.min_lead_hours": numberOrNull(formData, "appointment.min_lead_hours"),
         "appointment.max_advance_days": numberOrNull(formData, "appointment.max_advance_days"),
+        "appointment.max_upcoming_per_patient": numberOrNull(
+          formData,
+          "appointment.max_upcoming_per_patient",
+        ),
         "appointment.cancellation_policy_text": text(formData, "appointment.cancellation_policy_text"),
         "appointment.reschedule_policy_text": text(formData, "appointment.reschedule_policy_text"),
       };

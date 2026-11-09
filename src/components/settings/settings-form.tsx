@@ -226,6 +226,14 @@ function AppointmentFields({ settings }: { settings: SystemSettings }) {
         />
       </div>
       <NumberField
+        name="appointment.max_upcoming_per_patient"
+        label="Maximum upcoming appointments per patient"
+        defaultValue={settings["appointment.max_upcoming_per_patient"]}
+        min={1}
+        max={20}
+        hint="Counts requested and confirmed visits still ahead. Applies to patient bookings; front desk bookings are not limited."
+      />
+      <NumberField
         name="appointment.request_expiry_hours"
         label="Request expiry (hours)"
         defaultValue={settings["appointment.request_expiry_hours"]}
