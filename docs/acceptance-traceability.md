@@ -1,6 +1,6 @@
 # Administrator module: acceptance traceability
 
-Maps each "Tests first" item in `pr-admin.md` (ADM-00 to ADM-16) to the place it is verified. The full specification's §20 checklist is not in the repository, so this table follows the slices instead.
+Maps each "Tests first" item in `pr-admin.md` (ADM-00 to ADM-16), and ADM-17 from `specs/tasks/ADM-17-analytics-interpretation.md`, to the place it is verified. The full specification's §20 checklist is not in the repository, so this table follows the slices instead.
 
 Status values:
 
@@ -88,6 +88,17 @@ Authorization model note: under ADR-0003, every table has RLS on with no policie
 | No patient identifiers | static | `tests/unit/security/analytics-privacy.test.ts` |
 | Dashboard numbers | test | `tests/unit/analytics/dashboard-service.test.ts` |
 | Charts update and the CSV downloads | gap (E2E) | |
+
+## ADM-17 Analytics interpretation
+
+| Item | Status | Where |
+|---|---|---|
+| Each chart: every threshold band, boundaries, below-minimum → null | test | `tests/unit/analytics/interpretation.test.ts` |
+| ≤ 12 words per line, ≤ 15 per summary point, no cause words, deterministic | test | `tests/unit/analytics/interpretation.test.ts` |
+| Summary: alerts first, max 3, steady line, not-enough line | test | `tests/unit/analytics/interpretation.test.ts` |
+| Summary card badges with text labels and chart links; "What it means" line | test | `tests/component/analytics/analytics-summary.test.tsx` |
+| Analytics page and dashboard interpret the filtered data | test | `tests/component/analytics/page.test.tsx`, `tests/component/admin-dashboard/page.test.tsx`, `tests/unit/analytics/dashboard-service.test.ts` |
+| No LLM or external call | static (by construction) | `src/lib/analytics/interpretation.ts` is pure and imports only the metric layer |
 
 ## ADM-13, ADM-14 Knowledge base
 

@@ -1,6 +1,6 @@
 # ADM-17 — Short Data-Based Interpretation on Admin Analytics
 
-- Status: **Approved** 2026-11-16 by the project owner (I1–I4 at their recommended defaults); not yet built
+- Status: **Built** 2026-11-16 (approved the same day by the project owner, I1–I4 at their recommended defaults)
 - Type: Feature
 - Module: Administrator / Analytics (`/admin/analytics`)
 - Builds on: ADM-10 metric layer, ADM-11 analytics page, `src/lib/analytics/takeaways.ts`
@@ -127,12 +127,12 @@ No migration, no new dependency, no new data read.
 
 ## Acceptance criteria
 
-- [ ] Every chart shows a ≤ 12-word "What it means" line built only from its data.
-- [ ] The Summary card shows at most 3 points, ≤ 15 words each, most severe first.
-- [ ] Changing filters changes the interpretations.
-- [ ] Thin data shows "Not enough data yet" instead of an interpretation.
-- [ ] No interpretation states a cause or mentions a patient.
-- [ ] No LLM or external call is made to produce interpretations.
+- [x] Every chart shows a ≤ 12-word "What it means" line built only from its data.
+- [x] The Summary card shows at most 3 points, ≤ 15 words each, most severe first.
+- [x] Changing filters changes the interpretations.
+- [x] Thin data shows "Not enough data yet" instead of an interpretation.
+- [x] No interpretation states a cause or mentions a patient.
+- [x] No LLM or external call is made to produce interpretations.
 
 ## Decisions (approved 2026-11-16)
 

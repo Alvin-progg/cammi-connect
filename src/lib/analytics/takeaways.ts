@@ -6,9 +6,9 @@ import type { DoctorAnalytics, HeatmapCell, MonthlyOutcomes, MonthlyVolume, Week
  * and is null when the data is too thin to say anything.
  */
 
-const LONG_MONTH = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" });
+export const LONG_MONTH = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" });
 const SHORT_MONTH = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
-const WEEKDAY_NAMES: Record<Weekday, string> = {
+export const WEEKDAY_NAMES: Record<Weekday, string> = {
   Mon: "Monday",
   Tue: "Tuesday",
   Wed: "Wednesday",
@@ -18,7 +18,7 @@ const WEEKDAY_NAMES: Record<Weekday, string> = {
   Sun: "Sunday",
 };
 
-function monthDate(month: string): Date {
+export function monthDate(month: string): Date {
   return new Date(`${month}-01T00:00:00Z`);
 }
 

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AdminAnalyticsPage from "@/app/admin/analytics/page";
@@ -136,6 +136,34 @@ describe("admin analytics page", () => {
     expect(screen.getAllByText("No appointments were scheduled in this period.")).toHaveLength(3);
     expect(screen.getAllByText("No visits in this period have finished yet.")).toHaveLength(3);
     expect(screen.queryByRole("table", { name: "Peak days and times" })).not.toBeInTheDocument();
+  });
+
+  it("says there is not enough data to interpret a thin period", async () => {
+    await renderPage();
+
+    expect(screen.getByRole("region", { name: "Summary" })).toHaveTextContent(
+      "Not enough data yet to interpret this period.",
+    );
+    expect(screen.getAllByText("Not enough data yet to interpret.").length).toBeGreaterThan(0);
+  });
+
+  it("interprets the filtered data in the Summary card and under each chart", async () => {
+    vi.mocked(supabaseAnalyticsRepository.listAppointments).mockResolvedValue([
+      ...Array.from({ length: 20 }, (_, index) => row("completed", index)),
+      ...Array.from({ length: 5 }, (_, index) => row("no_show", 20 + index)),
+    ]);
+
+    await renderPage();
+
+    const summary = screen.getByRole("region", { name: "Summary" });
+    expect(within(summary).getByText("Alert")).toBeInTheDocument();
+    expect(within(summary).getByRole("link", { name: "Outcomes: about 1 in 5 visits is lost." })).toHaveAttribute(
+      "href",
+      "#outcomes",
+    );
+    const outcomes = screen.getByRole("region", { name: "Monthly appointment outcomes" });
+    expect(within(outcomes).getByText("High: about 1 in 5 visits is lost.")).toBeInTheDocument();
+    expect(screen.getByText("No weekday stands out for missed visits.")).toBeInTheDocument();
   });
 
   it("passes the URL filters to the metric layer and keeps them on the export links", async () => {

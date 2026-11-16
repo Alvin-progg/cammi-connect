@@ -1,8 +1,9 @@
-# Analytics metric definitions (ADM-10, D5) — v2
+# Analytics metric definitions (ADM-10, D5) — v3
 
 v1 frozen on 2026-11-05. **v2 approved by the owner on 2026-11-08** to match the
 redesigned analytics page (the reference design's datasets, computed from real
-data). Every number on `/admin/analytics` (ADM-11) and the admin dashboard
+data). **v3 approved on 2026-11-16** (ADM-17): adds the interpretation
+thresholds, minimums, and severity rules below; no metric changed. Every number on `/admin/analytics` (ADM-11) and the admin dashboard
 (ADM-12) comes from `src/lib/analytics/metrics.ts`, which implements this page.
 Change both together, and get sign-off first.
 
@@ -71,3 +72,18 @@ Added on 2026-11-08. The admin dashboard (`/admin`) reuses the definitions above
 | Front desk queue | Current `requested` count, the oldest request's `created_at`, and the count per department. |
 
 Range presets: Today, This week (Manila Monday–Sunday), This month, and Custom (inclusive dates, up to 24 months). There is no status filter.
+
+## Interpretation (ADM-17, v3)
+
+Added on 2026-11-16. Each chart on `/admin/analytics` gets a "What it means" line (at most 12 words), and the page and the admin dashboard show a Summary card (at most 3 points of at most 15 words). Both come from `src/lib/analytics/interpretation.ts`, with the constants in `interpretation-thresholds.ts`: fixed templates over the chart's own filtered dataset, no LLM. Lines state meaning, never a cause, and never mention a patient.
+
+| Chart | Minimum (else "Not enough data yet to interpret.") | Bands → severity |
+|---|---|---|
+| Monthly volume | 2 months with appointments and ≥ 20 in total | last ÷ first month with appointments ≥ 1.2: growing (watch); ≤ 0.8: falling (alert); otherwise steady (ok) |
+| Load by doctor | 2 doctors with ≥ 5 appointments each; only those doctors are compared | busiest ÷ quietest ≥ 2: uneven, names the busiest (alert); ≥ 1.3: somewhat uneven (watch); otherwise balanced (ok) |
+| Peak heatmap | ≥ 30 appointments in the shown cells | busiest cell ≥ 2× the average shown cell: clear rush hour (watch); otherwise evenly spread (ok). Ties go to the earliest weekday, then slot |
+| Outcomes | ≥ 20 finished visits | missed (cancelled + no-show) share ≥ 20%: high, "about 1 in N", N = round(1 ÷ share) (alert); ≥ 10%: moderate (watch); otherwise low (ok) |
+| Weekday rates | ≥ 20 finished visits | worst weekday's missed rate ≥ 1.5× the period's missed rate (all finished visits): that weekday stands out (alert); otherwise none (ok) |
+| Doctor rates | ≥ 20 finished visits | worst doctor's missed rate ≥ 1.5× the period's missed rate: names that doctor (alert); otherwise similar (ok) |
+
+Summary card: alert points first, then watch, each in chart order, at most 3, each prefixed with the chart's label (Volume, Doctors, Peak times, Outcomes, Weekdays, Doctor rates). Nothing alert or watch: "Everything looks steady for this period." No chart meets its minimum: "Not enough data yet to interpret this period." The dashboard computes the same interpretations from its own range's rows, and its points link to the analytics charts for the same dates and filters. The CSV export is unchanged.

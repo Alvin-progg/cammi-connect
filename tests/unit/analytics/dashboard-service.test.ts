@@ -103,4 +103,19 @@ describe("loadDashboard", () => {
     await expect(loadDashboard({ ...WEEK, to: "2026-11-01" }, reader, NOW)).rejects.toThrow(RangeError);
     expect(reader.listAppointments).not.toHaveBeenCalled();
   });
+  it("summarizes the period with the ADM-17 interpretations of the same rows", async () => {
+    const rows = [
+      ...Array.from({ length: 20 }, (_, index) => appointment("completed", index)),
+      ...Array.from({ length: 5 }, (_, index) => appointment("no_show", 20 + index)),
+    ];
+
+    const dashboard = await loadDashboard(WEEK, fakeReader(rows, []), NOW);
+
+    expect(dashboard.summary).toEqual({
+      points: [{ chartId: "outcomes", severity: "alert", text: "Outcomes: about 1 in 5 visits is lost." }],
+    });
+    expect((await loadDashboard(WEEK, fakeReader([], []), NOW)).summary).toEqual({
+      message: "Not enough data yet to interpret this period.",
+    });
+  });
 });
