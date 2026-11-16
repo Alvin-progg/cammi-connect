@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-23
-- Amended: 2026-10-25 (doctor mutation slice); 2026-11-03 (front desk lifecycle, FD-001)
+- Amended: 2026-10-25 (doctor mutation slice); 2026-11-03 (front desk lifecycle, FD-001); 2026-11-16 (payments and service bookings, PAY-001)
 - Decision owner: Human project owner
 - Related ticket: `CC-008`
 - Related requirements: `FR-004`, `FR-005`, `UI-003`, `UI-004`
@@ -176,6 +176,34 @@ Approved by the project owner while planning the Front Desk module
   `checked_in` as well as `confirmed`, so a visit checked in at the front desk can be
   closed by the doctor.
 
+## Amendment (2026-11-16, PAY-001)
+
+Approved by the project owner with
+[`PAY-001`](../tasks/PAY-001-chat-payments-discounts-services.md).
+
+- **Payment gate on confirm.** `cammi_connect_confirm_appointment` (replaced in a new
+  migration) refuses to confirm unless the appointment's payment status is `verified`,
+  `hmo_approved`, `not_required`, or `collect_at_counter`. Front-desk bookings
+  (`/front-desk/book`) get `collect_at_counter` and are not gated.
+- **Booking with a charge.** Chat bookings go through `cammi_connect_book_with_charge`,
+  which creates the `requested` appointment, its charge snapshot, and its payment row in
+  one transaction. Prices are snapshotted and never change afterwards.
+- **System cancellation.** An unpaid `requested` appointment whose payment is
+  `awaiting_payment` or `rejected` past its deadline (default 120 minutes, never later than
+  2 hours before the visit) is cancelled with `cancelled_by_role = 'system'` and the reason
+  "Payment not received". Until PAY-08 adds the `pg_cron` job, front desk sees these as
+  Overdue and rejects them by hand. A `submitted` payment never expires automatically.
+- **Non-doctor bookings (D3).** `appointments` gains `kind` (`consultation` or `service`)
+  and `service_id`. `doctor_id` may be null only when `kind = 'service'`. Walk-in services
+  hold a date (daily capacity); scheduled services hold a slot (capacity per slot) through
+  `cammi_connect_book_service`. `appointments_no_active_overlap` still applies to doctor
+  appointments only.
+- **Refunds (D4).** Cancelling a paid appointment moves its payment to `refund_due`.
+  Patient cancellation at least 24 hours ahead or any hospital cancellation is a full
+  refund; a later patient cancellation is not refunded but may be rebooked free within 30
+  days.
+- **Emergency care is never gated by payment** (RA 10932).
+
 ## Consequences
 
 - The doctor dashboard can implement the approved mutation, schedule, notification,
@@ -197,3 +225,4 @@ Approved by the project owner while planning the Front Desk module
 - [x] Timezone approved (`Asia/Manila`).
 - [x] Weekly schedule, blocked slots, overlap constraint, and audit history approved 2026-10-25.
 - [x] Human owner approval recorded on 2026-10-25.
+- [x] PAY-001 amendment (payment gate, system expiry, service bookings, refunds) approved 2026-11-16.
