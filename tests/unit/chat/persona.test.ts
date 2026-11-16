@@ -21,6 +21,13 @@ describe("CAMI_IDENTITY", () => {
     expect(CAMI_IDENTITY).toMatch(/medicine|medication/i);
     expect(CAMI_IDENTITY).toMatch(/never invent/i);
   });
+
+  it("suggests a specialty only from the hospital's list and never names a condition (AI-APT-002)", () => {
+    expect(CAMI_IDENTITY).toContain(
+      "Suggest a specialty only from the hospital's list, and never name or guess a condition.",
+    );
+    expect(CAMI_IDENTITY).not.toMatch(/never decide which specialty/i);
+  });
 });
 
 describe("SMALL_TALK_SYSTEM_PROMPT", () => {

@@ -68,6 +68,11 @@ describe("service actions", () => {
         departmentId: RADIOLOGY_ID,
         requiresAppointment: "on",
         bookingMode: "walk_in",
+        category: "imaging",
+        price: "400",
+        philhealthBenefit: "",
+        hmoCoverable: "on",
+        dailyCapacity: "60",
         actorId: "forged",
       }),
     );
@@ -82,6 +87,13 @@ describe("service actions", () => {
           departmentId: RADIOLOGY_ID,
           requiresAppointment: true,
           bookingMode: "walk_in",
+          category: "imaging",
+          priceCentavos: 40000,
+          vatable: false,
+          philhealthBenefitCentavos: 0,
+          hmoCoverable: true,
+          requiresDoctorRequest: false,
+          dailyCapacity: 60,
         },
       },
       expect.anything(),
@@ -110,6 +122,12 @@ describe("service actions", () => {
     await expect(
       saveServiceAction(IDLE, formData({ name: "X-ray", bookingMode: "equipment_slot" })),
     ).resolves.toEqual({ status: "error", message: "Choose how patients access the service." });
+    await expect(
+      saveServiceAction(IDLE, formData({ name: "X-ray", price: "-400" })),
+    ).resolves.toEqual({
+      status: "error",
+      message: "Enter the price in pesos, like 1500 or 1500.50.",
+    });
     expect(saveService).not.toHaveBeenCalled();
   });
 

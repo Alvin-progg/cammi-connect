@@ -25,6 +25,7 @@ const INPUT: DoctorFormInput = {
   contactPhone: null,
   bio: null,
   accountProfileId: null,
+  consultationFeeCentavos: null,
 };
 
 const CONFLICT = {

@@ -22,6 +22,8 @@ const chatbotDefaults = settingsGroupSchemas.chatbot.parse({
   "chatbot.enabled": DEFAULT_SETTINGS["chatbot.enabled"],
   "chatbot.welcome_message": DEFAULT_SETTINGS["chatbot.welcome_message"],
   "chatbot.enabled_categories": DEFAULT_SETTINGS["chatbot.enabled_categories"],
+  "chatbot.first_contact_specialty_adult": DEFAULT_SETTINGS["chatbot.first_contact_specialty_adult"],
+  "chatbot.first_contact_specialty_child": DEFAULT_SETTINGS["chatbot.first_contact_specialty_child"],
 });
 
 describe("getSettings", () => {

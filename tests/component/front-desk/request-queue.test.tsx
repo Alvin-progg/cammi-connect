@@ -111,3 +111,27 @@ describe("RequestBoard", () => {
     expect(within(screen.getByRole("region", { name: "Confirmed" })).getByText("No requests")).toBeInTheDocument();
   });
 });
+
+describe("payment badges (PAY-05)", () => {
+  it("shows the payment badge on list rows and board cards", () => {
+    const withReceipt: RequestQueueItem = {
+      ...PENDING_REQUEST,
+      payment: { status: "submitted", deadline: "2026-11-04T03:00:00.000Z" },
+    };
+    const overdue: RequestQueueItem = {
+      ...PENDING_REQUEST,
+      id: "cd34ef56-0000-4000-8000-000000000203",
+      payment: { status: "awaiting_payment", deadline: "2026-11-04T01:00:00.000Z" },
+    };
+
+    render(<RequestQueue items={[withReceipt, overdue]} limitReached={false} now={NOW} />);
+    const rows = within(screen.getByRole("table", { name: "Appointment requests" })).getAllByRole("row");
+    expect(within(rows[1]).getByText("Receipt to check")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("Overdue")).toBeInTheDocument();
+    // A request without a payment row shows no payment badge.
+    expect(screen.queryByText("No payment")).toBeNull();
+
+    render(<RequestBoard items={[withReceipt]} now={NOW} />);
+    expect(screen.getAllByText("Receipt to check")).toHaveLength(2);
+  });
+});

@@ -37,18 +37,25 @@ export const supabaseSpecialtyAdminRepository: SpecialtyAdminStore = {
   async getSpecialty(specialtyId) {
     const { data, error } = await getSupabaseAdminClient()
       .from("specialties")
-      .select("id, name, description, is_active")
+      .select("id, name, description, routing_hints, default_consultation_fee_centavos, is_active")
       .eq("id", specialtyId)
       .maybeSingle();
     if (error) {
       throw new Error("Unable to load the specialty.");
     }
     return data
-      ? { id: data.id, name: data.name, description: data.description, isActive: data.is_active }
+      ? {
+          id: data.id,
+          name: data.name,
+          description: data.description,
+          routingHints: data.routing_hints,
+          defaultConsultationFeeCentavos: data.default_consultation_fee_centavos,
+          isActive: data.is_active,
+        }
       : null;
   },
 
-  async save({ actorId, specialtyId, name, description }) {
+  async save({ actorId, specialtyId, name, description, routingHints, defaultConsultationFeeCentavos }) {
     const { data, error } = await getSupabaseAdminClient().rpc(
       "cammi_connect_admin_save_specialty",
       {
@@ -56,6 +63,8 @@ export const supabaseSpecialtyAdminRepository: SpecialtyAdminStore = {
         p_specialty_id: specialtyId,
         p_name: name,
         p_description: description,
+        p_routing_hints: routingHints,
+        p_default_consultation_fee_centavos: defaultConsultationFeeCentavos,
       },
     );
     if (error || !data) {

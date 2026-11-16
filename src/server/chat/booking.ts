@@ -15,8 +15,18 @@ import {
   matchSpecialtiesByName,
   resolvePreferredDate,
 } from "@/lib/chat/resolve";
+import { PAYMENT_COPY, PRIVILEGE_LABELS, consultationLine, paymentChoiceLabel } from "@/lib/chat/payment";
+import { SERVICE_COPY } from "@/lib/chat/services";
+import { SERVICE_KIND_LABELS } from "@/lib/services/booking";
+import { routeToSpecialty, type FirstContactSettings } from "@/lib/chat/routing";
+import {
+  BOOKING_OFFER,
+  MEDICAL_ADVICE_DECLINE,
+  ROUTING_COPY,
+} from "@/lib/chat/safety";
 import type {
   BookingEvent,
+  ChargeSummary,
   ChatMessagePayload,
   DoctorOption,
   IntentExtraction,
@@ -27,10 +37,25 @@ import {
   applyCorrection,
   type BookingDraft,
   type BookingState,
+  type CareNeed,
 } from "@/lib/chat/state";
 import type { DoctorSummary, Specialty } from "@/lib/directory/types";
 
+import { bookedPaymentReply, quoteLines, withLead } from "./quote";
+import {
+  bookableServiceKinds,
+  changeServices,
+  chooseServiceKind,
+  chooseServices,
+  confirmServiceBooking,
+  resumeServiceBooking,
+  selectServiceTime,
+  startServiceBookingFromCandidates,
+} from "./service-booking";
 import type { ChatTools, TimeSlot } from "./tools";
+
+/** AI-APT-002: the concern summary kept as the reason for visit. */
+const CONCERN_MAX_LENGTH = 200;
 
 /** How many Manila dates one slot picker covers. */
 const SLOT_WINDOW_DAYS = 7;
@@ -42,6 +67,8 @@ export type BookingContext = {
   now: Date;
   /** The admin's `appointment.max_advance_days`: the last bookable date is today plus this. */
   horizonDays: number;
+  /** The admin's first-contact specialties, for concerns routing cannot match (AI-APT-002). */
+  firstContact: FirstContactSettings;
   tools: ChatTools;
   /**
    * Guarded update from awaiting_confirmation to `next`. Returns false when
@@ -49,6 +76,12 @@ export type BookingContext = {
    * book twice.
    */
   claimBooking: (next: BookingState) => Promise<boolean>;
+  /**
+   * The admin's `payment.enabled` (PAY-03). When on, the discount and payer
+   * questions follow the slot and Confirm books with a charge; when off,
+   * booking works as before with no charge.
+   */
+  paymentEnabled?: boolean;
 };
 
 /** `state` is the context's own object when nothing changed, so callers can skip saving it. */
@@ -60,10 +93,14 @@ export type BookingReply = {
 
 /** Steps in which a typed booking message corrects the current draft instead of starting over. */
 const IN_PROGRESS_STEPS: readonly BookingState["step"][] = [
+  "offering_booking",
   "choosing_specialty",
   "choosing_doctor",
   "choosing_doctor_specialty",
+  "choosing_services",
   "choosing_slot",
+  "choosing_privilege",
+  "choosing_payer",
   "awaiting_confirmation",
   "failed",
 ];
@@ -76,17 +113,21 @@ const EVENT_LABELS: Record<BookingEvent["type"], string> = {
   confirm_booking: "Confirm booking",
   change_booking: "Change booking",
   cancel_booking: "Stop booking",
+  update_reason: "Edited the reason for visit",
+  accept_booking_offer: "Yes, book",
+  select_privilege: "Chose a discount",
+  select_payer: "Chose how to pay",
+  select_service_kind: "Chose what to book",
+  select_services: "Chose the tests",
 };
 
 const CHANGE_LABELS = {
   specialty: "Change the specialty",
   doctor: "Change the doctor",
   slot: "Change the time",
+  payment: "Change the discount or payment",
+  service: "Change the tests",
 } as const;
-
-function withLead(lead: string | undefined, reply: string): string {
-  return lead ? `${lead} ${reply}` : reply;
-}
 
 function toDoctorOption(doctor: DoctorSummary): DoctorOption {
   return {
@@ -97,7 +138,9 @@ function toDoctorOption(doctor: DoctorSummary): DoctorOption {
   };
 }
 
-function specialtyOptions(specialties: { id: string; name: string }[]): ChatMessagePayload {
+function specialtyOptions(
+  specialties: { id: string; name: string }[],
+): Extract<ChatMessagePayload, { kind: "specialty_options" }> {
   return {
     kind: "specialty_options",
     specialties: specialties.map(({ id, name }) => ({ id, name })),
@@ -126,12 +169,26 @@ async function askForSpecialty(
   if (specialties.length === 0) {
     return { reply: BOOKING_COPY.noSpecialties, payload: null, state: { step: "idle", draft: {} } };
   }
+  // PAY-07 "What kind?": lab tests, imaging, and packages sit next to the specialties.
+  const serviceKinds = await bookableServiceKinds(ctx);
   return {
-    reply,
-    payload: specialtyOptions(specialties),
+    reply:
+      serviceKinds.length > 0 && reply === ROUTING_COPY.askConcern
+        ? SERVICE_COPY.askConcernOrService
+        : reply,
+    payload:
+      serviceKinds.length > 0
+        ? { ...specialtyOptions(specialties), serviceKinds }
+        : specialtyOptions(specialties),
     state: {
       step: "choosing_specialty",
-      draft: { ...draft, specialtyId: undefined, doctorId: undefined, slotStart: undefined },
+      draft: {
+        ...draft,
+        specialtyId: undefined,
+        doctorId: undefined,
+        slotStart: undefined,
+        serviceIds: undefined,
+      },
     },
   };
 }
@@ -211,6 +268,9 @@ async function advance(
   ctx: BookingContext,
   lead?: string,
 ): Promise<BookingReply> {
+  if (draft.serviceIds) {
+    return resumeServiceBooking(draft, ctx, lead);
+  }
   if (draft.doctorId) {
     const doctor = await ctx.tools.getDoctor({ doctorId: draft.doctorId });
     if (!doctor) {
@@ -282,10 +342,93 @@ async function findSpecialty(
   return (await ctx.tools.getSpecialties()).find((entry) => entry.id === specialtyId);
 }
 
+/** The care-need fields the model returned; absent ones are left out so they don't overwrite saved ones. */
+function careNeedFrom(extraction: IntentExtraction): CareNeed {
+  const need: CareNeed = {};
+  if (extraction.specialtyCandidates?.length) need.specialtyCandidates = extraction.specialtyCandidates;
+  if (extraction.routingConfidence) need.routingConfidence = extraction.routingConfidence;
+  if (extraction.age != null) need.age = extraction.age;
+  if (extraction.forSomeoneElse != null) need.forSomeoneElse = extraction.forSomeoneElse;
+  return need;
+}
+
+function concernFrom(extraction: IntentExtraction): string | undefined {
+  return clip(extraction.concern, CONCERN_MAX_LENGTH) ?? clip(extraction.reason, BOOKING_REASON_MAX_LENGTH);
+}
+
+/**
+ * Need-based routing (AI-APT-002): shows the doctors of the specialty the
+ * rules in src/lib/chat/routing.ts pick, with [Change specialty] and any
+ * one-tap alternative. The reply is a template naming only the database
+ * specialty; no model text reaches the patient.
+ */
+async function routeBooking(draft: BookingDraft, ctx: BookingContext): Promise<BookingReply> {
+  const need = draft.careNeed ?? {};
+  if (need.forSomeoneElse && need.age === undefined && !draft.ageAsked) {
+    return askForSpecialty({ ...draft, ageAsked: true }, ctx, ROUTING_COPY.askAge);
+  }
+
+  const specialties = await ctx.tools.getRoutableSpecialties();
+  const route = routeToSpecialty(need, specialties, ctx.firstContact);
+  const specialty = specialties.find((entry) => entry.id === route?.specialtyId);
+  if (!route || !specialty) {
+    return askForSpecialty(draft, ctx);
+  }
+
+  // Once routed, the care need has done its job; [Change specialty] uses the chips.
+  const routedDraft = applyCorrection(
+    { ...draft, careNeed: undefined, ageAsked: undefined },
+    { specialtyId: specialty.id },
+  );
+  const doctors = await ctx.tools.getDoctorsBySpecialty({ specialtyId: specialty.id });
+  if (doctors.length === 0) {
+    return advance(routedDraft, ctx);
+  }
+
+  const alternative = specialties.find((entry) => entry.id === route.alternativeId);
+  return {
+    reply:
+      route.reason === "first_contact"
+        ? ROUTING_COPY.firstContact(specialty.name)
+        : ROUTING_COPY.routed(specialty.name),
+    payload: {
+      kind: "doctor_options",
+      doctors: doctors.map(toDoctorOption),
+      changeSpecialty: true,
+      ...(alternative ? { alternative: { id: alternative.id, name: alternative.name } } : {}),
+    },
+    state: { step: "choosing_doctor", draft: { ...routedDraft, slotStart: undefined } },
+  };
+}
+
+/**
+ * A non-urgent medical-advice message: decline, then offer to book a doctor
+ * who can check the concern. Routing waits for [Yes, book], so the care need
+ * is kept in the draft. A booking already in progress is left alone.
+ */
+export function declineAndOfferBooking(
+  extraction: IntentExtraction,
+  ctx: BookingContext,
+): BookingReply {
+  if (IN_PROGRESS_STEPS.includes(ctx.state.step) && ctx.state.step !== "offering_booking") {
+    return { reply: MEDICAL_ADVICE_DECLINE, payload: null, state: ctx.state };
+  }
+  const reason = concernFrom(extraction);
+  return {
+    reply: `${MEDICAL_ADVICE_DECLINE} ${BOOKING_OFFER}`,
+    payload: { kind: "book_offer" },
+    state: {
+      step: "offering_booking",
+      draft: { ...(reason ? { reason } : {}), careNeed: careNeedFrom(extraction) },
+    },
+  };
+}
+
 /**
  * A typed booking request: starts a new draft, or corrects the one in
  * progress. A named doctor (Path B) takes precedence over a named specialty
  * (Path A); a specialty named alongside a doctor picks among the doctor's own.
+ * With neither, a described concern is routed to a specialty (AI-APT-002).
  */
 export async function startOrCorrectBooking(
   extraction: IntentExtraction,
@@ -309,11 +452,21 @@ export async function startOrCorrectBooking(
   }
   const preferredTime = clip(extraction.preferredTime, 50);
   if (preferredTime) changes.preferredTime = preferredTime;
-  const reason = clip(extraction.reason, BOOKING_REASON_MAX_LENGTH);
+  const reason = concernFrom(extraction);
   if (reason) changes.reason = reason;
 
   const doctorName = extraction.doctorName?.trim();
   const specialtyName = extraction.specialtyName?.trim();
+
+  // PAY-07: "Need ko magpa-CBC" names a bookable service, not a doctor.
+  if (!doctorName && !specialtyName) {
+    const serviceReply = await startServiceBookingFromCandidates(
+      extraction,
+      applyCorrection(draft, changes),
+      ctx,
+    );
+    if (serviceReply) return serviceReply;
+  }
 
   if (doctorName) {
     const lookup = await tools.getDoctorDetails({ doctorName });
@@ -356,6 +509,17 @@ export async function startOrCorrectBooking(
       };
     }
     changes.specialtyId = matches[0].id;
+  } else {
+    const corrected = applyCorrection(draft, changes);
+    // Routing only picks the first specialty. Later in the flow the model may
+    // repeat the concern from history; that must not throw away the patient's choices.
+    if (!corrected.doctorId && !corrected.specialtyId) {
+      const careNeed = { ...draft.careNeed, ...careNeedFrom(extraction) };
+      const describedConcern = Boolean(corrected.reason) || Object.keys(careNeed).length > 0;
+      return describedConcern
+        ? routeBooking({ ...corrected, careNeed }, ctx)
+        : askForSpecialty(corrected, ctx, ROUTING_COPY.askConcern);
+    }
   }
 
   return advance(applyCorrection(draft, changes), ctx);
@@ -380,6 +544,9 @@ async function findAvailableSlot(
 
 async function selectSlot(start: string, ctx: BookingContext): Promise<BookingReply> {
   const { draft } = ctx.state;
+  if (draft.serviceIds) {
+    return selectServiceTime(start, ctx);
+  }
   const doctor = draft.doctorId ? await ctx.tools.getDoctor({ doctorId: draft.doctorId }) : null;
   if (!doctor) {
     return advance(
@@ -394,6 +561,15 @@ async function selectSlot(start: string, ctx: BookingContext): Promise<BookingRe
     return offerSlots(doctor, draft, ctx, BOOKING_COPY.slotTaken);
   }
 
+  let summaryDraft: BookingDraft = { ...draft, slotStart: slot.start };
+  let charge: ChargeSummary | undefined;
+  if (ctx.paymentEnabled) {
+    const quote = await quoteConsultation(summaryDraft, doctor.id, ctx);
+    if (!quote.ok) return quote.reply;
+    charge = quote.charge;
+    summaryDraft = quote.draft;
+  }
+
   const specialty = await findSpecialty(ctx, draft.specialtyId);
   return {
     reply: BOOKING_COPY.confirmPrompt,
@@ -404,9 +580,36 @@ async function selectSlot(start: string, ctx: BookingContext): Promise<BookingRe
       start: slot.start,
       end: slot.end,
       reason: draft.reason ?? null,
+      ...(charge ? { charge } : {}),
     },
-    state: { step: "awaiting_confirmation", draft: { ...draft, slotStart: slot.start } },
+    state: { step: "awaiting_confirmation", draft: summaryDraft },
   };
+}
+
+type ConsultationQuote =
+  | (Extract<Awaited<ReturnType<typeof quoteLines>>, { ok: true }> & { specialtyId: string })
+  | { ok: false; reply: BookingReply };
+
+/**
+ * PAY-03: the consultation's charge, computed from the fee in the database,
+ * or the next question while the discount or payer is still missing. A fee
+ * of null is "price on request" and cannot be booked in chat.
+ */
+async function quoteConsultation(
+  draft: BookingDraft,
+  doctorId: string,
+  ctx: BookingContext,
+): Promise<ConsultationQuote> {
+  const { specialtyId } = draft;
+  const fee = specialtyId ? await ctx.tools.getConsultationFee({ doctorId, specialtyId }) : null;
+  if (!specialtyId || fee === null) {
+    return {
+      ok: false,
+      reply: { reply: PAYMENT_COPY.priceOnRequest, payload: null, state: { step: "cancelled", draft: {} } },
+    };
+  }
+  const quote = await quoteLines([consultationLine(fee)], draft, ctx);
+  return quote.ok ? { ...quote, specialtyId } : quote;
 }
 
 /** A failed booking shows the reason and fresh slots, never a confirmation. */
@@ -433,6 +636,9 @@ async function confirmBooking(ctx: BookingContext): Promise<BookingReply> {
   if (!(await ctx.claimBooking({ step: "booking", draft }))) {
     return { reply: BOOKING_COPY.alreadyProcessing, payload: null, state: ctx.state };
   }
+  if (draft.serviceIds) {
+    return confirmServiceBooking(draft, ctx);
+  }
 
   const doctor = draft.doctorId ? await ctx.tools.getDoctor({ doctorId: draft.doctorId }) : null;
   if (!doctor) {
@@ -443,6 +649,10 @@ async function confirmBooking(ctx: BookingContext): Promise<BookingReply> {
     : undefined;
   if (!slot) {
     return failBooking(doctor, draft, ctx, BOOKING_COPY.slotTaken);
+  }
+
+  if (ctx.paymentEnabled) {
+    return confirmWithCharge(doctor, slot, draft, ctx);
   }
 
   const outcome = await ctx.tools.createAppointment({
@@ -465,6 +675,61 @@ async function confirmBooking(ctx: BookingContext): Promise<BookingReply> {
     },
     state: { step: "booked", draft },
   };
+}
+
+/**
+ * PAY-03 Confirm: the charge is quoted again from the database and booked
+ * with the appointment and payment in one transaction. The database
+ * recomputes the amount and refuses if it differs from the summary.
+ */
+async function confirmWithCharge(
+  doctor: DoctorSummary,
+  slot: TimeSlot,
+  draft: BookingDraft,
+  ctx: BookingContext,
+): Promise<BookingReply> {
+  const quote = await quoteConsultation(draft, doctor.id, ctx);
+  if (!quote.ok) {
+    return quote.reply;
+  }
+
+  const outcome = await ctx.tools.createChargedAppointment({
+    patientId: ctx.patientId,
+    doctorId: doctor.id,
+    specialtyId: quote.specialtyId,
+    start: slot.start,
+    reason: draft.reason ?? null,
+    privilege: quote.privilege,
+    payment: quote.payment,
+    expectedAmountDueCentavos: quote.charge.amountDueCentavos,
+  });
+  if (!outcome.ok) {
+    return failBooking(doctor, draft, ctx, outcome.message);
+  }
+
+  return {
+    reply: bookedPaymentReply(outcome.payment, quote.payment, quote.hmoName, ctx.now),
+    payload: {
+      kind: "booking_result",
+      doctorName: doctorDisplayName(doctor.fullName),
+      start: slot.start,
+      end: slot.end,
+      payment: outcome.payment,
+    },
+    state: { step: "booked", draft },
+  };
+}
+
+/** Saves a discount or payer answer and moves on from the slot, which is re-checked. */
+function answerPaymentQuestion(
+  changes: Pick<BookingDraft, "privilege" | "payment">,
+  ctx: BookingContext,
+): Promise<BookingReply> {
+  const draft = { ...ctx.state.draft, ...changes };
+  if (!draft.slotStart) {
+    return Promise.resolve({ reply: BOOKING_COPY.outOfOrder, payload: null, state: ctx.state });
+  }
+  return selectSlot(draft.slotStart, { ...ctx, state: { ...ctx.state, draft } });
 }
 
 type LabelledReply = BookingReply & { label?: string };
@@ -515,18 +780,32 @@ async function showLaterDates(fromDate: string, ctx: BookingContext): Promise<Bo
   }
 }
 
+/** Edits the reason for visit and shows the summary again, with the slot re-checked. */
+async function updateReason(reason: string, ctx: BookingContext): Promise<BookingReply> {
+  const trimmed = clip(reason, BOOKING_REASON_MAX_LENGTH);
+  const draft = { ...ctx.state.draft, reason: trimmed };
+  if (!trimmed || !draft.slotStart) {
+    return { reply: BOOKING_COPY.outOfOrder, payload: null, state: ctx.state };
+  }
+  return selectSlot(draft.slotStart, { ...ctx, state: { ...ctx.state, draft } });
+}
+
 function changeBooking(
-  field: "specialty" | "doctor" | "slot",
+  field: "specialty" | "doctor" | "slot" | "payment" | "service",
   ctx: BookingContext,
 ): Promise<BookingReply> {
   const { draft } = ctx.state;
   switch (field) {
+    case "service":
+      return changeServices(ctx);
     case "specialty":
       return askForSpecialty(draft, ctx);
     case "doctor":
       return advance({ ...draft, doctorId: undefined, slotStart: undefined }, ctx);
     case "slot":
       return advance({ ...draft, slotStart: undefined }, ctx);
+    case "payment":
+      return answerPaymentQuestion({ privilege: undefined, payment: undefined }, ctx);
   }
 }
 
@@ -567,6 +846,27 @@ export async function handleBookingEvent(
         ...(await changeBooking(event.field, ctx)),
         userContent: CHANGE_LABELS[event.field],
       };
+    case "update_reason":
+      return { ...(await updateReason(event.reason, ctx)), userContent: fallbackLabel };
+    case "select_privilege":
+      return {
+        ...(await answerPaymentQuestion({ privilege: event.privilege }, ctx)),
+        userContent: PRIVILEGE_LABELS[event.privilege],
+      };
+    case "select_payer":
+      return {
+        ...(await answerPaymentQuestion({ payment: event.payment }, ctx)),
+        userContent: paymentChoiceLabel(event.payment),
+      };
+    case "select_service_kind":
+      return {
+        ...(await chooseServiceKind(event.serviceKind, ctx)),
+        userContent: SERVICE_KIND_LABELS[event.serviceKind],
+      };
+    case "select_services":
+      return { ...(await chooseServices(event.serviceIds, ctx)), userContent: fallbackLabel };
+    case "accept_booking_offer":
+      return { ...(await routeBooking(ctx.state.draft, ctx)), userContent: fallbackLabel };
     case "cancel_booking":
       return {
         reply: BOOKING_COPY.stopped,

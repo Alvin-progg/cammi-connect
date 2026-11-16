@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 
 import { AccessDenied } from "@/components/auth/access-denied";
 import { AttendanceActions } from "@/components/front-desk/attendance-actions";
+import { PaymentPanel } from "@/components/front-desk/payment-panel";
 import { SplitLayout } from "@/components/shell/staff-shell";
 import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
 import {
@@ -27,6 +28,7 @@ import {
   parseRequestQueueFilters,
 } from "@/lib/front-desk/requests";
 import { allowedAttendanceActions } from "@/lib/front-desk/schedule";
+import { PAYMENT_NOT_VERIFIED, paymentAllowsConfirm } from "@/lib/billing/verification";
 import { getFrontDeskSession } from "@/server/auth/dal";
 import { supabaseFrontDeskRequestsRepository } from "@/server/front-desk/repository";
 import { checkRequestSlot, getRequestDetails, listRequestQueue } from "@/server/front-desk/service";
@@ -61,7 +63,10 @@ export default async function FrontDeskRequestPage({
   const isCamiRequest = request.bookingSource === "ai_chatbot";
   const attendanceActions = allowedAttendanceActions(request.status, request.scheduledAt);
   const [slotCheck, pendingQueue] = await Promise.all([
-    isPending ? checkRequestSlot(request, supabaseDoctorSchedulesRepository) : null,
+    // A service visit's hours and capacity were checked when it was booked (PAY-07).
+    isPending && request.doctorId
+      ? checkRequestSlot({ ...request, doctorId: request.doctorId }, supabaseDoctorSchedulesRepository)
+      : null,
     // The pending queue, oldest first, for "N of M" and Next request.
     isPending && isCamiRequest
       ? listRequestQueue(parseRequestQueueFilters({}), supabaseFrontDeskRequestsRepository)
@@ -70,11 +75,13 @@ export default async function FrontDeskRequestPage({
   const queuePosition = pendingQueue
     ? nextPendingRequest(pendingQueue.items.map((item) => item.id), request.id)
     : null;
+  const payment = request.paymentDetails ?? null;
+  const confirmBlockedReason = paymentAllowsConfirm(payment?.status ?? null) ? undefined : PAYMENT_NOT_VERIFIED;
   const specialty = request.specialtyNames.length > 0 ? request.specialtyNames.join(", ") : null;
   const requestedVia = isCamiRequest ? "in chat" : "at the front desk";
   const hasActions =
     isPending ||
-    canFrontDeskReschedule(request.status) ||
+    canFrontDeskReschedule(request.status, request.doctorId) ||
     canFrontDeskCancel(request.status) ||
     attendanceActions.length > 0;
   // todayInManila gives the Manila calendar date of any instant.
@@ -113,7 +120,14 @@ export default async function FrontDeskRequestPage({
       }
     >
       <SplitLayout
-        main={<RequestDetailsView request={request} />}
+        main={
+          <div className="flex flex-col gap-4">
+            {payment ? (
+              <PaymentPanel appointmentId={request.id} payment={payment} now={new Date()} decidable={isPending} />
+            ) : null}
+            <RequestDetailsView request={request} />
+          </div>
+        }
         side={
           <section
             aria-labelledby="request-actions-heading"
@@ -134,11 +148,12 @@ export default async function FrontDeskRequestPage({
                 patientName={request.patientName}
                 doctorName={request.doctorName}
                 whenLabel={whenLabel}
+                confirmBlockedReason={confirmBlockedReason}
               />
             ) : null}
-            {canFrontDeskReschedule(request.status) || canFrontDeskCancel(request.status) ? (
+            {canFrontDeskReschedule(request.status, request.doctorId) || canFrontDeskCancel(request.status) ? (
               <div className="flex flex-col gap-2">
-                {canFrontDeskReschedule(request.status) ? (
+                {canFrontDeskReschedule(request.status, request.doctorId) ? (
                   <Link
                     href={`/front-desk/requests/${request.id}/reschedule`}
                     className={SECONDARY_BUTTON_CLASS}

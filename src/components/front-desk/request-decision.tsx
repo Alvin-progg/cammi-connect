@@ -211,18 +211,42 @@ function CancelForm({ summary, close, safeActionRef }: DecisionFormProps) {
  * Each decision goes through a dialog; the server re-checks the staff role
  * and the pending status, and success is shown only after it commits.
  */
-export function RequestDecision(summary: Summary) {
+export function RequestDecision({
+  confirmBlockedReason,
+  ...summary
+}: Summary & {
+  /** PAY-05: why Confirm is unavailable (the database refuses it too). */
+  confirmBlockedReason?: string;
+}) {
   return (
     <div className="flex flex-col gap-2">
-      <DecisionDialog
-        summary={summary}
-        destructive={false}
-        title="Confirm this appointment?"
-        triggerLabel="Confirm request"
-        triggerVariant="primary"
-        triggerIcon={<Check aria-hidden="true" />}
-        Form={ConfirmForm}
-      />
+      {confirmBlockedReason ? (
+        <>
+          <Button
+            variant="primary"
+            size="lg"
+            className="w-full"
+            disabled
+            aria-describedby={`confirm-blocked-${summary.appointmentId}`}
+          >
+            <Check aria-hidden="true" />
+            Confirm request
+          </Button>
+          <p id={`confirm-blocked-${summary.appointmentId}`} className="text-sm text-ink-muted">
+            {confirmBlockedReason}
+          </p>
+        </>
+      ) : (
+        <DecisionDialog
+          summary={summary}
+          destructive={false}
+          title="Confirm this appointment?"
+          triggerLabel="Confirm request"
+          triggerVariant="primary"
+          triggerIcon={<Check aria-hidden="true" />}
+          Form={ConfirmForm}
+        />
+      )}
       <DecisionDialog
         summary={summary}
         destructive

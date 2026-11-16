@@ -1,5 +1,6 @@
 import type { AppointmentAuditAction } from "@/lib/appointments/audit";
 import type {
+  AppointmentKind,
   AppointmentStatus,
   BookingSource,
 } from "@/lib/appointments/status";
@@ -13,7 +14,8 @@ import type {
 import type { NotificationType } from "@/lib/notifications/types";
 import type { RequirementStatus } from "@/lib/requirements/types";
 import type { ScheduleExceptionType } from "@/lib/schedules/types";
-import type { ServiceBookingMode } from "@/lib/services/types";
+import type { ServiceBookingMode, ServiceCategory } from "@/lib/services/types";
+import type { PaymentStatus } from "@/lib/billing/payments";
 
 export type Json =
   | string
@@ -67,6 +69,10 @@ export type Database = {
           id: string;
           name: string;
           description: string | null;
+          /** Migration 0032 (AI-APT-002): routing context for Cami, at most 1,000 characters. */
+          routing_hints: string | null;
+          /** Migration 0033 (PAY-01): integer centavos, null when not set. */
+          default_consultation_fee_centavos: number | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -75,6 +81,8 @@ export type Database = {
           id?: string;
           name: string;
           description?: string | null;
+          routing_hints?: string | null;
+          default_consultation_fee_centavos?: number | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -82,12 +90,14 @@ export type Database = {
         Update: {
           name?: string;
           description?: string | null;
+          routing_hints?: string | null;
+          default_consultation_fee_centavos?: number | null;
           is_active?: boolean;
           updated_at?: string;
         };
         Relationships: [];
       };
-      /** Migration 0021 (admin services). Informational only; never scheduled. */
+      /** Migration 0021 (admin services), priced in 0033 (PAY-01). */
       services: {
         Row: {
           id: string;
@@ -97,6 +107,14 @@ export type Database = {
           requires_appointment: boolean;
           booking_mode: ServiceBookingMode;
           is_active: boolean;
+          /** Migration 0033 (PAY-01) pricing; money is integer centavos. */
+          category: ServiceCategory;
+          price_centavos: number | null;
+          vatable: boolean;
+          philhealth_benefit_centavos: number;
+          hmo_coverable: boolean;
+          requires_doctor_request: boolean;
+          daily_capacity: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -108,6 +126,13 @@ export type Database = {
           requires_appointment?: boolean;
           booking_mode?: ServiceBookingMode;
           is_active?: boolean;
+          category?: ServiceCategory;
+          price_centavos?: number | null;
+          vatable?: boolean;
+          philhealth_benefit_centavos?: number;
+          hmo_coverable?: boolean;
+          requires_doctor_request?: boolean;
+          daily_capacity?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -118,8 +143,166 @@ export type Database = {
           requires_appointment?: boolean;
           booking_mode?: ServiceBookingMode;
           is_active?: boolean;
+          category?: ServiceCategory;
+          price_centavos?: number | null;
+          vatable?: boolean;
+          philhealth_benefit_centavos?: number;
+          hmo_coverable?: boolean;
+          requires_doctor_request?: boolean;
+          daily_capacity?: number | null;
           updated_at?: string;
         };
+        Relationships: [];
+      };
+      /** Migration 0033 (PAY-01). Admin-managed accredited HMOs. */
+      hmo_providers: {
+        Row: {
+          id: string;
+          name: string;
+          copay_centavos: number;
+          notes: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          copay_centavos?: number;
+          notes?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          copay_centavos?: number;
+          notes?: string | null;
+          is_active?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      /** Migration 0034 (PAY-03). One charge per appointment, written only by cammi_connect_book_with_charge. */
+      appointment_charges: {
+        Row: {
+          id: string;
+          appointment_id: string;
+          reference_code: string;
+          privilege: "none" | "senior" | "pwd";
+          payer: "self" | "hmo" | "philhealth";
+          hmo_provider_id: string | null;
+          hmo_member_number: string | null;
+          base_centavos: number;
+          vat_exemption_centavos: number;
+          privilege_discount_centavos: number;
+          philhealth_centavos: number;
+          hmo_centavos: number;
+          amount_due_centavos: number;
+          created_at: string;
+        };
+        // Written only by cammi_connect_book_with_charge.
+        Insert: { [_ in never]: never };
+        Update: { [_ in never]: never };
+        Relationships: [];
+      };
+      /** Migration 0034 (PAY-03). Snapshotted line items of a charge. */
+      appointment_charge_items: {
+        Row: {
+          id: string;
+          charge_id: string;
+          line_number: number;
+          kind: "consultation" | "service";
+          description: string;
+          doctor_id: string | null;
+          specialty_id: string | null;
+          /** Migration 0038 (PAY-07): set on service lines. */
+          service_id: string | null;
+          vatable: boolean;
+          philhealth_benefit_centavos: number;
+          hmo_coverable: boolean;
+          base_centavos: number;
+          vat_exemption_centavos: number;
+          privilege_discount_centavos: number;
+          philhealth_centavos: number;
+          hmo_centavos: number;
+          amount_due_centavos: number;
+        };
+        // Written only by cammi_connect_book_with_charge.
+        Insert: { [_ in never]: never };
+        Update: { [_ in never]: never };
+        Relationships: [];
+      };
+      /** Migration 0034 (PAY-03). One payment per charge; transaction_reference is unique. */
+      payments: {
+        Row: {
+          id: string;
+          charge_id: string;
+          appointment_id: string;
+          status: Database["public"]["Enums"]["payment_status"];
+          method: "qr_ph" | "counter" | null;
+          amount_due_centavos: number;
+          deadline_at: string | null;
+          attempts: number;
+          transaction_reference: string | null;
+          amount_received_centavos: number | null;
+          received_at: string | null;
+          verified_by: string | null;
+          verified_at: string | null;
+          rejected_reason: string | null;
+          rejected_by: string | null;
+          rejected_at: string | null;
+          refund_reference: string | null;
+          refunded_by: string | null;
+          refunded_at: string | null;
+          /** Migration 0037 (PAY-06): the HMO decision. */
+          hmo_loa_number: string | null;
+          hmo_denied_reason: string | null;
+          hmo_decided_by: string | null;
+          hmo_decided_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        // Written only by cammi_connect_book_with_charge.
+        Insert: { [_ in never]: never };
+        Update: { [_ in never]: never };
+        Relationships: [];
+      };
+      /** Migration 0035 (PAY-04). One row per accepted receipt upload. */
+      payment_receipts: {
+        Row: {
+          id: string;
+          payment_id: string;
+          patient_id: string;
+          storage_path: string;
+          content_type: "image/jpeg" | "image/png" | "image/webp";
+          size_bytes: number;
+          uploaded_at: string;
+          outcome: "pending" | "verified" | "rejected";
+          /** Migration 0039 (PAY-08): when the image was deleted from storage (D5). */
+          purged_at: string | null;
+        };
+        // Written only by cammi_connect_submit_payment_receipt.
+        Insert: { [_ in never]: never };
+        Update: { [_ in never]: never };
+        Relationships: [];
+      };
+      /** Migration 0034 (PAY-03). Append-only payment history. */
+      payment_events: {
+        Row: {
+          id: string;
+          payment_id: string;
+          actor_profile_id: string | null;
+          action: string;
+          previous_status: Database["public"]["Enums"]["payment_status"] | null;
+          new_status: Database["public"]["Enums"]["payment_status"];
+          new_values: Json | null;
+          reason: string | null;
+          created_at: string;
+        };
+        // Written only by the 0034–0037 payment functions and the 0036 refund trigger.
+        Insert: { [_ in never]: never };
+        Update: { [_ in never]: never };
         Relationships: [];
       };
       /** Migration 0027 (admin system settings). A missing key uses its default. */
@@ -195,6 +378,8 @@ export type Database = {
           contact_email: string | null;
           contact_phone: string | null;
           bio: string | null;
+          /** Migration 0033 (PAY-01): integer centavos; null uses the specialty default. */
+          consultation_fee_centavos: number | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -206,6 +391,7 @@ export type Database = {
           contact_email?: string | null;
           contact_phone?: string | null;
           bio?: string | null;
+          consultation_fee_centavos?: number | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -216,6 +402,7 @@ export type Database = {
           contact_email?: string | null;
           contact_phone?: string | null;
           bio?: string | null;
+          consultation_fee_centavos?: number | null;
           is_active?: boolean;
           updated_at?: string;
         };
@@ -279,7 +466,12 @@ export type Database = {
       appointments: {
         Row: {
           id: string;
-          doctor_id: string;
+          /** Null only for a service visit (PAY-07, kind = 'service'). */
+          doctor_id: string | null;
+          /** PAY-07: 'service' for lab, imaging, and package visits. */
+          kind: AppointmentKind;
+          /** PAY-07: the visit's first service; every service is a charge line. */
+          service_id: string | null;
           patient_id: string;
           scheduled_at: string;
           /** Trigger-maintained end of the appointment interval. */
@@ -288,7 +480,7 @@ export type Database = {
           status: AppointmentStatus;
           reason: string | null;
           cancellation_reason: string | null;
-          cancelled_by_role: UserRole | null;
+          cancelled_by_role: UserRole | "system" | null;
           rescheduled_from_at: string | null;
           booking_source: BookingSource;
           created_by_profile_id: string | null;
@@ -301,7 +493,9 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          doctor_id: string;
+          doctor_id?: string | null;
+          kind?: AppointmentKind;
+          service_id?: string | null;
           patient_id: string;
           scheduled_at: string;
           scheduled_end_at?: string;
@@ -309,7 +503,7 @@ export type Database = {
           status?: AppointmentStatus;
           reason?: string | null;
           cancellation_reason?: string | null;
-          cancelled_by_role?: UserRole | null;
+          cancelled_by_role?: UserRole | "system" | null;
           rescheduled_from_at?: string | null;
           booking_source?: BookingSource;
           created_by_profile_id?: string | null;
@@ -326,7 +520,7 @@ export type Database = {
           status?: AppointmentStatus;
           reason?: string | null;
           cancellation_reason?: string | null;
-          cancelled_by_role?: UserRole | null;
+          cancelled_by_role?: UserRole | "system" | null;
           rescheduled_from_at?: string | null;
           confirmed_by_profile_id?: string | null;
           confirmed_at?: string | null;
@@ -419,6 +613,30 @@ export type Database = {
         Update: {
           reason?: string | null;
         };
+        Relationships: [];
+      };
+      /**
+       * Migration 0038 (PAY-07). Weekly hours of a walk-in or scheduled
+       * service, with the same Manila effective-date rules as doctor periods.
+       * Written only by cammi_connect_admin_save_service_schedule.
+       */
+      service_schedules: {
+        Row: {
+          id: string;
+          service_id: string;
+          day_of_week: number;
+          start_time: string;
+          end_time: string;
+          slot_minutes: number;
+          capacity_per_slot: number;
+          effective_from: string;
+          effective_until: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: { [_ in never]: never };
+        Update: { [_ in never]: never };
         Relationships: [];
       };
       doctor_schedules: {
@@ -649,6 +867,88 @@ export type Database = {
     Views: { [_ in never]: never };
     Functions: {
       /**
+       * Migration 0035 (PAY-04). Raises P0001 payment_not_found,
+       * payment_not_open, receipt_limit_reached, receipt_rate_limited, or
+       * invalid_receipt.
+       */
+      /**
+       * Migration 0036 (PAY-05). Front desk/admin only (P0001 not_allowed);
+       * verify also raises payment_not_found, not_open, not_pending,
+       * reference_required, duplicate_reference, amount_short, or
+       * invalid_received_at; reject raises reason_required; mark refunded
+       * raises reference_required.
+       */
+      cammi_connect_verify_payment: {
+        Args: {
+          p_payment_id: string;
+          p_staff_id: string;
+          p_transaction_reference: string;
+          p_amount_received_centavos: number;
+          p_received_at: string;
+        };
+        Returns: { patient_id: string; amount_due_centavos: number }[];
+      };
+      cammi_connect_reject_payment_receipt: {
+        Args: {
+          p_payment_id: string;
+          p_staff_id: string;
+          p_reason_code: string;
+          p_reason: string;
+        };
+        Returns: { patient_id: string; amount_due_centavos: number }[];
+      };
+      /** Migration 0039 (PAY-08). Run by pg_cron every 5 minutes; returns how many expired. */
+      cammi_connect_expire_unpaid: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+      /** Migration 0039 (PAY-08). Used by scripts/purge-receipts.mts. */
+      cammi_connect_mark_receipts_purged: {
+        Args: { p_receipt_ids: string[] };
+        Returns: number;
+      };
+      cammi_connect_mark_refunded: {
+        Args: { p_payment_id: string; p_staff_id: string; p_refund_reference: string };
+        Returns: { patient_id: string; amount_due_centavos: number }[];
+      };
+      cammi_connect_decide_hmo: {
+        Args: {
+          p_payment_id: string;
+          p_staff_id: string;
+          p_decision: "approve" | "deny";
+          p_loa_number: string | null;
+          p_reason: string | null;
+        };
+        Returns: {
+          patient_id: string;
+          new_status: Database["public"]["Enums"]["payment_status"];
+          method: "qr_ph" | "counter" | null;
+          amount_due_centavos: number;
+          deadline_at: string | null;
+          reference_code: string;
+          hmo_name: string;
+        }[];
+      };
+      /** Migration 0036. Audits the view; returns the latest receipt's storage path. */
+      cammi_connect_record_receipt_view: {
+        Args: { p_payment_id: string; p_staff_id: string };
+        Returns: string;
+      };
+      cammi_connect_submit_payment_receipt: {
+        Args: {
+          p_payment_id: string;
+          p_patient_id: string;
+          p_storage_path: string;
+          p_content_type: string;
+          p_size_bytes: number;
+        };
+        Returns: {
+          receipt_id: string;
+          payment_status: Database["public"]["Enums"]["payment_status"];
+          attempts: number;
+        }[];
+      };
+      /**
        * Migration 0014 (admin user management). The mutating functions raise
        * P0001 not_admin, reason_required, not_found, unchanged, self_change,
        * doctor_record, invalid_role, already_provisioned, or full_name_required.
@@ -770,6 +1070,10 @@ export type Database = {
           p_specialty_id: string | null;
           p_name: string;
           p_description: string | null;
+          /** Migration 0032 (AI-APT-002). */
+          p_routing_hints: string | null;
+          /** Migration 0033 (PAY-01). */
+          p_default_consultation_fee_centavos: number | null;
         };
         Returns: string;
       };
@@ -799,6 +1103,14 @@ export type Database = {
           p_department_id: string | null;
           p_requires_appointment: boolean;
           p_booking_mode: ServiceBookingMode;
+          /** Migration 0033 (PAY-01). */
+          p_category: ServiceCategory;
+          p_price_centavos: number | null;
+          p_vatable: boolean;
+          p_philhealth_benefit_centavos: number;
+          p_hmo_coverable: boolean;
+          p_requires_doctor_request: boolean;
+          p_daily_capacity: number | null;
         };
         Returns: string;
       };
@@ -806,6 +1118,25 @@ export type Database = {
         Args: {
           p_actor_profile_id: string;
           p_service_id: string;
+          p_is_active: boolean;
+        };
+        Returns: undefined;
+      };
+      /** Migration 0033 (PAY-01). Each raises P0001 with an HmoProviderRefusal code. */
+      cammi_connect_admin_save_hmo_provider: {
+        Args: {
+          p_actor_profile_id: string;
+          p_hmo_provider_id: string | null;
+          p_name: string;
+          p_copay_centavos: number;
+          p_notes: string | null;
+        };
+        Returns: string;
+      };
+      cammi_connect_admin_set_hmo_provider_active: {
+        Args: {
+          p_actor_profile_id: string;
+          p_hmo_provider_id: string;
           p_is_active: boolean;
         };
         Returns: undefined;
@@ -849,6 +1180,8 @@ export type Database = {
           p_contact_phone: string | null;
           p_bio: string | null;
           p_specialty_ids: string[];
+          /** Migration 0033 (PAY-01). */
+          p_consultation_fee_centavos: number | null;
         };
         Returns: string;
       };
@@ -967,6 +1300,92 @@ export type Database = {
         };
         Returns: string;
       };
+      /**
+       * Migration 0034 (PAY-03). Books through cammi_connect_book_appointment and
+       * writes the charge, line, payment, and created event in one transaction.
+       * Raises P0001 invalid_payment_choice, invalid_member_number,
+       * hmo_unavailable, invalid_specialty, price_on_request, price_changed,
+       * payment_too_soon, or any cammi_connect_book_appointment refusal.
+       */
+      cammi_connect_book_with_charge: {
+        Args: {
+          p_doctor_id: string;
+          p_specialty_id: string;
+          p_patient_id: string;
+          p_scheduled_at: string;
+          p_reason: string | null;
+          p_privilege: string;
+          p_payer: string;
+          p_payment_method: string | null;
+          p_hmo_provider_id: string | null;
+          p_hmo_member_number: string | null;
+          p_expected_amount_due_centavos: number;
+        };
+        Returns: {
+          appointment_id: string;
+          reference_code: string;
+          payment_status: Database["public"]["Enums"]["payment_status"];
+          amount_due_centavos: number;
+          deadline_at: string | null;
+        }[];
+      };
+      /**
+       * Migration 0038 (PAY-07). Books a walk-in date or a scheduled slot for
+       * one or more services with its charge, lines, payment, and created
+       * event in one transaction. Raises P0001 invalid_payment_choice,
+       * invalid_member_number, hmo_unavailable, invalid_services,
+       * service_unavailable, price_on_request, invalid_service_combination,
+       * too_many_upcoming, past, outside_hours, blocked, service_full,
+       * slot_full, price_changed, or payment_too_soon.
+       */
+      cammi_connect_book_service: {
+        Args: {
+          p_patient_id: string;
+          p_service_ids: string[];
+          p_visit_date: string | null;
+          p_scheduled_at: string | null;
+          p_reason: string | null;
+          p_privilege: string;
+          p_payer: string;
+          p_payment_method: string | null;
+          p_hmo_provider_id: string | null;
+          p_hmo_member_number: string | null;
+          p_expected_amount_due_centavos: number;
+        };
+        Returns: {
+          appointment_id: string;
+          reference_code: string;
+          payment_status: Database["public"]["Enums"]["payment_status"];
+          amount_due_centavos: number;
+          deadline_at: string | null;
+        }[];
+      };
+      /** Migration 0038 (PAY-07). Holding service visits per service and start time in [p_from, p_to). */
+      cammi_connect_service_load: {
+        Args: { p_service_ids: string[]; p_from: string; p_to: string };
+        Returns: { service_id: string; scheduled_at: string; bookings: number }[];
+      };
+      /**
+       * Migration 0038 (PAY-07). Audited create or update of a service
+       * period. Raises P0001 not_admin, not_found, not_bookable,
+       * invalid_period, or overlap.
+       */
+      cammi_connect_admin_save_service_schedule: {
+        Args: {
+          p_actor_profile_id: string;
+          p_schedule_id: string | null;
+          p_service_id: string;
+          p_day_of_week: number;
+          p_start_time: string;
+          p_end_time: string;
+          p_slot_minutes: number;
+          p_capacity_per_slot: number;
+          p_effective_from: string;
+          p_effective_until: string | null;
+          p_is_active: boolean;
+        };
+        Returns: string;
+      };
       /** Migration 0009. Raises P0001 not_found, not_pending, inactive_doctor, past, outside_hours, or blocked. */
       cammi_connect_confirm_appointment: {
         Args: {
@@ -1071,11 +1490,13 @@ export type Database = {
       };
     };
     Enums: {
-      user_role: UserRole;
+      /** 0039 adds "system", used only by appointments.cancelled_by_role; no profile can have it. */
+      user_role: UserRole | "system";
       appointment_status: AppointmentStatus;
       booking_source: BookingSource;
       doctor_notification_type: NotificationType;
       schedule_exception_type: ScheduleExceptionType;
+      payment_status: PaymentStatus;
     };
     CompositeTypes: { [_ in never]: never };
   };

@@ -11,6 +11,7 @@ import { AccessDenied } from "@/components/auth/access-denied";
 import { RequirementsList } from "@/components/requirements/requirements-list";
 import { ServiceForm } from "@/components/services/service-form";
 import { ServicePublishPlaceholder } from "@/components/services/service-publish";
+import { ServiceScheduleEditor } from "@/components/services/service-schedule";
 import { ServiceStatusForm } from "@/components/services/service-status";
 import { buttonVariants } from "@/components/ui/button";
 import { todayInManila } from "@/lib/appointments/filters";
@@ -19,7 +20,7 @@ import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import { supabaseRequirementAdminRepository } from "@/server/requirements/repository";
 import { listRequirements } from "@/server/requirements/service";
 import { supabaseServiceAdminRepository } from "@/server/services/repository";
-import { getServiceDetail } from "@/server/services/service";
+import { getServiceDetail, listServiceSchedules } from "@/server/services/service";
 
 import { ADMIN_ACCESS_DENIED_MESSAGE } from "../../_shared/placeholder-page";
 
@@ -40,13 +41,14 @@ export default async function AdminServicePage({ params }: PageProps<"/admin/ser
   if (!serviceId.success) {
     notFound();
   }
-  const [service, departments, requirements] = await Promise.all([
+  const [service, departments, requirements, schedules] = await Promise.all([
     getServiceDetail(serviceId.data, supabaseServiceAdminRepository),
     supabaseDirectoryRepository.listDepartments(),
     listRequirements(
       { status: "all", kind: "service", serviceId: serviceId.data },
       supabaseRequirementAdminRepository,
     ),
+    listServiceSchedules(serviceId.data, supabaseServiceAdminRepository),
   ]);
   if (!service) {
     notFound();
@@ -79,6 +81,18 @@ export default async function AdminServicePage({ params }: PageProps<"/admin/ser
               Add requirement
             </Link>
           </TaskCard>
+          {service.bookingMode === "walk_in" || service.bookingMode === "scheduled" ? (
+            <TaskCard
+              title="Hours"
+              description={
+                service.bookingMode === "scheduled"
+                  ? "Time slots patients can book in chat, with how many patients each slot takes."
+                  : "Opening hours. Patients book a day and are served in order of arrival, up to the daily capacity."
+              }
+            >
+              <ServiceScheduleEditor service={service} periods={schedules} today={todayInManila()} />
+            </TaskCard>
+          ) : null}
           <TaskCard title="Cami AI">
             <ServicePublishPlaceholder />
           </TaskCard>

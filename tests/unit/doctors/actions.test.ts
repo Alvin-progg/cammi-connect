@@ -52,6 +52,7 @@ const DOCTOR_FIELDS = {
   contactEmail: "ana.cruz@example.test",
   contactPhone: "",
   bio: "",
+  consultationFee: "750",
 };
 
 beforeEach(() => {
@@ -94,6 +95,7 @@ describe("doctor actions", () => {
           contactPhone: null,
           bio: null,
           accountProfileId: ACCOUNT_ID,
+          consultationFeeCentavos: 75000,
         },
       },
       {},

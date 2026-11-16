@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ActiveBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/data";
 import { CELL, HEADER_CELL, ROW, Table } from "@/components/ui/data";
+import { formatPesos } from "@/lib/billing/money";
 import { SERVICE_BOOKING_MODE_LABELS, type HospitalService } from "@/lib/services/types";
 
 export function ServicesTable({ services }: { services: HospitalService[] }) {
@@ -11,13 +12,14 @@ export function ServicesTable({ services }: { services: HospitalService[] }) {
   }
 
   return (
-    <Table label="Services" minWidthClass="min-w-[44rem]">
+    <Table label="Services" minWidthClass="min-w-[50rem]">
       <thead>
         <tr>
           <th scope="col" className={HEADER_CELL}>Name</th>
           <th scope="col" className={HEADER_CELL}>Department</th>
           <th scope="col" className={HEADER_CELL}>Access</th>
           <th scope="col" className={HEADER_CELL}>Appointment</th>
+          <th scope="col" className={HEADER_CELL}>Price</th>
           <th scope="col" className={HEADER_CELL}>Status</th>
         </tr>
       </thead>
@@ -37,6 +39,13 @@ export function ServicesTable({ services }: { services: HospitalService[] }) {
             </td>
             <td className={CELL}>{SERVICE_BOOKING_MODE_LABELS[service.bookingMode]}</td>
             <td className={CELL}>{service.requiresAppointment ? "Required" : "Not required"}</td>
+            <td className={CELL}>
+              {service.priceCentavos === null ? (
+                <span className="text-ink-muted">On request</span>
+              ) : (
+                formatPesos(service.priceCentavos)
+              )}
+            </td>
             <td className={CELL}>
               <ActiveBadge isActive={service.isActive} />
             </td>

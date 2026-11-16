@@ -37,6 +37,7 @@ const INTERNAL_MEDICINE: Specialty = {
   id: "00000000-0000-4000-8000-000000000701",
   name: "Internal Medicine",
   description: null,
+  routingHints: null,
   isActive: true,
 };
 const CARDIO: Specialty = { ...INTERNAL_MEDICINE, id: "00000000-0000-4000-8000-000000000702", name: "Cardiology" };
@@ -61,6 +62,7 @@ const DOCTOR: AdminDoctorDetail = {
   contactEmail: "maya.santos@example.test",
   contactPhone: null,
   bio: "Synthetic bio.",
+  consultationFeeCentavos: 85000,
 };
 const ACCOUNT = { profileId: "00000000-0000-4000-8000-000000000011", fullName: "Dr. Invited Account" };
 
@@ -151,6 +153,7 @@ describe("DoctorForm", () => {
     expect(screen.getByRole("checkbox", { name: "Cardiology" })).not.toBeChecked();
     expect(screen.getByLabelText("Contact email")).toHaveValue("maya.santos@example.test");
     expect(screen.getByLabelText("Bio")).toHaveValue("Synthetic bio.");
+    expect(screen.getByLabelText("Consultation fee (₱)")).toHaveValue("850.00");
     expect(screen.queryByLabelText("Linked account")).toBeNull();
     expect(screen.getByRole("button", { name: "Save doctor" })).toBeInTheDocument();
   });

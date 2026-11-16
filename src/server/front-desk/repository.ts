@@ -6,6 +6,7 @@ import type {
   BookingSource,
 } from "@/lib/appointments/status";
 import type { UserRole } from "@/lib/auth/roles";
+import type { FrontDeskPayment, RefundDueItem } from "@/lib/billing/verification";
 import {
   PATIENT_SEARCH_LIMIT,
   type PatientMatch,
@@ -21,6 +22,7 @@ import type {
   RequestQueueItem,
 } from "@/lib/front-desk/requests";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
+import { loadServiceVisitLabels } from "@/server/service-booking/repository";
 
 import type {
   FrontDeskBooker,
@@ -32,12 +34,14 @@ import type {
 } from "./service";
 
 const REQUEST_SELECT =
-  "id, patient_id, doctor_id, specialty_id, scheduled_at, duration_minutes, created_at, status, booking_source, reason, rejection_reason, cancellation_reason";
+  "id, patient_id, doctor_id, service_id, specialty_id, scheduled_at, duration_minutes, created_at, status, booking_source, reason, rejection_reason, cancellation_reason";
 
 type RequestRow = {
   id: string;
   patient_id: string;
-  doctor_id: string;
+  /** Null for a service visit (PAY-07). */
+  doctor_id: string | null;
+  service_id: string | null;
   specialty_id: string | null;
   scheduled_at: string;
   duration_minutes: number;
@@ -60,8 +64,19 @@ type ProfileRow = {
 /** Cami-submitted requests only (SPEC-frontdesk §5). */
 const AI_BOOKING_SOURCE: BookingSource = "ai_chatbot";
 
-function unique(values: string[]): string[] {
-  return [...new Set(values)];
+function unique(values: (string | null)[]): string[] {
+  return [...new Set(values.filter((value): value is string => value !== null))];
+}
+
+/** PAY-07: a service visit has no doctor, so it shows its services instead. */
+function providerName(
+  row: { id: string; doctor_id: string | null },
+  profiles: Map<string, ProfileRow>,
+  serviceLabels: Map<string, string>,
+): string {
+  return row.doctor_id
+    ? profiles.get(row.doctor_id)?.full_name.trim() || "Doctor"
+    : (serviceLabels.get(row.id) ?? "Hospital service");
 }
 
 async function loadProfiles(ids: string[]): Promise<Map<string, ProfileRow>> {
@@ -129,7 +144,9 @@ async function loadSpecialtyNames(
       row.id,
       row.specialty_id
         ? [row.specialty_id]
-        : (doctorSpecialtyIds.get(row.doctor_id) ?? []),
+        : row.doctor_id
+          ? (doctorSpecialtyIds.get(row.doctor_id) ?? [])
+          : [],
     ]),
   );
   const specialtyIds = unique([...specialtyIdsByRow.values()].flat());
@@ -159,13 +176,142 @@ async function loadSpecialtyNames(
   );
 }
 
+/** PAY-05 queue badges: each appointment's payment status and deadline. */
+async function loadPaymentBadges(
+  appointmentIds: string[],
+): Promise<Map<string, NonNullable<RequestQueueItem["payment"]>>> {
+  const { data, error } = await getSupabaseAdminClient()
+    .from("payments")
+    .select("appointment_id, status, deadline_at")
+    .in("appointment_id", appointmentIds);
+  if (error) {
+    throw new Error("Unable to load payments.");
+  }
+  return new Map(
+    (data ?? []).map((payment) => [
+      payment.appointment_id,
+      { status: payment.status, deadline: payment.deadline_at },
+    ]),
+  );
+}
+
+/** PAY-05 payment panel. Front desk only; the doctor dashboard never reads payments. */
+async function loadPaymentDetails(appointmentId: string): Promise<FrontDeskPayment | null> {
+  const supabase = getSupabaseAdminClient();
+  const { data: payment, error } = await supabase
+    .from("payments")
+    .select(
+      "id, charge_id, status, method, amount_due_centavos, deadline_at, attempts, transaction_reference, amount_received_centavos, received_at, rejected_reason, refund_reference, hmo_loa_number, hmo_denied_reason",
+    )
+    .eq("appointment_id", appointmentId)
+    .maybeSingle();
+  if (error) {
+    throw new Error("Unable to load the payment.");
+  }
+  if (!payment) return null;
+
+  const [charge, receipts] = await Promise.all([
+    supabase
+      .from("appointment_charges")
+      .select(
+        "reference_code, privilege, payer, hmo_provider_id, hmo_member_number, base_centavos, vat_exemption_centavos, privilege_discount_centavos, philhealth_centavos, hmo_centavos",
+      )
+      .eq("id", payment.charge_id)
+      .single(),
+    supabase
+      .from("payment_receipts")
+      .select("id", { count: "exact", head: true })
+      .eq("payment_id", payment.id),
+  ]);
+  if (charge.error || receipts.error) {
+    throw new Error("Unable to load the payment.");
+  }
+
+  // PAY-06: the one place the member number is shown in full.
+  const { hmo_provider_id: providerId, hmo_member_number: memberNumber } = charge.data;
+  let hmo: FrontDeskPayment["hmo"] = null;
+  if (providerId && memberNumber) {
+    const provider = await supabase.from("hmo_providers").select("name").eq("id", providerId).single();
+    if (provider.error) {
+      throw new Error("Unable to load the payment.");
+    }
+    hmo = {
+      providerName: provider.data.name,
+      memberNumber,
+      loaNumber: payment.hmo_loa_number,
+      deniedReason: payment.hmo_denied_reason,
+    };
+  }
+
+  return {
+    id: payment.id,
+    status: payment.status,
+    method: payment.method,
+    amountDueCentavos: payment.amount_due_centavos,
+    deadline: payment.deadline_at,
+    attempts: payment.attempts,
+    referenceCode: charge.data.reference_code,
+    privilege: charge.data.privilege,
+    payer: charge.data.payer,
+    baseCentavos: charge.data.base_centavos,
+    vatExemptionCentavos: charge.data.vat_exemption_centavos,
+    privilegeDiscountCentavos: charge.data.privilege_discount_centavos,
+    philhealthCentavos: charge.data.philhealth_centavos,
+    hmoCentavos: charge.data.hmo_centavos,
+    transactionReference: payment.transaction_reference,
+    amountReceivedCentavos: payment.amount_received_centavos,
+    receivedAt: payment.received_at,
+    rejectedReason: payment.rejected_reason,
+    refundReference: payment.refund_reference,
+    hasReceipt: (receipts.count ?? 0) > 0,
+    hmo,
+  };
+}
+
+/** The "Refund due" list (PAY-05), oldest first. */
+export async function listRefundsDue(limit = 50): Promise<RefundDueItem[]> {
+  const supabase = getSupabaseAdminClient();
+  const { data: payments, error } = await supabase
+    .from("payments")
+    .select("id, appointment_id, charge_id, amount_received_centavos, transaction_reference")
+    .eq("status", "refund_due")
+    .order("updated_at", { ascending: true })
+    .limit(limit);
+  if (error) {
+    throw new Error("Unable to load refunds.");
+  }
+  if (!payments?.length) return [];
+
+  const [appointments, charges] = await Promise.all([
+    supabase.from("appointments").select("id, patient_id").in("id", payments.map((p) => p.appointment_id)),
+    supabase.from("appointment_charges").select("id, reference_code").in("id", payments.map((p) => p.charge_id)),
+  ]);
+  if (appointments.error || charges.error) {
+    throw new Error("Unable to load refunds.");
+  }
+  const patientIds = new Map((appointments.data ?? []).map((row) => [row.id, row.patient_id]));
+  const references = new Map((charges.data ?? []).map((row) => [row.id, row.reference_code]));
+  const profiles = await loadProfiles(unique([...patientIds.values()]));
+
+  return payments.map((payment) => ({
+    paymentId: payment.id,
+    appointmentId: payment.appointment_id,
+    patientName: profiles.get(patientIds.get(payment.appointment_id) ?? "")?.full_name ?? "Patient",
+    referenceCode: references.get(payment.charge_id) ?? "",
+    amountReceivedCentavos: payment.amount_received_centavos,
+    transactionReference: payment.transaction_reference,
+  }));
+}
+
 async function toQueueItems(rows: RequestRow[]): Promise<RequestQueueItem[]> {
   if (rows.length === 0) {
     return [];
   }
-  const [profiles, specialtyNames] = await Promise.all([
+  const [profiles, specialtyNames, payments, serviceLabels] = await Promise.all([
     loadProfiles(unique(rows.flatMap((row) => [row.patient_id, row.doctor_id]))),
     loadSpecialtyNames(rows),
+    loadPaymentBadges(rows.map((row) => row.id)),
+    loadServiceVisitLabels(rows),
   ]);
   const emails = await loadEmails(
     unique(
@@ -188,12 +334,13 @@ async function toQueueItems(rows: RequestRow[]): Promise<RequestQueueItem[]> {
         ? (emails.get(patient.auth_user_id) ?? null)
         : null,
       patientPhone: patient.phone?.trim() || null,
-      doctorName: profiles.get(row.doctor_id)?.full_name.trim() || "Doctor",
+      doctorName: providerName(row, profiles, serviceLabels),
       specialtyNames: specialtyNames.get(row.id) ?? [],
       scheduledAt: row.scheduled_at,
       durationMinutes: row.duration_minutes,
       createdAt: row.created_at,
       status: row.status,
+      payment: payments.get(row.id) ?? null,
     } satisfies RequestQueueItem;
   });
 }
@@ -239,13 +386,25 @@ async function loadHistory(appointmentId: string): Promise<RequestAuditEntry[]> 
  * request (FD-001 decision 2026-11-03).
  */
 export const supabaseFrontDeskRequestsRepository: FrontDeskRequestsReader = {
-  async listRequests({ status, start, end, doctorId, specialtyId, limit }) {
+  async listRequests({ status, start, end, doctorId, specialtyId, limit, receiptsToCheck }) {
     const supabase = getSupabaseAdminClient();
 
     let query = supabase
       .from("appointments")
       .select(REQUEST_SELECT)
       .eq("booking_source", AI_BOOKING_SOURCE);
+    if (receiptsToCheck) {
+      const { data: submitted, error: paymentError } = await supabase
+        .from("payments")
+        .select("appointment_id")
+        .eq("status", "submitted");
+      if (paymentError) {
+        throw new Error("Unable to load payments.");
+      }
+      const ids = (submitted ?? []).map((payment) => payment.appointment_id);
+      if (ids.length === 0) return [];
+      query = query.in("id", ids);
+    }
     if (status) {
       query = query.eq("status", status);
     }
@@ -299,9 +458,10 @@ export const supabaseFrontDeskRequestsRepository: FrontDeskRequestsReader = {
     }
 
     const row: RequestRow = data;
-    const [[item], history] = await Promise.all([
+    const [[item], history, paymentDetails] = await Promise.all([
       toQueueItems([row]),
       loadHistory(row.id),
+      loadPaymentDetails(row.id),
     ]);
     if (!item) {
       return null;
@@ -314,6 +474,7 @@ export const supabaseFrontDeskRequestsRepository: FrontDeskRequestsReader = {
       rejectionReason: row.rejection_reason?.trim() || null,
       cancellationReason: row.cancellation_reason?.trim() || null,
       history,
+      paymentDetails,
     } satisfies RequestDetails;
   },
 };
@@ -381,7 +542,7 @@ export const supabaseFrontDeskRequestsWriter: FrontDeskRequestsWriter = {
 };
 
 const SCHEDULE_SELECT =
-  "id, patient_id, doctor_id, specialty_id, scheduled_at, duration_minutes, status, booking_source";
+  "id, patient_id, doctor_id, service_id, specialty_id, scheduled_at, duration_minutes, status, booking_source";
 
 /**
  * Daily schedule read model (SPEC-frontdesk §8): every booking source, names
@@ -412,9 +573,10 @@ export const supabaseFrontDeskScheduleRepository: FrontDeskScheduleReader = {
     if (rows.length === 0) {
       return [];
     }
-    const [profiles, specialtyNames] = await Promise.all([
+    const [profiles, specialtyNames, serviceLabels] = await Promise.all([
       loadProfiles(unique(rows.flatMap((row) => [row.patient_id, row.doctor_id]))),
       loadSpecialtyNames(rows),
+      loadServiceVisitLabels(rows),
     ]);
 
     return rows.map((row) => {
@@ -425,7 +587,7 @@ export const supabaseFrontDeskScheduleRepository: FrontDeskScheduleReader = {
       return {
         id: row.id,
         patientName: patient.full_name,
-        doctorName: profiles.get(row.doctor_id)?.full_name.trim() || "Doctor",
+        doctorName: providerName(row, profiles, serviceLabels),
         specialtyNames: specialtyNames.get(row.id) ?? [],
         scheduledAt: row.scheduled_at,
         durationMinutes: row.duration_minutes,
@@ -572,12 +734,13 @@ export const supabaseFrontDeskBooker: FrontDeskBooker = {
 // ---------------------------------------------------------------------------
 
 const RECENT_SELECT =
-  "id, patient_id, doctor_id, scheduled_at, status, confirmed_at, updated_at, rejection_reason, cancellation_reason";
+  "id, patient_id, doctor_id, service_id, scheduled_at, status, confirmed_at, updated_at, rejection_reason, cancellation_reason";
 
 type RecentRow = {
   id: string;
   patient_id: string;
-  doctor_id: string;
+  doctor_id: string | null;
+  service_id: string | null;
   scheduled_at: string;
   status: AppointmentStatus;
   confirmed_at: string | null;
@@ -597,13 +760,14 @@ async function toRecentAppointments(
   rows: RecentRow[],
   changedAt: (row: RecentRow) => string,
 ): Promise<RecentAppointment[]> {
-  const profiles = await loadProfiles(
-    unique(rows.flatMap((row) => [row.patient_id, row.doctor_id])),
-  );
+  const [profiles, serviceLabels] = await Promise.all([
+    loadProfiles(unique(rows.flatMap((row) => [row.patient_id, row.doctor_id]))),
+    loadServiceVisitLabels(rows),
+  ]);
   return rows.map((row) => ({
     id: row.id,
     patientName: profiles.get(row.patient_id)?.full_name.trim() || "Patient",
-    doctorName: profiles.get(row.doctor_id)?.full_name.trim() || "Doctor",
+    doctorName: providerName(row, profiles, serviceLabels),
     scheduledAt: row.scheduled_at,
     status: row.status,
     changedAt: changedAt(row),
@@ -687,7 +851,7 @@ export const supabaseFrontDeskOverviewRepository: FrontDeskOverviewReader = {
 
     const { data, error } = await getSupabaseAdminClient()
       .from("appointments")
-      .select("id, patient_id, doctor_id, scheduled_at, status, booking_source")
+      .select("id, patient_id, doctor_id, service_id, scheduled_at, status, booking_source")
       .in("patient_id", [...patientsById.keys()])
       .order("scheduled_at", { ascending: false })
       .limit(limit);
@@ -696,14 +860,17 @@ export const supabaseFrontDeskOverviewRepository: FrontDeskOverviewReader = {
     }
 
     const rows = data ?? [];
-    const doctors = await loadProfiles(unique(rows.map((row) => row.doctor_id)));
+    const [doctors, serviceLabels] = await Promise.all([
+      loadProfiles(unique(rows.map((row) => row.doctor_id))),
+      loadServiceVisitLabels(rows),
+    ]);
     return rows.map((row) => {
       const patient = patientsById.get(row.patient_id);
       return {
         id: row.id,
         patientName: patient?.full_name.trim() || "Patient",
         patientPhone: patient?.phone?.trim() || null,
-        doctorName: doctors.get(row.doctor_id)?.full_name.trim() || "Doctor",
+        doctorName: providerName(row, doctors, serviceLabels),
         scheduledAt: row.scheduled_at,
         status: row.status,
         bookingSource: row.booking_source,

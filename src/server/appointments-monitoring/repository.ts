@@ -4,6 +4,7 @@ import type { MonitoringListItem } from "@/lib/appointments/monitoring";
 import type { AppointmentStatus, BookingSource } from "@/lib/appointments/status";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 import { loadDepartmentNames } from "@/server/directory/repository";
+import { loadServiceVisitLabels } from "@/server/service-booking/repository";
 import {
   supabaseFrontDeskRequestsRepository,
   toSearchTerm,
@@ -12,7 +13,7 @@ import {
 import type { AppointmentMonitoringReader } from "./service";
 
 const MONITORING_SELECT =
-  "id, patient_id, doctor_id, specialty_id, scheduled_at, duration_minutes, status, booking_source, created_by_profile_id, confirmed_by_profile_id, confirmed_at";
+  "id, patient_id, doctor_id, service_id, specialty_id, scheduled_at, duration_minutes, status, booking_source, created_by_profile_id, confirmed_by_profile_id, confirmed_at";
 
 /**
  * A name search matching more patients than this only filters by the first
@@ -24,7 +25,9 @@ const PATIENT_MATCH_LIMIT = 500;
 type MonitoringRow = {
   id: string;
   patient_id: string;
-  doctor_id: string;
+  /** Null for a service visit (PAY-07). */
+  doctor_id: string | null;
+  service_id: string | null;
   specialty_id: string | null;
   scheduled_at: string;
   duration_minutes: number;
@@ -76,7 +79,7 @@ async function loadDoctorDepartmentIds(doctorIds: string[]): Promise<Map<string,
 
 /** Resolves people, department, and specialty names. Patient contact details are not selected. */
 async function toListItems(rows: MonitoringRow[]): Promise<MonitoringListItem[]> {
-  const [people, specialties, doctorDepartments] = await Promise.all([
+  const [people, specialties, doctorDepartments, serviceLabels] = await Promise.all([
     loadNames(
       "profiles",
       "full_name",
@@ -91,18 +94,22 @@ async function toListItems(rows: MonitoringRow[]): Promise<MonitoringListItem[]>
     ),
     loadNames("specialties", "name", unique(rows.map((row) => row.specialty_id))),
     loadDoctorDepartmentIds(unique(rows.map((row) => row.doctor_id))),
+    loadServiceVisitLabels(rows),
   ]);
   const departments = await loadDepartmentNames(unique([...doctorDepartments.values()]));
 
   const nameOf = (id: string | null) => (id ? people.get(id) || null : null);
 
   return rows.map((row) => {
-    const departmentId = doctorDepartments.get(row.doctor_id);
+    const departmentId = row.doctor_id ? doctorDepartments.get(row.doctor_id) : undefined;
     return {
       id: row.id,
       patientId: row.patient_id,
       patientName: nameOf(row.patient_id) ?? "Unknown patient",
-      doctorName: nameOf(row.doctor_id) ?? "Doctor",
+      // PAY-07: a service visit shows its services where the doctor would be.
+      doctorName: row.doctor_id
+        ? (nameOf(row.doctor_id) ?? "Doctor")
+        : (serviceLabels.get(row.id) ?? "Hospital service"),
       departmentName: departmentId ? (departments.get(departmentId) ?? null) : null,
       specialtyName: row.specialty_id ? (specialties.get(row.specialty_id) ?? null) : null,
       scheduledAt: row.scheduled_at,

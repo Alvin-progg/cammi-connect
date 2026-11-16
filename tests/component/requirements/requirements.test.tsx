@@ -28,6 +28,13 @@ const XRAY: HospitalService = {
   requiresAppointment: false,
   bookingMode: "walk_in",
   isActive: true,
+  category: "other",
+  priceCentavos: null,
+  vatable: false,
+  philhealthBenefitCentavos: 0,
+  hmoCoverable: true,
+  requiresDoctorRequest: false,
+  dailyCapacity: null,
 };
 const RETIRED_SERVICE: HospitalService = {
   ...XRAY,
@@ -39,6 +46,7 @@ const CARDIOLOGY: Specialty = {
   id: "00000000-0000-4000-8000-000000000201",
   name: "Cardiology",
   description: null,
+  routingHints: null,
   isActive: true,
 };
 

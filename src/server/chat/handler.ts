@@ -7,6 +7,8 @@ import {
   type ChatRole,
   type ConversationSummary,
 } from "@/lib/chat/schemas";
+import { modelHistory } from "@/lib/chat/payment";
+import type { FirstContactSettings } from "@/lib/chat/routing";
 import { IDLE_STATE, type BookingState, type BookingStep } from "@/lib/chat/state";
 import { ProviderError } from "@/server/ai/http";
 import type { PatientApiAccess } from "@/server/auth/dal";
@@ -70,6 +72,10 @@ export type ChatTurnSettings = {
   enabled: boolean;
   /** `appointment.max_advance_days`. */
   bookingHorizonDays: number;
+  /** `chatbot.first_contact_specialty_adult` and `_child` (AI-APT-002). */
+  firstContact: FirstContactSettings;
+  /** `payment.enabled` (PAY-03): discount, payer, and a charge in chat booking. */
+  paymentEnabled: boolean;
 };
 
 /** Log entries hold IDs and outcomes only, never message text (SPEC §7.3). */
@@ -191,11 +197,14 @@ export async function handleChatRequest(
       {
         conversationId,
         patientId,
-        history: history.map(({ role, content }) => ({ role, content })),
+        // Messages with payment details are masked, so the LLM never sees amounts.
+        history: modelHistory(history),
         event,
         state: bookingState,
         now,
         bookingHorizonDays: settings.bookingHorizonDays,
+        firstContact: settings.firstContact,
+        paymentEnabled: settings.paymentEnabled,
       },
       {
         generate: deps.generate,

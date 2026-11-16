@@ -9,11 +9,13 @@ import {
   SERIES,
   WeekdayRatesChart,
 } from "@/components/analytics/analytics-charts";
+import { AnalyticsSummary } from "@/components/analytics/analytics-summary";
 import { AnalyticsExportMenu, AnalyticsFilters } from "@/components/analytics/analytics-filters";
 import { ChartCard, ChartLegend, ChartSection } from "@/components/analytics/chart-card";
 import { DataTable } from "@/components/analytics/data-table";
 import { KpiCards } from "@/components/analytics/kpi-cards";
 import { PeakHeatmap } from "@/components/analytics/peak-heatmap";
+import { RevenueCards } from "@/components/analytics/revenue-cards";
 import { AccessDenied } from "@/components/auth/access-denied";
 import {
   NO_OUTCOME_MESSAGE,
@@ -30,6 +32,7 @@ import {
   toAnalyticsQuery,
   type AnalyticsRange,
 } from "@/lib/analytics/filters";
+import { interpretAnalytics, summarize } from "@/lib/analytics/interpretation";
 import {
   doctorRatesTakeaway,
   doctorTakeaway,
@@ -39,8 +42,8 @@ import {
   weekdayRatesTakeaway,
 } from "@/lib/analytics/takeaways";
 import { formatManilaMediumDate } from "@/lib/appointments/format";
-import { supabaseAnalyticsRepository } from "@/server/analytics/repository";
-import { loadAnalytics } from "@/server/analytics/service";
+import { supabaseAnalyticsRepository, supabaseRevenueRepository } from "@/server/analytics/repository";
+import { loadAnalytics, loadRevenue } from "@/server/analytics/service";
 import { getAdminSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 
@@ -62,7 +65,8 @@ const PERIOD_PHRASES: Record<AnalyticsRange, string> = {
 /**
  * Appointment analytics in the reference design (spec-admin ADM-11, metric
  * definitions v2 in docs/analytics-definitions.md): KPIs, Demand and Outcomes
- * charts with data-written takeaways, URL filters, and CSV export.
+ * charts with data-written takeaways, URL filters, and CSV export. ADM-17
+ * adds a Summary card and a "What it means" line per chart (definitions v3).
  */
 export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/admin/analytics">) {
   const params = await searchParams;
@@ -72,13 +76,16 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
   }
 
   const filters = parseAnalyticsFilters(params);
-  const [doctors, departments, analytics] = await Promise.all([
+  const query = toAnalyticsQuery(filters);
+  const [doctors, departments, analytics, revenue] = await Promise.all([
     supabaseDirectoryRepository.listDoctors({ activeOnly: false }),
     supabaseDirectoryRepository.listDepartments(),
-    loadAnalytics(toAnalyticsQuery(filters), supabaseAnalyticsRepository),
+    loadAnalytics(query, supabaseAnalyticsRepository),
+    loadRevenue(query, supabaseRevenueRepository),
   ]);
 
   const { kpis } = analytics;
+  const interpretations = interpretAnalytics(analytics);
   const volumeEmpty = kpis.total > 0 ? null : NO_VOLUME_MESSAGE;
   const outcomeEmpty = kpis.outcomeCount > 0 ? null : NO_OUTCOME_MESSAGE;
   const doctorsWithOutcomes = analytics.byDoctor.filter((doctor) => doctor.outcomeCount > 0);
@@ -119,11 +126,14 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
           departments={departments.map((department) => ({ id: department.id, name: department.name }))}
         />
 
+        <AnalyticsSummary summary={summarize(interpretations)} />
+
         <KpiCards kpis={kpis} periodLabel={PERIOD_PHRASES[filters.range]} />
 
         <ChartSection title="Demand" description="How many appointments, with whom, and when" />
         <ChartCard
           id="monthly-volume"
+          interpretation={interpretations["monthly-volume"]}
           number={1}
           title="Monthly appointment volume"
           description={monthlyTakeaway(analytics.monthly) ?? "Appointments scheduled each month, excluding rejected requests."}
@@ -143,6 +153,7 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <ChartCard
             id="doctor-volume"
+            interpretation={interpretations["doctor-volume"]}
             number={2}
             title="Appointments per doctor"
             description={doctorTakeaway(analytics.byDoctor) ?? "Appointments scheduled with each doctor, busiest first."}
@@ -161,6 +172,7 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
 
           <ChartCard
             id="peak-times"
+            interpretation={interpretations["peak-times"]}
             number={3}
             title="Peak consultation days and times"
             description={
@@ -177,6 +189,7 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
         <ChartSection title="Outcomes" description="What happened to booked appointments" />
         <ChartCard
           id="outcomes"
+          interpretation={interpretations.outcomes}
           number={4}
           title="Monthly appointment outcomes"
           description={
@@ -205,6 +218,7 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <ChartCard
             id="weekday-rates"
+            interpretation={interpretations["weekday-rates"]}
             number={5}
             title="Cancellation and no-show rate by weekday"
             description={
@@ -232,6 +246,7 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
 
           <ChartCard
             id="doctor-rates"
+            interpretation={interpretations["doctor-rates"]}
             number={6}
             title="Cancellation and no-show rate by doctor"
             description={
@@ -257,6 +272,8 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
             <DoctorRatesChart data={analytics.byDoctor} />
           </ChartCard>
         </div>
+
+        <RevenueCards revenue={revenue} />
 
         <div className="flex flex-col gap-1 text-sm text-ink-muted">
           {outcomeMonths ? <p>{`Outcome figures cover visits that finished in ${outcomeMonths}.`}</p> : null}

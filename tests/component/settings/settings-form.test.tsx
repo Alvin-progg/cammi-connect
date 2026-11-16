@@ -34,6 +34,19 @@ describe("SettingsForm", () => {
     expect(within(sunday).getByLabelText("Closed")).toBeChecked();
   });
 
+  it("shows the payment fields, off by default, and the 20% discount as read-only (PAY-01)", () => {
+    render(<SettingsForm group="payment" settings={DEFAULT_SETTINGS} />);
+
+    expect(screen.getByRole("checkbox", { name: "Online payment in chat is on" })).not.toBeChecked();
+    expect(screen.getByLabelText("Payment deadline (minutes)")).toHaveValue(120);
+    expect(screen.getByLabelText("Receipts allowed per payment")).toHaveValue(3);
+    expect(screen.getByLabelText("Full refund cutoff (hours before the visit)")).toHaveValue(24);
+    expect(screen.getByLabelText("QR Ph image path")).toHaveValue("");
+    expect(screen.getByLabelText("Account name shown with the QR")).toHaveValue("");
+    expect(screen.getByText("20%")).toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: /discount/i })).not.toBeInTheDocument();
+  });
+
   it("never offers model, prompt, or key settings", () => {
     render(<SettingsForm group="chatbot" settings={DEFAULT_SETTINGS} />);
 
@@ -70,6 +83,13 @@ describe("SettingsForm", () => {
     expect(field).toHaveValue(3);
     expect(field).toHaveAttribute("min", "1");
     expect(field).toHaveAttribute("max", "20");
+  });
+
+  it("lets the admin set the first-contact specialties (AI-APT-002)", () => {
+    render(<SettingsForm group="chatbot" settings={DEFAULT_SETTINGS} />);
+
+    expect(screen.getByLabelText("First-contact specialty for adults")).toHaveValue("Family Medicine");
+    expect(screen.getByLabelText("First-contact specialty for children")).toHaveValue("Pediatrics");
   });
 
   it("says when nothing changed instead of opening the preview", () => {

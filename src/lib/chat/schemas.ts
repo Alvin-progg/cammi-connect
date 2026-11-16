@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import { APPOINTMENT_STATUSES } from "@/lib/appointments/status";
+import { privilegeChoiceSchema } from "@/lib/billing/compute";
+import { PAYMENT_STATUSES } from "@/lib/billing/payments";
+import { MAX_SERVICES_PER_VISIT, SERVICE_KINDS } from "@/lib/services/booking";
+import { BOOKING_REASON_MAX_LENGTH, paymentChoiceSchema } from "@/lib/chat/state";
 
 export const MESSAGE_MAX_LENGTH = 1000;
 /** Matches the chat_messages.content check in 0004_chat.sql. */
@@ -23,9 +27,25 @@ export const chatEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("confirm_booking") }),
   z.object({
     type: z.literal("change_booking"),
-    field: z.enum(["specialty", "doctor", "slot"]),
+    // payment: the discount and payer answers (PAY-03); service: the tests (PAY-07).
+    field: z.enum(["specialty", "doctor", "slot", "payment", "service"]),
   }),
   z.object({ type: z.literal("cancel_booking") }),
+  // AI-APT-002: edit the reason for visit on the summary, and accept the booking offer.
+  z.object({
+    type: z.literal("update_reason"),
+    reason: z.string().trim().min(1).max(BOOKING_REASON_MAX_LENGTH),
+  }),
+  z.object({ type: z.literal("accept_booking_offer") }),
+  // PAY-03: the discount and payer answers.
+  z.object({ type: z.literal("select_privilege"), privilege: privilegeChoiceSchema }),
+  z.object({ type: z.literal("select_payer"), payment: paymentChoiceSchema }),
+  // PAY-07: lab tests, imaging, or a package instead of a consultation.
+  z.object({ type: z.literal("select_service_kind"), serviceKind: z.enum(SERVICE_KINDS) }),
+  z.object({
+    type: z.literal("select_services"),
+    serviceIds: z.array(z.uuid()).min(1).max(MAX_SERVICES_PER_VISIT),
+  }),
   z.object({ type: z.literal("request_cancellation"), appointmentId: z.uuid() }),
   z.object({ type: z.literal("confirm_cancellation"), appointmentId: z.uuid() }),
 ]);
@@ -64,10 +84,19 @@ export const CHAT_INTENTS = [
 
 export type ChatIntent = (typeof CHAT_INTENTS)[number];
 
+/** Up to `max` names, highest ranked first; a malformed list counts as none. */
+const rankedNames = (max: number) =>
+  z
+    .array(z.string().max(100))
+    .nullish()
+    .catch(null)
+    .transform((names) => names?.slice(0, max) ?? null);
+
 /**
  * What the LLM may return when it classifies a message. Details are optional
  * and may come back as null; they are hints that are always resolved against
- * database rows before use.
+ * database rows before use. The AI-APT-002 care-need fields fall back to null
+ * when malformed, so a bad routing hint never fails the whole turn.
  */
 export const intentExtractionSchema = z.object({
   intent: z.enum(CHAT_INTENTS),
@@ -78,6 +107,15 @@ export const intentExtractionSchema = z.object({
   preferredTime: z.string().nullish(),
   reason: z.string().nullish(),
   urgent: z.boolean().nullish(),
+  /** The patient's concern in their own words; becomes the editable reason for visit. */
+  concern: z.string().nullish().catch(null),
+  age: z.number().int().min(0).max(130).nullish().catch(null),
+  forSomeoneElse: z.boolean().nullish().catch(null),
+  /** Names from the active specialty list in the prompt; the server drops anything else. */
+  specialtyCandidates: rankedNames(2),
+  /** PAY-07: names from the bookable service list in the prompt; the server drops anything else. */
+  serviceCandidates: rankedNames(3),
+  routingConfidence: z.enum(["high", "low"]).nullish().catch(null),
 });
 
 export type IntentExtraction = z.infer<typeof intentExtractionSchema>;
@@ -94,6 +132,49 @@ const doctorOptionSchema = z.object({
 });
 
 export type DoctorOption = z.infer<typeof doctorOptionSchema>;
+
+const centavos = z.number().int().min(0);
+
+/**
+ * PAY-03 summary breakdown, computed by src/lib/billing/compute.ts from the
+ * fee in the database. The HMO member number is only ever shown masked.
+ */
+export const chargeSummarySchema = z.object({
+  privilege: privilegeChoiceSchema,
+  payerLabel: z.string(),
+  baseCentavos: centavos,
+  vatExemptionCentavos: centavos,
+  privilegeDiscountCentavos: centavos,
+  philhealthCentavos: centavos,
+  hmoCentavos: centavos,
+  amountDueCentavos: centavos,
+});
+
+export type ChargeSummary = z.infer<typeof chargeSummarySchema>;
+
+/** The payment row cammi_connect_book_with_charge created. */
+export const bookedPaymentSchema = z.object({
+  /** PAY-04: the receipt route's payment ID; absent on cards saved before PAY-04. */
+  id: z.string().optional(),
+  /** PAY-04: "counter" pays at the cashier, so its card has no QR or upload. */
+  method: z.enum(["qr_ph", "counter"]).nullable().optional(),
+  status: z.enum(PAYMENT_STATUSES),
+  amountDueCentavos: centavos,
+  referenceCode: z.string(),
+  /** Null for HMO and ₱0 bookings. */
+  deadline: z.string().nullable(),
+});
+
+export type BookedPayment = z.infer<typeof bookedPaymentSchema>;
+
+/** PAY-07: a published requirement (or the doctor's request form) of a chosen service. */
+const serviceRequirementSchema = z.object({
+  serviceName: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+});
+
+export type ServiceRequirementView = z.infer<typeof serviceRequirementSchema>;
 
 /**
  * Structured data shown with an assistant reply, stored in
@@ -118,14 +199,43 @@ export const chatMessagePayloadSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("specialty_options"),
     specialties: z.array(z.object({ id: z.string(), name: z.string() })).min(1),
+    /** PAY-07 "What kind?": service groups that can be booked instead of a consultation. */
+    serviceKinds: z.array(z.enum(SERVICE_KINDS)).optional(),
+  }),
+  // PAY-07: bookable services of one kind; lab tests are a multi-select.
+  z.object({
+    kind: z.literal("service_options"),
+    multiple: z.boolean(),
+    services: z
+      .array(z.object({ id: z.string(), name: z.string(), requiresDoctorRequest: z.boolean() }))
+      .min(1),
   }),
   z.object({
     kind: z.literal("doctor_options"),
     doctors: z.array(doctorOptionSchema).min(1),
+    /** AI-APT-002: Cami picked the specialty, so the patient can change it in one tap. */
+    changeSpecialty: z.boolean().optional(),
+    alternative: z.object({ id: z.string(), name: z.string() }).optional(),
+  }),
+  z.object({ kind: z.literal("book_offer") }),
+  // PAY-03: the discount and payer questions; their buttons are fixed.
+  z.object({
+    kind: z.literal("privilege_options"),
+    /** PAY-07: what to prepare for the chosen services, shown before any payment. */
+    requirements: z.array(serviceRequirementSchema).optional(),
+  }),
+  z.object({
+    kind: z.literal("payer_options"),
+    /** Only when the item has a PhilHealth benefit above ₱0. */
+    philhealth: z.boolean(),
+    hmoProviders: z.array(z.object({ id: z.string(), name: z.string() })),
   }),
   z.object({
     kind: z.literal("slot_picker"),
+    /** The doctor, or the chosen services for a service visit (PAY-07). */
     doctorName: z.string(),
+    /** PAY-07: each "slot" is a walk-in day, from opening to closing time. */
+    walkIn: z.boolean().optional(),
     /** Slots grouped by Manila date ("YYYY-MM-DD"); empty when the window has none. */
     days: z.array(z.object({ date: z.string(), slots: z.array(timeSlotSchema).min(1) })),
     /** Start of the next window, or null at the booking horizon. */
@@ -140,12 +250,23 @@ export const chatMessagePayloadSchema = z.discriminatedUnion("kind", [
     start: z.string(),
     end: z.string(),
     reason: z.string().nullable(),
+    /** Present only while payment.enabled (PAY-03). */
+    charge: chargeSummarySchema.optional(),
+    /** PAY-07: a service visit names its services instead of a doctor. */
+    services: z.array(z.string()).optional(),
+    walkIn: z.boolean().optional(),
+    requirements: z.array(serviceRequirementSchema).optional(),
   }),
   z.object({
     kind: z.literal("booking_result"),
     doctorName: z.string(),
     start: z.string(),
     end: z.string(),
+    /** Present only for a booking with a charge (PAY-03). */
+    payment: bookedPaymentSchema.optional(),
+    /** PAY-07: a service visit, confirmed by the front desk rather than a doctor. */
+    services: z.array(z.string()).optional(),
+    walkIn: z.boolean().optional(),
   }),
   z.object({
     kind: z.literal("appointments"),
@@ -168,6 +289,13 @@ export const chatMessagePayloadSchema = z.discriminatedUnion("kind", [
     appointmentId: z.string(),
     doctorName: z.string(),
     start: z.string(),
+  }),
+  // PAY-05: a front desk payment decision (D9); the text is templated and
+  // hidden from the model because it can name an amount.
+  z.object({
+    kind: z.literal("payment_update"),
+    /** PAY-06: after an HMO denial, the QR card for the new self-pay amount. */
+    payment: bookedPaymentSchema.optional(),
   }),
   z.object({
     kind: z.literal("cancel_result"),

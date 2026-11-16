@@ -247,12 +247,16 @@ export const supabaseDoctorSchedulesRepository: DoctorSchedulesStore = {
     const { data: doctors, error: doctorsError } = await supabase
       .from("doctors")
       .select("id, full_name")
-      .in("id", [...new Set(rows.map((row) => row.doctor_id))]);
+      .in("id", [...new Set(rows.flatMap((row) => (row.doctor_id ? [row.doctor_id] : [])))]);
     if (doctorsError) {
       throw new Error("Unable to check appointments in that range.");
     }
     const names = new Map((doctors ?? []).map((doctor) => [doctor.id, doctor.full_name]));
-    return rows.map((row) => ({ ...toConflict(row), doctorName: names.get(row.doctor_id) }));
+    // PAY-07: a service visit has no doctor.
+    return rows.map((row) => ({
+      ...toConflict(row),
+      doctorName: row.doctor_id ? names.get(row.doctor_id) : "Service visit",
+    }));
   },
 
   listActiveIntervals(input) {

@@ -15,6 +15,7 @@ const EXPECTED_SECTIONS = [
   ["Departments", "/admin/departments"],
   ["Specialties", "/admin/specialties"],
   ["Services", "/admin/services"],
+  ["HMO providers", "/admin/hmo-providers"],
   ["Requirements", "/admin/requirements"],
   ["Knowledge base", "/admin/knowledge-base"],
   ["Users", "/admin/users"],

@@ -18,6 +18,8 @@ import {
   type RequestQueueItem,
 } from "@/lib/front-desk/requests";
 
+import { PaymentBadge } from "./payment-badge";
+
 function specialtyLabel(item: RequestQueueItem): string {
   return item.specialtyNames.length > 0 ? item.specialtyNames.join(", ") : "Not specified";
 }
@@ -90,7 +92,10 @@ export function RequestQueue({
                 {item.status === "requested" ? formatWaiting(item.createdAt, now).label : "—"}
               </Td>
               <Td>
-                <StatusBadge status={item.status} />
+                <div className="flex flex-wrap gap-1.5">
+                  <StatusBadge status={item.status} />
+                  <PaymentBadge payment={item.payment} now={now} />
+                </div>
               </Td>
               <Td className="font-mono text-xs text-ink-secondary">{formatRequestId(item.id)}</Td>
             </Tr>
@@ -132,6 +137,7 @@ function RequestCard({ item, now }: { item: RequestQueueItem; now: Date }) {
         ) : (
           <StatusBadge status={item.status} />
         )}
+        <PaymentBadge payment={item.payment} now={now} />
       </div>
     </Link>
   );

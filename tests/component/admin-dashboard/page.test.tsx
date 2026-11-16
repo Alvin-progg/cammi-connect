@@ -137,6 +137,30 @@ describe("admin dashboard page", () => {
     expect(within(card("Cancelled")).getByText("Cancelled in range")).toBeInTheDocument();
   });
 
+  it("shows the analytics Summary card, linking to the same period's charts", async () => {
+    vi.mocked(supabaseAnalyticsRepository.listAppointments).mockResolvedValue([
+      ...Array.from({ length: 20 }, (_, index) => row("completed", index)),
+      ...Array.from({ length: 5 }, (_, index) => row("no_show", 20 + index)),
+    ]);
+
+    await renderPage();
+
+    const summary = screen.getByRole("region", { name: "Summary" });
+    expect(within(summary).getByText("Alert")).toBeInTheDocument();
+    expect(within(summary).getByRole("link", { name: "Outcomes: about 1 in 5 visits is lost." })).toHaveAttribute(
+      "href",
+      "/admin/analytics?range=custom&from=2026-11-01&to=2026-11-30#outcomes",
+    );
+  });
+
+  it("says there is not enough data to interpret a thin period", async () => {
+    await renderPage();
+
+    expect(screen.getByRole("region", { name: "Summary" })).toHaveTextContent(
+      "Not enough data yet to interpret this period.",
+    );
+  });
+
   it("links each card to the appointment list with matching filters", async () => {
     await renderPage({ range: "today", doctor: DOCTOR_ID });
 

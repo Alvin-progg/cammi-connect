@@ -42,6 +42,20 @@ appointments. The booking backend from DOC-SCH-001 (`getAvailableSlots`,
    Rescheduling gets a "not available yet — you can cancel and rebook" reply because
    ADR-0007 defers the reschedule policy.
 
+### Amendments (2026-11-16)
+
+Approved by the project owner:
+
+- **Need-based specialty routing.** [`AI-APT-002`](AI-APT-002-need-based-specialty-routing.md)
+  replaces the "Symptoms and medical advice" rule below for patients who want to be seen:
+  Cami routes their described concern to an active specialty (server-validated, templated
+  reply, always changeable) instead of declining. The medical-advice decline, the urgency
+  check, and the no-diagnosis rule stay. The persona boundary "Never decide which specialty
+  a patient needs" is replaced as described there.
+- **Prices and payment.** [`PAY-001`](PAY-001-chat-payments-discounts-services.md) adds
+  discount and payer steps, a price breakdown, and in-chat payment after Confirm. All
+  amounts are templated from the database; the LLM never states prices.
+
 ## Slices
 
 Each slice uses TDD and stops for review at its "Done when" (see PLN-002).

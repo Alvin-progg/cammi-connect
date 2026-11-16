@@ -48,3 +48,11 @@ export type BookingSource = (typeof BOOKING_SOURCES)[number];
 export function isBookingSource(value: string): value is BookingSource {
   return BOOKING_SOURCES.some((source) => source === value);
 }
+
+/**
+ * PAY-07 (decision D3): a doctor consultation, or a lab, imaging, or package
+ * visit with no doctor (`appointments.kind`, migration 0038).
+ */
+export const APPOINTMENT_KINDS = ["consultation", "service"] as const;
+
+export type AppointmentKind = (typeof APPOINTMENT_KINDS)[number];

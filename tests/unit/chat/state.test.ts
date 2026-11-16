@@ -22,13 +22,20 @@ const FULL_DRAFT: BookingDraft = {
 };
 
 describe("booking steps", () => {
-  it("has the ten states of the booking flow", () => {
+  it("has the fourteen states of the booking flow", () => {
     expect(BOOKING_STEPS).toEqual([
       "idle",
+      // AI-APT-002: medical advice declined, booking offered.
+      "offering_booking",
       "choosing_specialty",
       "choosing_doctor",
       "choosing_doctor_specialty",
+      // PAY-07: lab tests, imaging, or a package.
+      "choosing_services",
       "choosing_slot",
+      // PAY-03: discount and payer questions, only while payment.enabled.
+      "choosing_privilege",
+      "choosing_payer",
       "awaiting_confirmation",
       "booking",
       "booked",
@@ -45,6 +52,19 @@ describe("parseBookingState", () => {
     expect(parseBookingState(stored)).toEqual(stored);
   });
 
+  it("keeps the routing details of a care need", () => {
+    const stored = {
+      step: "offering_booking",
+      draft: {
+        reason: "Cough",
+        careNeed: { specialtyCandidates: ["Pediatrics"], routingConfidence: "high", age: 4 },
+        ageAsked: true,
+      },
+    };
+
+    expect(parseBookingState(stored)).toEqual(stored);
+  });
+
   it.each([
     ["null", null],
     ["an unknown step", { step: "teleporting", draft: {} }],
@@ -56,6 +76,16 @@ describe("parseBookingState", () => {
 });
 
 describe("acceptsEvent", () => {
+  it("accepts the discount and payer answers only at their own question (PAY-03)", () => {
+    for (const step of BOOKING_STEPS) {
+      expect(acceptsEvent(step, "select_privilege")).toBe(step === "choosing_privilege");
+      expect(acceptsEvent(step, "select_payer")).toBe(step === "choosing_payer");
+    }
+    expect(acceptsEvent("choosing_privilege", "cancel_booking")).toBe(true);
+    expect(acceptsEvent("choosing_payer", "cancel_booking")).toBe(true);
+  });
+
+
   it("accepts Confirm only while awaiting confirmation", () => {
     for (const step of BOOKING_STEPS) {
       expect(acceptsEvent(step, "confirm_booking")).toBe(step === "awaiting_confirmation");
@@ -74,10 +104,24 @@ describe("acceptsEvent", () => {
     expect(acceptsEvent("failed", "select_doctor")).toBe(true);
   });
 
-  it("accepts a specialty choice only while one is being asked for", () => {
+  it("accepts a specialty choice only while one is being asked for or offered", () => {
     expect(acceptsEvent("choosing_specialty", "select_specialty")).toBe(true);
     expect(acceptsEvent("choosing_doctor_specialty", "select_specialty")).toBe(true);
+    // AI-APT-002: the routed doctor list offers a one-tap alternative specialty.
+    expect(acceptsEvent("choosing_doctor", "select_specialty")).toBe(true);
     expect(acceptsEvent("choosing_slot", "select_specialty")).toBe(false);
+  });
+
+  it("accepts a reason edit only on the summary", () => {
+    for (const step of BOOKING_STEPS) {
+      expect(acceptsEvent(step, "update_reason")).toBe(step === "awaiting_confirmation");
+    }
+  });
+
+  it("accepts the booking offer only while it is offered", () => {
+    for (const step of BOOKING_STEPS) {
+      expect(acceptsEvent(step, "accept_booking_offer")).toBe(step === "offering_booking");
+    }
   });
 
   it("does not let a finished or in-flight booking be changed or cancelled", () => {
@@ -134,5 +178,26 @@ describe("applyCorrection", () => {
       ...FULL_DRAFT,
       reason: "Check-up",
     });
+  });
+});
+
+describe("service visits (PAY-07)", () => {
+  const SERVICE_ID = "00000000-0000-4000-8000-0000000c0001";
+
+  it("drops the chosen services when the patient picks a specialty instead", () => {
+    const draft: BookingDraft = { serviceIds: [SERVICE_ID], slotStart: "2026-11-03T01:00:00.000Z" };
+    expect(applyCorrection(draft, { specialtyId: SPECIALTY_ID }).serviceIds).toBeUndefined();
+  });
+
+  it("accepts the service events only from their own steps", () => {
+    expect(acceptsEvent("choosing_specialty", "select_service_kind")).toBe(true);
+    expect(acceptsEvent("choosing_services", "select_services")).toBe(true);
+    expect(acceptsEvent("choosing_slot", "select_services")).toBe(false);
+    expect(acceptsEvent("awaiting_confirmation", "select_service_kind")).toBe(false);
+  });
+
+  it("keeps at most five services in a stored draft", () => {
+    const ids = Array.from({ length: 6 }, (_, index) => `00000000-0000-4000-8000-0000000c000${index}`);
+    expect(parseBookingState({ step: "choosing_slot", draft: { serviceIds: ids } })).toEqual(IDLE_STATE);
   });
 });

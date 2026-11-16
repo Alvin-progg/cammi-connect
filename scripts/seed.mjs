@@ -12,7 +12,8 @@
  *
  * The script is idempotent for the seed profiles, the doctor, admin, and front
  * desk account
- * links, the directory (departments, specialties, doctors), schedule periods,
+ * links, the directory (departments, specialties, doctors), the PAY-01 price
+ * catalogue (specialty fees, priced services, sample HMOs), schedule periods,
  * exceptions, notifications, and the listed appointments. Re-running it resets
  * those rows to the values below. It never deletes rows; other active schedule
  * periods of the seed doctors are deactivated so the seeded periods apply.
@@ -49,6 +50,163 @@ const SPECIALTY_NAMES = [
   "Pediatrics",
   "Family Medicine",
 ];
+
+/**
+ * PAY-01 synthetic consultation fees in integer centavos, from
+ * docs/pricing-recommendation.md. The hospital's billing office replaces them
+ * before go-live (decision D8); doctors keep no override here.
+ */
+const SPECIALTY_FEES_CENTAVOS = {
+  "Family Medicine": 40000,
+  "Internal Medicine": 50000,
+  Pediatrics: 50000,
+  Cardiology: 70000,
+};
+
+/** PAY-07 synthetic walk-in caps per day, by category. */
+const WALK_IN_DAILY_CAPACITY = {
+  laboratory: 60,
+  imaging: 40,
+  cardiac_diagnostics: 30,
+  package: 20,
+};
+
+/**
+ * PAY-01 synthetic services and prices (docs/pricing-recommendation.md).
+ * PhilHealth benefit is 0 everywhere and nothing is VAT-able (decision D7);
+ * packages are not HMO-coverable. Fixed ids keep re-runs idempotent.
+ */
+const SEED_SERVICES = [
+  ["CBC with platelet count", "laboratory", "walk_in", 25000, { requires_doctor_request: true }],
+  ["Urinalysis", "laboratory", "walk_in", 12000],
+  ["Fecalysis", "laboratory", "walk_in", 10000],
+  ["Fasting blood sugar (FBS)", "laboratory", "walk_in", 15000],
+  ["Lipid profile", "laboratory", "walk_in", 70000],
+  ["HbA1c", "laboratory", "walk_in", 55000, { requires_doctor_request: true }],
+  ["Thyroid profile (T3, T4, TSH)", "laboratory", "walk_in", 95000, { requires_doctor_request: true }],
+  ["Chest X-ray (PA)", "imaging", "walk_in", 40000],
+  ["Chest X-ray (PA + lateral)", "imaging", "walk_in", 65000],
+  ["ECG (12-lead)", "cardiac_diagnostics", "walk_in", 40000],
+  ["Whole abdomen ultrasound", "imaging", "scheduled", 150000],
+  ["Pelvic ultrasound", "imaging", "scheduled", 100000],
+  ["2D echocardiogram", "cardiac_diagnostics", "scheduled", 300000, { requires_doctor_request: true }],
+  ["CT scan, single region, plain", "imaging", "scheduled", 600000, { requires_doctor_request: true }],
+  ["Basic Health Check package", "package", "walk_in", 110000, { hmo_coverable: false }],
+  ["Pre-employment package", "package", "walk_in", 65000, { hmo_coverable: false }],
+  // Never bookable or payable in chat (RA 10932; prescriptions).
+  ["Emergency room", "other", "none", null, { hmo_coverable: false }],
+  ["Pharmacy", "other", "none", null, { hmo_coverable: false }],
+].map(([name, category, booking_mode, price_centavos, overrides = {}], index) => ({
+  id: `00000000-0000-4000-8000-000000000c${String(index).padStart(2, "0")}`,
+  name,
+  category,
+  booking_mode,
+  price_centavos,
+  requires_appointment: booking_mode === "scheduled",
+  vatable: false,
+  philhealth_benefit_centavos: 0,
+  hmo_coverable: true,
+  requires_doctor_request: false,
+  // PAY-07: walk-in patients per day (synthetic).
+  daily_capacity: booking_mode === "walk_in" ? WALK_IN_DAILY_CAPACITY[category] : null,
+  is_active: true,
+  ...overrides,
+}));
+
+/**
+ * PAY-07 synthetic service hours (Manila). Walk-in services use them as
+ * opening hours (Mon–Sat); scheduled services as slots (slot minutes and one
+ * patient per slot, from docs/pricing-recommendation.md).
+ */
+const SEED_SERVICE_HOURS = {
+  laboratory: { days: [1, 2, 3, 4, 5, 6], start: "07:00", end: "12:00", slot: 60 },
+  imaging: { days: [1, 2, 3, 4, 5, 6], start: "08:00", end: "16:00", slot: 60 },
+  cardiac_diagnostics: { days: [1, 2, 3, 4, 5, 6], start: "08:00", end: "16:00", slot: 60 },
+  package: { days: [1, 2, 3, 4, 5, 6], start: "07:00", end: "11:00", slot: 60 },
+  "Whole abdomen ultrasound": { days: [1, 2, 3, 4, 5], start: "08:00", end: "12:00", slot: 30 },
+  "Pelvic ultrasound": { days: [1, 2, 3, 4, 5], start: "13:00", end: "16:00", slot: 30 },
+  "2D echocardiogram": { days: [1, 3, 5], start: "08:00", end: "11:00", slot: 45 },
+  "CT scan, single region, plain": { days: [2, 4], start: "13:00", end: "17:00", slot: 30 },
+};
+
+const SEED_SERVICE_SCHEDULES = SEED_SERVICES.filter(
+  (service) => service.booking_mode === "walk_in" || service.booking_mode === "scheduled",
+).flatMap((service) => {
+  const hours =
+    service.booking_mode === "scheduled"
+      ? SEED_SERVICE_HOURS[service.name]
+      : SEED_SERVICE_HOURS[service.category];
+  const serviceIndex = service.id.slice(-2);
+  return hours.days.map((day) => ({
+    id: `00000000-0000-4000-8000-00000000d${serviceIndex}${day}`,
+    service_id: service.id,
+    day_of_week: day,
+    start_time: hours.start,
+    end_time: hours.end,
+    slot_minutes: hours.slot,
+    capacity_per_slot: 1,
+    effective_from: "2026-01-01",
+    effective_until: null,
+    is_active: true,
+  }));
+});
+
+/** PAY-07 published requirements shown before payment (docs/pricing-recommendation.md). */
+const SEED_SERVICE_REQUIREMENTS = [
+  ["CBC with platelet count", "Doctor's request"],
+  ["Urinalysis", "Clean-catch midstream sample"],
+  ["Fecalysis", "Stool sample container from the lab"],
+  ["Fasting blood sugar (FBS)", "8–10 hours fasting"],
+  ["Lipid profile", "10–12 hours fasting"],
+  ["HbA1c", "Doctor's request"],
+  ["Thyroid profile (T3, T4, TSH)", "Doctor's request"],
+  ["Chest X-ray (PA)", "Remove metal items"],
+  ["Chest X-ray (PA + lateral)", "Remove metal items"],
+  ["Whole abdomen ultrasound", "6–8 hours fasting"],
+  ["Pelvic ultrasound", "Full bladder"],
+  ["2D echocardiogram", "Doctor's request"],
+  ["CT scan, single region, plain", "Doctor's request"],
+  ["Basic Health Check package", "8–10 hours fasting"],
+].map(([serviceName, title]) => {
+  const service = SEED_SERVICES.find((entry) => entry.name === serviceName);
+  return {
+    id: `00000000-0000-4000-8000-00000000e${service.id.slice(-2)}0`,
+    title,
+    description: null,
+    service_id: service.id,
+    is_mandatory: true,
+    effective_from: "2026-01-01",
+    effective_to: null,
+    status: "published",
+  };
+});
+
+/** PAY-01 sample HMOs (decision D7): synthetic, not the hospital's accredited list. */
+const SEED_HMO_PROVIDERS = ["Maxicare", "Intellicare", "MediCard", "PhilCare"].map(
+  (name, index) => ({
+    id: `00000000-0000-4000-8000-000000000a0${index + 1}`,
+    name,
+    copay_centavos: 0,
+    notes: "Synthetic sample. Replace with the hospital's accredited HMO list.",
+    is_active: true,
+  }),
+);
+
+/**
+ * Synthetic routing hints (AI-APT-002, migration 0032). The hospital's
+ * medical staff write the real ones at /admin/specialties. Kept in step with
+ * evals/routing-cases.ts.
+ */
+const ROUTING_HINTS = {
+  "Family Medicine":
+    "General check-ups, common illnesses like colds, fever, cough, minor injuries, health certificates, unsure where to start",
+  "Internal Medicine":
+    "Adults with long-term conditions like diabetes or high blood pressure, follow-ups, lab result review, ongoing body aches, stomach problems",
+  Pediatrics:
+    "Patients under 18: check-ups, vaccinations, fever, cough, growth and development",
+  Cardiology:
+    "Heart concerns: palpitations, high blood pressure that's hard to control, follow-up after a heart test, referred by another doctor for the heart",
+};
 
 function requireEnv(name, value) {
   if (!value) {
@@ -267,7 +425,12 @@ async function main() {
   const { data: specialtyRows, error: specialtyError } = await supabase
     .from("specialties")
     .upsert(
-      SPECIALTY_NAMES.map((name) => ({ name, is_active: true })),
+      SPECIALTY_NAMES.map((name) => ({
+        name,
+        routing_hints: ROUTING_HINTS[name],
+        default_consultation_fee_centavos: SPECIALTY_FEES_CENTAVOS[name],
+        is_active: true,
+      })),
       { onConflict: "name" },
     )
     .select("id, name");
@@ -328,6 +491,34 @@ async function main() {
     throw new Error(
       `Unable to link doctor specialties: ${doctorSpecialtyError.message}`,
     );
+  }
+
+  const { error: serviceError } = await supabase
+    .from("services")
+    .upsert(SEED_SERVICES, { onConflict: "id" });
+  if (serviceError) {
+    throw new Error(`Unable to upsert services: ${serviceError.message}`);
+  }
+
+  const { error: serviceHoursError } = await supabase
+    .from("service_schedules")
+    .upsert(SEED_SERVICE_SCHEDULES, { onConflict: "id" });
+  if (serviceHoursError) {
+    throw new Error(`Unable to upsert service hours: ${serviceHoursError.message}`);
+  }
+
+  const { error: requirementError } = await supabase
+    .from("service_requirements")
+    .upsert(SEED_SERVICE_REQUIREMENTS, { onConflict: "id" });
+  if (requirementError) {
+    throw new Error(`Unable to upsert service requirements: ${requirementError.message}`);
+  }
+
+  const { error: hmoError } = await supabase
+    .from("hmo_providers")
+    .upsert(SEED_HMO_PROVIDERS, { onConflict: "id" });
+  if (hmoError) {
+    throw new Error(`Unable to upsert HMO providers: ${hmoError.message}`);
   }
 
   let adminLinked = false;
@@ -758,6 +949,9 @@ async function main() {
   console.log(`Synthetic profiles: ${syntheticProfiles.length}`);
   console.log(
     `Appointments: ${appointments.length} (${todayCount} today, ${appointments.length - todayCount} other days; ${camiRequests.length} pending Cami requests)`,
+  );
+  console.log(
+    `Services: ${SEED_SERVICES.length} · HMO providers: ${SEED_HMO_PROVIDERS.length}`,
   );
   console.log(
     `Doctors: ${doctors.length} · Specialties: ${SPECIALTY_NAMES.length} · Schedule periods: ${schedules.length} · Exceptions: ${scheduleExceptions.length} · Notifications: ${notifications.length}`,

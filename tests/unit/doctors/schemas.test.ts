@@ -32,6 +32,7 @@ describe("doctorFormSchema", () => {
         contactPhone: " 0917 000 0000 ",
         bio: "  Heart specialist. ",
         accountProfileId: ACCOUNT_ID,
+        consultationFeeCentavos: "850.50",
       }),
     ).toEqual({
       fullName: "Dr. Ana Cruz",
@@ -41,13 +42,23 @@ describe("doctorFormSchema", () => {
       contactPhone: "0917 000 0000",
       bio: "Heart specialist.",
       accountProfileId: ACCOUNT_ID,
+      consultationFeeCentavos: 85050,
     });
     expect(doctorFormSchema.parse(VALID)).toMatchObject({
       contactEmail: null,
       contactPhone: null,
       bio: null,
       accountProfileId: null,
+      consultationFeeCentavos: null,
     });
+  });
+
+  it("rejects a negative or malformed fee override (PAY-01)", () => {
+    for (const fee of ["-1", "abc", "1.001"]) {
+      expect(firstMessage(doctorFormSchema.safeParse({ ...VALID, consultationFeeCentavos: fee })), fee).toBe(
+        "Enter the fee in pesos, like 500 or 500.50, or leave it blank to use the specialty fee.",
+      );
+    }
   });
 
   it("requires at least one specialty", () => {

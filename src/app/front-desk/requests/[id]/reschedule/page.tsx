@@ -53,12 +53,13 @@ export default async function FrontDeskReschedulePage({
   // todayInManila gives the Manila calendar date of any instant.
   const currentLabel = `${formatManilaMediumDate(todayInManila(new Date(request.scheduledAt)))}, ${formatManilaTime(request.scheduledAt)}`;
 
-  const canReschedule = canFrontDeskReschedule(request.status);
-  const slots = canReschedule
+  const doctorId = request.doctorId;
+  const canReschedule = canFrontDeskReschedule(request.status, doctorId);
+  const slots = canReschedule && doctorId
     ? await listRescheduleSlots(
         {
           appointmentId: request.id,
-          doctorId: request.doctorId,
+          doctorId,
           currentScheduledAt: request.scheduledAt,
           date,
         },

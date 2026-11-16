@@ -10,6 +10,8 @@ import type {
 import type { AvailabilitySource } from "@/server/availability/service";
 import { createChatTools, type ChatToolDeps } from "@/server/chat/tools";
 import type { DirectoryStore } from "@/server/directory/service";
+import type { ChargeStore } from "@/server/payments/service";
+import type { ServiceBookingStore } from "@/server/service-booking/service";
 
 vi.mock("server-only", () => ({}));
 
@@ -18,8 +20,8 @@ const DEPARTMENTS: Department[] = [
   { id: "dep2", name: "Closed Wing", code: "CLSD", description: null, isActive: false },
 ];
 const SPECIALTIES: Specialty[] = [
-  { id: "sp1", name: "Interventional Cardiology", description: null, isActive: true },
-  { id: "sp2", name: "Retired Specialty", description: null, isActive: false },
+  { id: "sp1", name: "Interventional Cardiology", description: null, routingHints: null, isActive: true },
+  { id: "sp2", name: "Retired Specialty", description: null, routingHints: null, isActive: false },
 ];
 const MAYA: DoctorSummary = {
   id: "d1",
@@ -109,8 +111,68 @@ function toolDeps(
     availability: fakeAvailability(),
     booker: fakeBooker(),
     patientAppointments,
+    charges: fakeCharges(),
+    services: fakeServices(),
     now: () => NOW,
     minLeadHours: async () => 0,
+  };
+}
+
+const CBC_ID = "00000000-0000-4000-8000-0000000c0001";
+
+function fakeServices(): ServiceBookingStore {
+  return {
+    listBookableServices: vi.fn(async () => [
+      {
+        id: CBC_ID,
+        name: "CBC with platelet count",
+        category: "laboratory" as const,
+        bookingMode: "walk_in" as const,
+        priceCentavos: 25000,
+        vatable: false,
+        philhealthBenefitCentavos: 0,
+        hmoCoverable: true,
+        requiresDoctorRequest: true,
+        dailyCapacity: null,
+      },
+    ]),
+    // Saturday hours, 09:00–12:00 Manila.
+    listPeriods: vi.fn(async () => [
+      {
+        serviceId: CBC_ID,
+        dayOfWeek: 6,
+        startTime: "09:00",
+        endTime: "12:00",
+        slotMinutes: 60,
+        capacityPerSlot: 1,
+        effectiveFrom: "2026-01-01",
+        effectiveUntil: null,
+        isActive: true,
+      },
+    ]),
+    listHolidays: vi.fn(async () => []),
+    getLoad: vi.fn(async () => []),
+    listRequirements: vi.fn(async () => []),
+    bookService: vi.fn(),
+  };
+}
+
+function fakeCharges(): ChargeStore {
+  return {
+    getConsultationFee: vi.fn(async () => 70000),
+    listActiveHmoProviders: vi.fn(async () => [
+      { id: "00000000-0000-4000-8000-00000000a0a1", name: "Maxicare", copayCentavos: 0 },
+    ]),
+    bookWithCharge: vi.fn(async () => ({
+      ok: true as const,
+      appointmentId: "a1",
+      payment: {
+        status: "awaiting_payment" as const,
+        amountDueCentavos: 56000,
+        referenceCode: "CC-7F3K2",
+        deadline: "2026-10-31T03:00:00.000Z",
+      },
+    })),
   };
 }
 
@@ -125,6 +187,25 @@ describe("chat directory tools", () => {
     const tools = createChatTools(toolDeps());
 
     expect(await tools.getSpecialties()).toEqual([SPECIALTIES[0]]);
+  });
+
+  it("marks which active specialties have an active doctor, for routing (AI-APT-002)", async () => {
+    const store = fakeStore();
+    const lonely: Specialty = {
+      id: "sp3",
+      name: "No Doctors Yet",
+      description: null,
+      routingHints: "Hints",
+      isActive: true,
+    };
+    vi.mocked(store.listSpecialties).mockResolvedValue([...SPECIALTIES, lonely]);
+    const tools = createChatTools(toolDeps(store));
+
+    expect(await tools.getRoutableSpecialties()).toEqual([
+      { ...SPECIALTIES[0], hasActiveDoctors: true },
+      { ...lonely, hasActiveDoctors: false },
+    ]);
+    expect(store.listDoctors).toHaveBeenCalledWith(expect.objectContaining({ activeOnly: true }));
   });
 
   it("looks doctors up among active doctors only", async () => {
@@ -352,6 +433,60 @@ describe("chat booking tools", () => {
   });
 });
 
+describe("chat payment tools (PAY-03)", () => {
+  it("reads the consultation fee for the doctor and specialty", async () => {
+    const deps = toolDeps();
+    const tools = createChatTools(deps);
+
+    await expect(
+      tools.getConsultationFee({ doctorId: DOCTOR_ID, specialtyId: SPECIALTY_ID }),
+    ).resolves.toBe(70000);
+    expect(deps.charges.getConsultationFee).toHaveBeenCalledWith({
+      doctorId: DOCTOR_ID,
+      specialtyId: SPECIALTY_ID,
+    });
+  });
+
+  it("books with a charge for the patient from the caller", async () => {
+    const deps = toolDeps();
+    const tools = createChatTools(deps);
+    const input = {
+      patientId: PATIENT_ID,
+      doctorId: DOCTOR_ID,
+      specialtyId: SPECIALTY_ID,
+      start: "2026-11-03T01:00:00.000Z",
+      reason: null,
+      privilege: "senior" as const,
+      payment: { payer: "self" as const, method: "qr_ph" as const },
+      expectedAmountDueCentavos: 56000,
+    };
+
+    const result = await tools.createChargedAppointment(input);
+
+    expect(result).toMatchObject({ ok: true, payment: { referenceCode: "CC-7F3K2" } });
+    expect(deps.charges.bookWithCharge).toHaveBeenCalledWith(input);
+  });
+
+  it("rejects a malformed charged booking before the database", async () => {
+    const deps = toolDeps();
+    const tools = createChatTools(deps);
+
+    await expect(
+      tools.createChargedAppointment({
+        patientId: PATIENT_ID,
+        doctorId: DOCTOR_ID,
+        specialtyId: SPECIALTY_ID,
+        start: "2026-11-03T01:00:00.000Z",
+        reason: null,
+        privilege: "none",
+        payment: { payer: "self", method: "qr_ph" },
+        expectedAmountDueCentavos: -1,
+      }),
+    ).rejects.toThrow();
+    expect(deps.charges.bookWithCharge).not.toHaveBeenCalled();
+  });
+});
+
 describe("chat patient appointment tools", () => {
   it("returns only the patient's upcoming requested or confirmed appointments, soonest first", async () => {
     const store = fakePatientAppointments();
@@ -406,5 +541,38 @@ describe("chat patient appointment tools", () => {
     await expect(tools.getPatientAppointments({ patientId: "nope" })).rejects.toThrow();
     expect(store.cancelForPatient).not.toHaveBeenCalled();
     expect(store.listForPatient).not.toHaveBeenCalled();
+  });
+
+  it("offers service times only for bookable services, after the minimum lead time (PAY-07)", async () => {
+    const deps = toolDeps();
+    // 09:00 Manila now; the lab opens at 09:00 today and next Saturday.
+    const tools = createChatTools({ ...deps, minLeadHours: async () => 1 });
+
+    const times = await tools.getServiceTimes({ serviceIds: [CBC_ID], fromDate: "2026-10-31", days: 8 });
+    expect(times).toEqual({
+      walkIn: true,
+      slots: [{ start: "2026-11-07T01:00:00.000Z", end: "2026-11-07T04:00:00.000Z" }],
+    });
+    await expect(
+      tools.getServiceTimes({ serviceIds: [APPOINTMENT_ID], fromDate: "2026-10-31", days: 1 }),
+    ).resolves.toEqual({ walkIn: false, slots: [] });
+  });
+
+  it("refuses a malformed service booking before touching the database (PAY-07)", async () => {
+    const deps = toolDeps();
+    const tools = createChatTools(deps);
+    await expect(
+      tools.createServiceBooking({
+        patientId: PATIENT_ID,
+        serviceIds: [],
+        visitDate: null,
+        start: null,
+        reason: null,
+        privilege: "none",
+        payment: { payer: "self", method: "qr_ph" },
+        expectedAmountDueCentavos: 0,
+      }),
+    ).rejects.toThrow();
+    expect(deps.services.bookService).not.toHaveBeenCalled();
   });
 });

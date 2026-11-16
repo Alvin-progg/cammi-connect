@@ -14,6 +14,11 @@ export type Specialty = {
   id: string;
   name: string;
   description: string | null;
+  /**
+   * AI-APT-002: who should book here, written by medical staff. Context for
+   * Cami's specialty suggestion only; never shown to patients.
+   */
+  routingHints: string | null;
   isActive: boolean;
 };
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { AccessDenied } from "@/components/auth/access-denied";
 import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
+import { RefundDueList } from "@/components/front-desk/refund-due-list";
 import { RequestBoard, RequestQueue } from "@/components/front-desk/request-queue";
 import { LinkTabs } from "@/components/ui/navigation";
 import { LinkButton, buttonVariants } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import {
 import { getFrontDeskSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import {
+  listRefundsDue,
   supabaseFrontDeskOverviewRepository,
   supabaseFrontDeskRequestsRepository,
 } from "@/server/front-desk/repository";
@@ -46,11 +48,12 @@ export default async function FrontDeskRequestsPage({
   const parsedFilters = parseRequestQueueFilters(params);
   // The board shows every status in its own column, so it ignores the status filter.
   const filters = view === "board" ? { ...parsedFilters, status: "all" as const } : parsedFilters;
-  const [queue, doctors, specialties, counts] = await Promise.all([
+  const [queue, doctors, specialties, counts, refundsDue] = await Promise.all([
     listRequestQueue(filters, supabaseFrontDeskRequestsRepository),
     supabaseDirectoryRepository.listDoctors({ activeOnly: false }),
     supabaseDirectoryRepository.listSpecialties(),
     getOverviewCounts(supabaseFrontDeskOverviewRepository, now),
+    listRefundsDue(),
   ]);
 
   // Tab links keep the other filters.
@@ -61,6 +64,7 @@ export default async function FrontDeskRequestsPage({
     if (filters.date) query.set("date", filters.date);
     if (filters.doctorId) query.set("doctor", filters.doctorId);
     if (filters.specialtyId) query.set("specialty", filters.specialtyId);
+    if (filters.receiptsToCheck) query.set("payment", "receipt");
     const text = query.toString();
     return text ? `/front-desk/requests?${text}` : "/front-desk/requests";
   }
@@ -162,6 +166,20 @@ export default async function FrontDeskRequestsPage({
               ))}
             </select>
           </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="filter-payment" className={FIELD_LABEL_CLASS}>
+              Payment
+            </label>
+            <select
+              id="filter-payment"
+              name="payment"
+              defaultValue={filters.receiptsToCheck ? "receipt" : ""}
+              className={CONTROL_CLASS}
+            >
+              <option value="">Any payment</option>
+              <option value="receipt">Receipt to check</option>
+            </select>
+          </div>
           <button type="submit" className={SECONDARY_BUTTON_CLASS}>
             Filter
           </button>
@@ -177,6 +195,7 @@ export default async function FrontDeskRequestsPage({
         ) : (
           <RequestQueue items={queue.items} limitReached={queue.limitReached} now={now} />
         )}
+        <RefundDueList items={refundsDue} />
       </div>
     </FrontDeskShell>
   );

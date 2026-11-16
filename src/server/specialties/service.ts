@@ -6,7 +6,7 @@ import {
   specialtyRefusalFromCode,
 } from "@/lib/specialties/refusals";
 import type { SpecialtyFormInput } from "@/lib/specialties/schemas";
-import type { SpecialtyOverview } from "@/lib/specialties/types";
+import type { SpecialtyDetail, SpecialtyOverview } from "@/lib/specialties/types";
 
 type DatabaseOutcome = { ok: true } | { ok: false; code: string | undefined };
 
@@ -17,7 +17,7 @@ type DatabaseOutcome = { ok: true } | { ok: false; code: string | undefined };
 export type SpecialtyAdminStore = {
   listSpecialties(): Promise<Specialty[]>;
   countDoctorsBySpecialty(): Promise<Map<string, number>>;
-  getSpecialty(specialtyId: string): Promise<Specialty | null>;
+  getSpecialty(specialtyId: string): Promise<SpecialtyDetail | null>;
   /** Every doctor with the specialty, active or not. */
   listDoctors(specialtyId: string): Promise<DoctorSummary[]>;
   save(input: {
@@ -25,6 +25,8 @@ export type SpecialtyAdminStore = {
     specialtyId: string | null;
     name: string;
     description: string | null;
+    routingHints: string | null;
+    defaultConsultationFeeCentavos: number | null;
   }): Promise<{ ok: true; specialtyId: string } | { ok: false; code: string | undefined }>;
   setActive(input: {
     actorId: string;
@@ -56,7 +58,7 @@ export async function listSpecialtiesOverview(
 export async function getSpecialtyDetail(
   specialtyId: string,
   store: SpecialtyAdminStore,
-): Promise<{ specialty: Specialty; doctors: DoctorSummary[] } | null> {
+): Promise<{ specialty: SpecialtyDetail; doctors: DoctorSummary[] } | null> {
   const specialty = await store.getSpecialty(specialtyId);
   if (!specialty) {
     return null;

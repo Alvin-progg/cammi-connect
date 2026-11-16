@@ -18,6 +18,25 @@ import {
 } from "@/server/appointments/service";
 import { getAvailableSlots, type AvailabilitySource } from "@/server/availability/service";
 import { listBookableDoctors, type DirectoryStore } from "@/server/directory/service";
+import {
+  bookConsultationWithCharge,
+  type ChargedBookingInput,
+  type ChargedBookingOutcome,
+  type ChargeStore,
+  type HmoOption,
+} from "@/server/payments/service";
+import { privilegeChoiceSchema } from "@/lib/billing/compute";
+import { paymentChoiceSchema } from "@/lib/chat/state";
+import { todayInManila } from "@/lib/appointments/filters";
+import { MAX_SERVICES_PER_VISIT, type BookableService } from "@/lib/services/booking";
+import {
+  bookServiceWithCharge,
+  getServiceTimes,
+  type ServiceBookingInput,
+  type ServiceBookingOutcome,
+  type ServiceBookingStore,
+  type ServiceRequirement,
+} from "@/server/service-booking/service";
 
 const doctorDetailsInputSchema = z.object({
   doctorName: z.string().trim().min(1).max(200),
@@ -50,12 +69,43 @@ const createAppointmentInputSchema = z.object({
   reason: z.string().max(BOOKING_REASON_MAX_LENGTH).nullable(),
 });
 
+const serviceIdsSchema = z.array(z.uuid()).min(1).max(MAX_SERVICES_PER_VISIT);
+
+const serviceTimesInputSchema = z.object({
+  serviceIds: serviceIdsSchema,
+  fromDate: z.iso.date(),
+  days: z.number().int().min(1).max(14),
+});
+
+const serviceBookingInputSchema = z.object({
+  patientId: z.uuid(),
+  serviceIds: serviceIdsSchema,
+  visitDate: z.iso.date().nullable(),
+  start: z.iso.datetime({ offset: true }).nullable(),
+  reason: z.string().max(BOOKING_REASON_MAX_LENGTH).nullable(),
+  privilege: privilegeChoiceSchema,
+  payment: paymentChoiceSchema,
+  expectedAmountDueCentavos: z.number().int().min(0),
+});
+
+const consultationFeeInputSchema = z.object({ doctorId: z.uuid(), specialtyId: z.uuid() });
+
+const chargedAppointmentInputSchema = createAppointmentInputSchema.extend({
+  specialtyId: z.uuid(),
+  privilege: privilegeChoiceSchema,
+  payment: paymentChoiceSchema,
+  expectedAmountDueCentavos: z.number().int().min(0),
+});
+
 export type DoctorLookup =
   | { status: "found"; doctor: DoctorSummary }
   | { status: "several"; doctors: DoctorSummary[] }
   | { status: "unknown" };
 
 export type TimeSlot = { start: string; end: string };
+
+/** An active specialty and whether any active doctor sees patients for it (AI-APT-002). */
+export type RoutingSpecialty = Specialty & { hasActiveDoctors: boolean };
 
 export type BookingOutcome = { ok: true; appointmentId: string } | { ok: false; message: string };
 
@@ -69,6 +119,7 @@ export type BookingOutcome = { ok: true; appointmentId: string } | { ok: false; 
 export type ChatTools = {
   getDepartments(): Promise<Department[]>;
   getSpecialties(): Promise<Specialty[]>;
+  getRoutableSpecialties(): Promise<RoutingSpecialty[]>;
   getDoctorDetails(input: { doctorName: string }): Promise<DoctorLookup>;
   getDoctor(input: { doctorId: string }): Promise<DoctorSummary | null>;
   getDoctorsBySpecialty(input: { specialtyId: string }): Promise<DoctorSummary[]>;
@@ -85,6 +136,26 @@ export type ChatTools = {
     start: string;
     reason: string | null;
   }): Promise<BookingOutcome>;
+  /** PAY-03: the doctor's own fee, else the specialty default; null is "price on request". */
+  getConsultationFee(input: { doctorId: string; specialtyId: string }): Promise<number | null>;
+  getActiveHmoProviders(): Promise<HmoOption[]>;
+  /** PAY-03: books with a charge and payment in one transaction (payment.enabled only). */
+  createChargedAppointment(input: ChargedBookingInput): Promise<ChargedBookingOutcome>;
+  /** PAY-07: active, walk-in or scheduled, priced services; read live with their prices. */
+  getBookableServices(): Promise<BookableService[]>;
+  /**
+   * PAY-07: walk-in days (opening to closing) or scheduled slots for the
+   * chosen services, after the admin's minimum lead time.
+   */
+  getServiceTimes(input: {
+    serviceIds: string[];
+    fromDate: string;
+    days: number;
+  }): Promise<{ walkIn: boolean; slots: TimeSlot[] }>;
+  /** PAY-07: published requirements in effect today. */
+  getServiceRequirements(input: { serviceIds: string[] }): Promise<ServiceRequirement[]>;
+  /** PAY-07: books the visit with its charge and payment in one transaction. */
+  createServiceBooking(input: ServiceBookingInput): Promise<ServiceBookingOutcome>;
   /** Upcoming requested or confirmed appointments, soonest first. */
   getPatientAppointments(input: { patientId: string }): Promise<PatientAppointment[]>;
   getPatientAppointment(input: {
@@ -102,6 +173,8 @@ export type ChatToolDeps = {
   availability: AvailabilitySource;
   booker: AppointmentBooker;
   patientAppointments: PatientAppointmentsStore;
+  charges: ChargeStore;
+  services: ServiceBookingStore;
   now: () => Date;
   /**
    * The admin's `appointment.min_lead_hours`. Cami offers, and so books, only
@@ -118,9 +191,14 @@ export function createChatTools({
   availability,
   booker,
   patientAppointments,
+  charges,
+  services,
   now,
   minLeadHours,
 }: ChatToolDeps): ChatTools {
+  const earliestStart = async () =>
+    new Date(now().getTime() + (await minLeadHours()) * HOUR_MILLISECONDS);
+
   return {
     async getDepartments() {
       return (await directory.listDepartments()).filter((department) => department.isActive);
@@ -128,6 +206,19 @@ export function createChatTools({
 
     async getSpecialties() {
       return (await directory.listSpecialties()).filter((specialty) => specialty.isActive);
+    },
+
+    async getRoutableSpecialties() {
+      const [specialties, doctors] = await Promise.all([
+        directory.listSpecialties(),
+        listBookableDoctors({}, directory),
+      ]);
+      const staffed = new Set(
+        doctors.flatMap((doctor) => doctor.specialties.map((specialty) => specialty.id)),
+      );
+      return specialties
+        .filter((specialty) => specialty.isActive)
+        .map((specialty) => ({ ...specialty, hasActiveDoctors: staffed.has(specialty.id) }));
     },
 
     async getDoctorDetails(input) {
@@ -173,6 +264,50 @@ export function createChatTools({
         },
         booker,
       );
+    },
+
+    async getConsultationFee(input) {
+      return charges.getConsultationFee(consultationFeeInputSchema.parse(input));
+    },
+
+    async getActiveHmoProviders() {
+      return charges.listActiveHmoProviders();
+    },
+
+    async createChargedAppointment(input) {
+      return bookConsultationWithCharge(chargedAppointmentInputSchema.parse(input), charges);
+    },
+
+    async getBookableServices() {
+      return services.listBookableServices();
+    },
+
+    async getServiceTimes(input) {
+      const { serviceIds, fromDate, days } = serviceTimesInputSchema.parse(input);
+      // Only bookable services, in the patient's order; anything else is dropped.
+      const bookable = await services.listBookableServices();
+      const chosen = serviceIds.flatMap((id) => bookable.filter((service) => service.id === id));
+      if (chosen.length === 0) return { walkIn: false, slots: [] };
+      const times = await getServiceTimes(
+        { services: chosen, fromDate, days, earliestStart: await earliestStart() },
+        services,
+      );
+      const toSlot = ({ start, end }: { start: Date; end: Date }) => ({
+        start: start.toISOString(),
+        end: end.toISOString(),
+      });
+      return times.mode === "walk_in"
+        ? { walkIn: true, slots: times.dates.map(toSlot) }
+        : { walkIn: false, slots: times.slots.map(toSlot) };
+    },
+
+    async getServiceRequirements(input) {
+      const { serviceIds } = z.object({ serviceIds: serviceIdsSchema }).parse(input);
+      return services.listRequirements(serviceIds, todayInManila(now()));
+    },
+
+    async createServiceBooking(input) {
+      return bookServiceWithCharge(serviceBookingInputSchema.parse(input), services);
     },
 
     async getPatientAppointments(input) {

@@ -6,6 +6,7 @@ import type { CardEvent, ChatMessagePayload, ChatRole } from "@/lib/chat/schemas
 
 import { AppointmentCard, isAppointmentPayload } from "./appointment-cards";
 import { BookingCard, isBookingPayload } from "./booking-cards";
+import { BookedPaymentDetails } from "./payment-cards";
 import { CircleCheckIcon, SparklesIcon } from "lucide-react";
 
 const WORD_INTERVAL_MS = 30;
@@ -170,6 +171,8 @@ function AssistantMessage({
                   busy={busy}
                   onEvent={onEvent}
                 />
+              ) : payload.kind === "payment_update" ? (
+                payload.payment ? <BookedPaymentDetails payment={payload.payment} /> : null
               ) : (
                 <ReplyPayload payload={payload} />
               )}

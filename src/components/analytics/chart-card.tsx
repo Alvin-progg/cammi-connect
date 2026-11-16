@@ -2,11 +2,13 @@ import type { ReactNode } from "react";
 
 import { EmptyState } from "@/components/ui/data";
 import { SMALL_SAMPLE_NOTE } from "@/lib/analytics/display";
+import { NOT_ENOUGH_DATA_MESSAGE, type Interpretation } from "@/lib/analytics/interpretation";
 
 /**
  * One analytics chart on an opaque card (reference layout): a numbered title
  * with a caption or legend on the right, a one-line description, the chart,
- * and its data table behind "View as table". An empty period shows a message
+ * and its data table behind "View as table". When given, an ADM-17
+ * "What it means" line follows the description. An empty period shows a message
  * instead of a zero-filled chart (design.md §6.8).
  */
 export function ChartCard({
@@ -17,6 +19,7 @@ export function ChartCard({
   aside,
   emptyMessage,
   smallSample = false,
+  interpretation,
   table,
   children,
 }: {
@@ -30,6 +33,8 @@ export function ChartCard({
   /** Set when the period has nothing to chart. */
   emptyMessage: string | null;
   smallSample?: boolean;
+  /** Omit for no line; null shows the not-enough-data message. */
+  interpretation?: Interpretation | null;
   table?: ReactNode;
   children: ReactNode;
 }) {
@@ -47,6 +52,12 @@ export function ChartCard({
         {aside && !emptyMessage ? aside : null}
       </header>
       <p className="mb-4 text-[13px] text-ink-muted">{description}</p>
+      {interpretation !== undefined && !emptyMessage ? (
+        <p className="-mt-2 mb-4 text-[13px] text-ink-secondary">
+          <strong className="font-semibold text-ink">What it means:</strong>{" "}
+          <span>{interpretation?.text ?? NOT_ENOUGH_DATA_MESSAGE}</span>
+        </p>
+      ) : null}
       {smallSample && !emptyMessage ? (
         <p className="-mt-2 mb-4 text-xs text-warning-soft-ink">{SMALL_SAMPLE_NOTE}</p>
       ) : null}

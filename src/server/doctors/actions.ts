@@ -73,6 +73,7 @@ export async function saveDoctorAction(
     contactPhone: text(formData, "contactPhone"),
     bio: text(formData, "bio"),
     accountProfileId: text(formData, "accountProfileId"),
+    consultationFeeCentavos: text(formData, "consultationFee"),
   });
   if (!parsed.success) {
     return { status: "error", message: firstIssueMessage(parsed.error) };

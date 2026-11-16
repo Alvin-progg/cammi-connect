@@ -97,11 +97,16 @@ describe("settings group schemas", () => {
       "chatbot.enabled": true,
       "chatbot.welcome_message": "Hello",
       "chatbot.enabled_categories": ["services"],
+      "chatbot.first_contact_specialty_adult": "Family Medicine",
+      "chatbot.first_contact_specialty_child": "Pediatrics",
     };
     const parse = (patch: Record<string, unknown>) =>
       settingsGroupSchemas.chatbot.safeParse({ ...base, ...patch }).success;
 
     expect(parse({})).toBe(true);
+    // AI-APT-002: first-contact specialty names, 1-100 characters.
+    expect(parse({ "chatbot.first_contact_specialty_adult": " " })).toBe(false);
+    expect(parse({ "chatbot.first_contact_specialty_child": "x".repeat(101) })).toBe(false);
     expect(parse({ "chatbot.welcome_message": "  " })).toBe(false);
     expect(parse({ "chatbot.welcome_message": "a".repeat(501) })).toBe(false);
     expect(parse({ "chatbot.enabled_categories": [] })).toBe(false);
@@ -154,6 +159,11 @@ describe("resolveSettings", () => {
     expect(settings["appointment.min_lead_hours"]).toBe(6);
     expect(settings["appointment.max_advance_days"]).toBe(60);
     expect(settings).not.toHaveProperty("llm.model");
+  });
+
+  it("defaults the first-contact specialties to Family Medicine and Pediatrics (AI-APT-002 R3)", () => {
+    expect(DEFAULT_SETTINGS["chatbot.first_contact_specialty_adult"]).toBe("Family Medicine");
+    expect(DEFAULT_SETTINGS["chatbot.first_contact_specialty_child"]).toBe("Pediatrics");
   });
 
   it("enables every knowledge category by default", () => {
@@ -244,6 +254,8 @@ describe("settingsFromFormData", () => {
           ["chatbot.welcome_message", "Hello!"],
           ["chatbot.enabled_categories", "services"],
           ["chatbot.enabled_categories", "departments"],
+          ["chatbot.first_contact_specialty_adult", " Internal Medicine "],
+          ["chatbot.first_contact_specialty_child", "Pediatrics"],
         ]),
       ),
     );
@@ -251,6 +263,8 @@ describe("settingsFromFormData", () => {
       "chatbot.enabled": false,
       "chatbot.welcome_message": "Hello!",
       "chatbot.enabled_categories": ["services", "departments"],
+      "chatbot.first_contact_specialty_adult": "Internal Medicine",
+      "chatbot.first_contact_specialty_child": "Pediatrics",
     });
   });
 });
@@ -262,5 +276,76 @@ describe("parseSettingsTab", () => {
     expect(parseSettingsTab(["hospital", "chatbot"])).toBe("hospital");
     expect(parseSettingsTab("model")).toBe("appointment");
     expect(parseSettingsTab(undefined)).toBe("appointment");
+  });
+});
+
+describe("payment settings (PAY-01)", () => {
+  const paymentValues = {
+    "payment.enabled": false,
+    "payment.qr_image_path": "",
+    "payment.account_name": "",
+    "payment.deadline_minutes": 120,
+    "payment.max_receipts": 3,
+    "payment.refund_cutoff_hours": 24,
+  };
+
+  it("defaults to payments off, a 120-minute deadline, 3 receipts, a 24-hour refund cutoff, and 20%", () => {
+    expect(DEFAULT_SETTINGS).toMatchObject({
+      ...paymentValues,
+      "billing.privilege_discount_bps": 2000,
+    });
+  });
+
+  it("reads the payment tab, with an unchecked box meaning off", () => {
+    const values = settingsGroupSchemas.payment.parse(
+      settingsFromFormData(
+        "payment",
+        form([
+          ["payment.qr_image_path", " qr/hospital-qr-ph.png "],
+          ["payment.account_name", " Synthetic Hospital Inc. "],
+          ["payment.deadline_minutes", "90"],
+          ["payment.max_receipts", "2"],
+          ["payment.refund_cutoff_hours", "48"],
+        ]),
+      ),
+    );
+    expect(values).toEqual({
+      "payment.enabled": false,
+      "payment.qr_image_path": "qr/hospital-qr-ph.png",
+      "payment.account_name": "Synthetic Hospital Inc.",
+      "payment.deadline_minutes": 90,
+      "payment.max_receipts": 2,
+      "payment.refund_cutoff_hours": 48,
+    });
+  });
+
+  it("bounds the deadline, receipt limit, and refund cutoff", () => {
+    const parse = (patch: Record<string, unknown>) =>
+      settingsGroupSchemas.payment.safeParse({ ...paymentValues, ...patch }).success;
+
+    expect(parse({ "payment.deadline_minutes": 14 })).toBe(false);
+    expect(parse({ "payment.deadline_minutes": 1441 })).toBe(false);
+    expect(parse({ "payment.max_receipts": 0 })).toBe(false);
+    expect(parse({ "payment.max_receipts": 11 })).toBe(false);
+    expect(parse({ "payment.refund_cutoff_hours": -1 })).toBe(false);
+    expect(parse({ "payment.refund_cutoff_hours": 169 })).toBe(false);
+  });
+
+  it("never lets the payment tab change the legal 20% privilege discount", () => {
+    expect(
+      settingsGroupSchemas.payment.safeParse({
+        ...paymentValues,
+        "billing.privilege_discount_bps": 1000,
+      }).success,
+    ).toBe(false);
+    expect(
+      resolveSettings([{ key: "billing.privilege_discount_bps", value: 1000 }])[
+        "billing.privilege_discount_bps"
+      ],
+    ).toBe(2000);
+  });
+
+  it("opens the payment tab from ?tab=payment", () => {
+    expect(parseSettingsTab("payment")).toBe("payment");
   });
 });

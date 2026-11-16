@@ -25,6 +25,7 @@ const TAB_DESCRIPTIONS: Record<SettingGroup, string> = {
   appointment: "Booking limits and the policies patients are told about.",
   hospital: "Contact details and opening hours.",
   chatbot: "What patients see in the Cami chat and what Cami answers from.",
+  payment: "How patients will pay in chat. Saved now; used when online payment is turned on.",
 };
 
 export default async function AdminSettingsPage({ searchParams }: PageProps<"/admin/settings">) {

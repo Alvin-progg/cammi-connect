@@ -94,7 +94,12 @@ then `db/migrations/0021_admin_services.sql` once, then
 `db/migrations/0028_doctor_notification_confirmed.sql` on its own, then
 `db/migrations/0029_doctor_notification_trigger.sql` once, then
 `db/migrations/0030_query_indexes.sql` once, then
-`db/migrations/0031_patient_booking_cap.sql` once.
+`db/migrations/0031_patient_booking_cap.sql` once, then
+`db/migrations/0032_specialty_routing_hints.sql` once, then
+`db/migrations/0033_price_catalogue.sql` once, then
+`db/migrations/0034_chat_booking_charges.sql` once, then
+`db/migrations/0035_payment_receipts.sql` once, then
+`db/migrations/0036_payment_verification.sql` once.
 After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
@@ -494,6 +499,333 @@ settings allow-list. The front desk booking function is unchanged. Safe to re-ru
   admin, set the cap to 5 at `/admin/settings`; the patient can book again, and
   `/admin/audit-log` shows a `settings.update` row. Cancel the smoke-test appointments
   afterwards.
+
+`0032_specialty_routing_hints.sql` (AI-APT-002 specialty routing hints): adds
+`specialties.routing_hints` (at most 1,000 characters), replaces the audited specialty
+save function with a five-argument version that stores the hints and records them in
+the audit payload (the old four-argument function is dropped), and adds
+`chatbot.first_contact_specialty_adult` and `chatbot.first_contact_specialty_child` to
+the settings allow-list. Safe to re-run. Re-run `npm run db:seed` to load the synthetic
+routing hints for the four seed specialties.
+- Smoke test: as an admin, add routing hints to a specialty at `/admin/specialties/[id]`;
+  `/admin/audit-log` shows a `specialty.update` row with the previous and new
+  `routing_hints`. As a patient, tell Cami "Kumakabog dibdib ko minsan kahit nakaupo":
+  Cami replies "A Cardiology doctor can check this for you" with doctor cards and
+  **Change specialty**. "Masakit dibdib ko ngayon, hirap huminga" gets the emergency
+  notice and no cards.
+
+`0033_price_catalogue.sql` (PAY-01 price catalogue): adds integer-centavo fees
+(`specialties.default_consultation_fee_centavos`, `doctors.consultation_fee_centavos`),
+the service pricing columns (`category`, `price_centavos`, `vatable`,
+`philhealth_benefit_centavos`, `hmo_coverable`, `requires_doctor_request`,
+`daily_capacity`) with booking mode `scheduled`, and the `hmo_providers` table. The
+specialty, doctor, and service save functions are replaced with versions that take the
+prices and audit them (old signatures dropped); new audited HMO save and
+activate/deactivate functions; and the `payment.*` keys on the settings allow-list
+(`billing.privilege_discount_bps` stays off it, the 20% is fixed by law). Any negative
+amount is refused with `invalid_price`. Nothing patient-facing reads these yet. Safe to
+re-run. Re-run `npm run db:seed` for the synthetic prices from
+`docs/pricing-recommendation.md` and the four sample HMOs (PhilHealth benefit ₱0
+everywhere); the hospital's billing office replaces them before go-live.
+- Smoke test: as an admin, set a specialty's default fee at `/admin/specialties/[id]`, a
+  doctor's fee at `/admin/doctors/[id]`, and a service's price at `/admin/services/[id]`;
+  `/admin/audit-log` shows each update with previous and new centavos. Entering `-1`
+  shows a validation error. Create, edit, and deactivate an HMO at `/admin/hmo-providers`.
+  The **Payment** tab at `/admin/settings` saves the deadline and shows the 20% discount
+  read-only. As a patient, Cami shows no prices.
+
+`0034_chat_booking_charges.sql` (PAY-03 charges in chat booking): adds the
+`payment_status` enum (every PAY-001 status), `appointment_charges` (one per
+appointment, unique `CC-XXXXX` reference code), `appointment_charge_items` (snapshotted
+price and each deduction), `payments` (one per charge; `transaction_reference` unique
+ignoring case and spaces), the append-only `payment_events`, and
+`cammi_connect_book_with_charge`. That function books through
+`cammi_connect_book_appointment` (so the 0031 cap and availability checks still apply)
+and writes the charge, line, payment, and `created` event in the same transaction. It
+reads the fee itself (doctor fee, else specialty default), recomputes the breakdown,
+and refuses `price_changed` if the amount differs from the summary the patient saw;
+`price_on_request` for a null fee; `payment_too_soon` when a self-pay visit starts
+within 2 hours. The deadline is now + `payment.deadline_minutes` (default 120), clamped
+to 2 hours before the visit; HMO (`hmo_pending`) and ₱0 (`not_required`) bookings get
+none. `payment.enabled` is checked by the chat server: with it off, Cami books as before
+with no charge. Safe to re-run.
+- Local SQL check (Docker, `scripts/db-local-apply.sh`, synthetic rows): Cardiology ₱700
+  none/self → `awaiting_payment`, 70000, deadline now + 120 min; senior → 56000 (14000
+  off); doctor fee ₱500 over a ₱700 specialty default with full HMO → `hmo_pending`, 0,
+  no deadline; a visit 3.5 h away → deadline 2 h before it. Refusals (`price_changed`,
+  `payment_too_soon`, `price_on_request`, slot taken 23P01, PhilHealth on a consult,
+  blank member number, inactive HMO, the 4th booking at the cap) leave the appointment,
+  charge, payment, and event counts unchanged. A duplicate reference code or
+  transaction reference is refused, `payment_events` rejects update and delete, and
+  `anon`/`authenticated` have no table or execute access.
+- Smoke test: as an admin, tick "Online payment in chat is on" on the Payment tab at
+  `/admin/settings`. As a synthetic patient, book a Cardiology doctor with Cami: after the time, Cami asks about
+  Senior/PWD/None and then who pays (no PhilHealth button for a consult). Choose Senior
+  and "I'll pay": the summary shows Price ₱700.00, 20% discount −₱140.00, Amount to pay
+  ₱560.00. Confirm: Cami replies "Almost done! To hold your slot, please pay ₱560.00 by
+  …" with a `CC-` code, and in SQL the appointment has one `appointment_charges` row,
+  one item, a `payments` row in `awaiting_payment`, and one `created` event. Book again
+  with My HMO and a member number: the summary shows the HMO with the number masked, and
+  the payment is `hmo_pending`. Turn payments off again: booking works as before with no
+  charge. Cancel the smoke-test appointments afterwards.
+
+`0035_payment_receipts.sql` (PAY-04 pay in chat): creates the private Storage bucket
+`payment-receipts` (not public, 5 MB per object, `image/jpeg`/`image/png`/`image/webp`
+only; idempotent upsert into `storage.buckets`, so it also runs on the local stack whose
+storage schema `scripts/db-local-apply.sh` does not reset), adds no storage policies (only
+the server's service-role client can read or write it), the `payment_receipts` table (one
+row per accepted upload: payment, patient, storage path, content type, size, uploaded at,
+outcome `pending`), and `cammi_connect_submit_payment_receipt`. That function refuses
+`payment_not_found` (no such payment, or another patient's), `payment_not_open` (not
+`awaiting_payment`/`rejected`, or the appointment is no longer `requested`),
+`receipt_limit_reached` (`payment.max_receipts`, default 3), `receipt_rate_limited` (5
+uploads in 10 minutes per patient, counted from `payment_receipts`), and
+`invalid_receipt` (path outside `{patient_id}/{payment_id}/`, bad type or size); otherwise
+it records the receipt, moves the payment to `submitted`, adds 1 to `attempts`, and writes
+a `receipt_submitted` event, in one transaction. Uploads go only through
+`POST /api/v1/payments/[id]/receipt`. Safe to re-run.
+- Local SQL check (Docker, synthetic rows in a rolled-back transaction, as
+  `service_role`): another patient's payment → `payment_not_found`; a path outside the
+  folder → `invalid_receipt`; first upload → `submitted`, attempts 1; a second while
+  `submitted` → `payment_not_open`; after setting `rejected` the 2nd and 3rd uploads pass
+  and the 4th → `receipt_limit_reached`; the 6th upload by the same patient within 10
+  minutes (on another payment) → `receipt_rate_limited`; one `receipt_submitted` event per
+  accepted upload. `anon`/`authenticated` have no table or execute access, and the file
+  applies twice without error.
+- Local Storage check (service-role and anon keys from `supabase status -o env`, in a
+  throwaway script): the service role uploads a JPEG; uploading to the same path again,
+  a `image/gif` object, or a 5 MB + 1 byte object is refused; the anon key can neither
+  download nor upload, and the public URL answers 400; remove works.
+- Smoke test: as an admin, on the Payment tab set **QR Ph image path** to
+  `/payment/qr-synthetic-demo.svg` (a synthetic, unscannable placeholder for local demos
+  only; replace it with the hospital's merchant QR Ph image before go-live) and an
+  account name. As a synthetic patient, book with "I'll pay": the reply asks to scan the
+  QR and send a photo of the receipt, and the card shows the QR, account name, amount,
+  `CC-` code, deadline, and a **Photo of your receipt** field. Send a small JPEG: Cami adds
+  "Got your receipt, thank you! …", the card shows "Receipt sent", and in SQL the payment
+  is `submitted` with one `payment_receipts` row whose object is in the bucket under
+  `{patient_id}/{payment_id}/`. A `.gif` or a text file renamed `.jpg` is refused with
+  "Please send a JPEG, PNG, or WebP photo."; another patient's payment ID answers 404.
+  Book another QR payment and open **My appointments**: the request shows the same payment
+  card with the upload. Clear the QR path: the card says to pay at the cashier and has no
+  upload. Cancel the smoke-test appointments afterwards.
+
+`0036_payment_verification.sql` (PAY-05 front desk verification): replaces
+`cammi_connect_confirm_appointment` so it also refuses `payment_not_verified` unless the
+appointment's payment is `verified`, `hmo_approved`, `not_required`, or
+`collect_at_counter`. An appointment with **no payment row** is not gated: front-desk
+bookings (0012 creates them already confirmed, with no charge), bookings from before
+payments existed, and chat bookings made with `payment.enabled` off. Adds
+`cammi_connect_verify_payment` (from `awaiting_payment`, `submitted`, or `rejected`;
+needs a transaction reference that no other payment used, ignoring case and spaces, an
+amount received of at least the amount due, and a time received not in the future),
+`cammi_connect_reject_payment_receipt` (a `submitted` receipt; reason codes
+`not_found`, `amount_different`, `unreadable`, `already_used`, `other`),
+`cammi_connect_mark_refunded` (`refund_due` → `refunded` with a refund reference), and
+`cammi_connect_record_receipt_view` (returns the latest receipt's path for a 60-second
+signed URL and writes `receipt_viewed` plus an `audit_logs` `payment.receipt_viewed`
+row). All four re-check that the staff profile is an active `front_desk` or `admin`
+(`not_allowed`); verify and reject also need the request to still be `requested`
+(`not_pending`). The `appointments_payment_refund` trigger applies D4 on every cancel or
+reject path: a `verified` payment becomes `refund_due`, except a patient's own
+cancellation less than `payment.refund_cutoff_hours` (24) before the visit, which keeps
+`verified` and records a `no_refund` event (free rebooking within 30 days is handled by
+staff). A front desk cancellation counts as a hospital cancellation (full refund), even
+when the reason is "Patient request". The `payment_events` action check gains
+`no_refund`. Safe to re-run.
+- Local SQL check (Docker, synthetic rows in a rolled-back transaction, as
+  `service_role`): confirm refused while `awaiting_payment`, `submitted`, and `rejected`;
+  a doctor viewing a receipt → `not_allowed`; reject with a bad code →
+  `reason_required`; reject → `rejected` and the patient's resubmission is accepted;
+  verify refused for ₱699.99 of ₱700 (`amount_short`), a blank reference, a time an hour
+  ahead, and a doctor; verify → `verified` and confirm then succeeds; a second verify →
+  `not_open`; the same reference in another case on another payment →
+  `duplicate_reference`; an `awaiting_payment` (counter) payment verifies without a
+  receipt; front desk cancel and front desk reject of verified requests → `refund_due`;
+  mark refunded with a blank reference → `reference_required`, then `refunded`, then
+  `not_open`; patient cancel ≥ 24 h ahead → `refund_due`, < 24 h → stays `verified` with
+  `no_refund`; a front-desk booking and a legacy request with no payment row are still
+  confirmed; one `audit_logs` `payment.receipt_viewed` row; `anon`/`authenticated` have
+  no execute. The file applies twice without error.
+- Smoke test: with payments on and a QR path set, book with "I'll pay" as a synthetic
+  patient and send a receipt. At `/front-desk/requests` the card shows **Receipt to
+  check** (also under the Payment filter, and first in the list); an unpaid request past
+  its deadline shows **Overdue**. Open it: the Payment panel shows the breakdown,
+  `CC-` code, deadline, and receipts sent, and **Confirm request** is disabled with
+  "Payment not verified yet". **View receipt** shows the image (a new `payment.receipt_viewed`
+  row appears at `/admin/audit-log`). **Reject receipt** → *Amount is different*: the
+  patient's chat gets "The front desk couldn't match your payment: amount is different
+  from ₱…". Send another receipt, then **Verify payment** with a made-up reference, the
+  amount, and the time: the chat gets "Payment received ✔…", and Confirm now works.
+  Verifying another payment with the same reference is refused. Cancel the confirmed
+  appointment: it appears under **Refund due** on the requests page; **Mark refunded**
+  with a reference, and the chat gets "Your refund has been sent…". Doctors see no
+  payment information on `/doctor`. Cancel the smoke-test appointments afterwards.
+
+`0037_hmo_decisions.sql` (PAY-06 HMO decisions): adds `payments.hmo_loa_number`,
+`hmo_denied_reason`, `hmo_decided_by`, and `hmo_decided_at`; relaxes
+`appointment_charges_hmo_details` so a self-pay charge may keep its HMO provider and
+member number after a denial (both or neither; an HMO payer always has them, PhilHealth
+never); and adds `cammi_connect_decide_hmo` (active `front_desk`/`admin` only, from
+`hmo_pending` while the request is still `requested`). **Approve** needs an LOA number →
+`hmo_approved` (the 0036 confirm gate accepts it). **Deny** needs a reason → the HMO
+deduction is removed from the items and the charge, the payer becomes `self`, and the
+payment becomes `awaiting_payment` by QR Ph with a new deadline of now +
+`payment.deadline_minutes` (default 120), never later than 2 hours before the visit.
+When the visit starts within 2 hours (too late to hold the slot with an online payment,
+and the deadline would already be past), the payment becomes `collect_at_counter`
+instead: the cashier collects at the visit and the request can be confirmed. A ₱0 share
+becomes `not_required`. Both write a `payment_events` row (`hmo_approved` with the LOA
+number, `hmo_denied` with the reason). Refusals: `not_allowed`, `invalid_decision`,
+`loa_required`, `reason_required`, `payment_not_found`, `not_open`, `not_pending`. Safe
+to re-run.
+- Local SQL check (Docker, `scripts/db-local-apply.sh`, synthetic rows in a rolled-back
+  transaction, as `service_role`): an HMO booking is `hmo_pending` and confirm is refused
+  (`payment_not_verified`); a patient or doctor deciding → `not_allowed`; a blank LOA →
+  `loa_required`; a deny with no reason → `reason_required`; approve → `hmo_approved` with
+  the LOA number, a second decision → `not_open`, and confirm then succeeds. Cardiology
+  ₱700 with full HMO, deny → payer `self`, charge and item `hmo_centavos` 0, amount
+  70000, `awaiting_payment`/`qr_ph`, deadline now + 120 min, member number kept, events
+  `created` then `hmo_denied`; a receipt is then accepted (`submitted`), verified with
+  ₱700, and the request confirmed. Senior with HMO, deny → 56000; an HMO with a ₱100
+  co-pay, deny → 70000; a visit 90 minutes away, deny → `collect_at_counter`, no
+  deadline, confirm succeeds; deciding on an `awaiting_payment` payment → `not_open`.
+  `anon`/`authenticated` have no execute. The file applies twice without error.
+- Smoke test: with payments on, book with **My HMO** and a member number as a synthetic
+  patient; Cami replies "Thanks! The front desk will check your … coverage. Please request
+  an LOA …". At `/front-desk/requests` the card shows **HMO to check** (no member
+  number). Open it: the Payment panel's **HMO coverage** section shows the provider, the
+  full member number, and the co-pay; Confirm is disabled. **Approve coverage** with an LOA
+  number: the chat gets "Your … coverage is approved ✔…" and Confirm works. Book again
+  and **Deny coverage** with a reason: the chat gets "Your HMO couldn't cover this visit.
+  You can still pay ₱… here to keep the slot…" with the QR card (the reason is not
+  shown), My appointments shows the payment card, and the panel shows the denial reason
+  and **Verify payment**. Send a receipt and verify it as for PAY-05. Cancel the
+  smoke-test appointments afterwards.
+
+`0038_service_booking.sql` (PAY-07 lab, imaging, and package booking): adds
+`appointments.kind` (`consultation` default, or `service`) and `appointments.service_id`,
+and lets `doctor_id` be null only for a service visit (`appointments_kind_target`: a
+consultation always has a doctor and no service; a service visit has a service and no
+doctor). `appointments_no_active_overlap` is unchanged and still applies only to doctor
+appointments (a null `doctor_id` never matches). One appointment per visit: a lab
+multi-select is one appointment with one charge and one `appointment_charge_items` line
+per test (`kind = 'service'`, new `service_id`); `appointments.service_id` is the first
+test. Adds `service_schedules` (weekday, Manila start/end, slot minutes 15/30/45/60,
+capacity per slot 1–100, effective dates, overlap exclusion like doctor periods, at most
+8 hours, ADR-0003 lockdown), `cammi_connect_service_load` (holding service visits per
+service and start time, counted through the charge lines), `cammi_connect_book_service`,
+and the audited `cammi_connect_admin_save_service_schedule` (`service_schedule.create`,
+`.update`, `.deactivate`; `not_admin`, `not_found`, `not_bookable`, `invalid_period`,
+`overlap`). Booking locks the services (id order) and the patient, applies the
+per-patient cap, checks the hours (walk-in: every chosen service open that day, the visit
+runs from the first service's opening to its closing, at most 8 hours; scheduled: the
+slot is on the period grid), hospital-wide holidays (`blocked`), `services.daily_capacity`
+per Manila date (`service_full`) and capacity per slot (`slot_full`), recomputes the
+charge like 0034 (`price_changed`, `payment_too_soon`, PhilHealth only with a benefit, an
+HMO only when a line is HMO-coverable), and writes the appointment, its audit row, the
+charge, the lines, the payment, and the `created` event in one transaction. Only active
+`walk_in`/`scheduled` services with a price can be booked (`service_unavailable`,
+`price_on_request`); several services only when all are walk-in lab tests
+(`invalid_service_combination`). Replaces `cammi_connect_confirm_appointment` (same
+payment gate; a service visit skips the doctor checks and needs its service active,
+`service_unavailable`) and `cammi_connect_notify_doctor` (nothing for a service visit).
+Front desk reschedule is hidden for service visits. Safe to re-run.
+- Local SQL check (Docker, `scripts/db-local-apply.sh`, synthetic rows in a rolled-back
+  transaction, as `service_role`): 28 audited `service_schedule.create` rows; an
+  overlapping period → `overlap`, a front desk actor → `not_admin`, hours for the ER →
+  `not_bookable`. CBC + urinalysis, self-pay QR → one appointment (`kind` service, no
+  doctor, service = CBC, 07:00, 300 min), one charge with 2 lines, ₱370 due,
+  `awaiting_payment` with a deadline, one `created` audit row, no doctor notification;
+  confirm → `payment_not_verified`; verify, then confirm → `confirmed`. PWD CBC +
+  urinalysis + FBS → ₱416; a wrong expected amount → `price_changed`. CBC daily capacity
+  2: a third booking that day → `service_full`, the next day works. Ultrasound (capacity
+  1) senior → ₱1,200; a second booking of the same slot → `slot_full`, also from a second
+  session while the first is still open (it waits on the lock, then is refused); an
+  off-grid time → `outside_hours`; PhilHealth with no benefit → `invalid_payment_choice`;
+  urinalysis + ultrasound → `invalid_service_combination`; the ER (`none`) →
+  `service_unavailable`; a hospital holiday → `blocked`. Inserting a consultation without
+  a doctor, or a service visit without a service, fails `appointments_kind_target`.
+  `anon`/`authenticated` have no execute on the three functions and no access to
+  `service_schedules`. The file applies twice without error. The seed's service hours and
+  requirements insert cleanly.
+- Smoke test: run the seed (service hours Mon–Sat for walk-in services, slots for the
+  ultrasounds, 2D echo, and CT; published requirements from
+  `docs/pricing-recommendation.md`), turn payments on, and as a synthetic patient say
+  "I want to book" → **Lab tests** → tick CBC and Urinalysis → pick a day. Cami shows
+  "What to prepare" (Doctor's request, clean-catch sample) with the discount question,
+  then who pays (no PhilHealth), then one summary with both tests; Confirm sends the QR
+  card. Send a receipt and verify it at `/front-desk/requests` (the card shows the tests
+  instead of a doctor; no Reschedule), then Confirm. Book **Imaging and diagnostics** →
+  Whole abdomen ultrasound → a slot; a second patient no longer sees that slot. Also try
+  "Need ko magpa-CBC, may request na ako". `/doctor` shows neither visit; `/admin/analytics`
+  counts neither. As an admin, add and remove hours on a service's detail page and check
+  `/admin/audit-log`. Cancel the smoke-test appointments afterwards.
+
+`0039_payment_expiry.sql` (PAY-08 expiry, receipt retention): adds `system` to
+`user_role` (used only by `appointments.cancelled_by_role`; `profiles_role_not_system`
+keeps every profile on one of the four real roles) and `cammi_connect_expire_unpaid()`,
+which cancels every `requested` appointment whose payment is `awaiting_payment` or
+`rejected` and past `deadline_at`: the appointment becomes `cancelled`
+(`cancelled_by_role = 'system'`, reason "Payment not received", an
+`appointment_audit_logs` row with no actor), the payment `expired` (a `payment_events`
+row), and Cami's templated Expired message ("Your request for Dr. … on … was cancelled
+because payment wasn't received in time. You can book again anytime.", the tests' names
+for a service visit) is added to the patient's latest conversation with a
+`payment_update` payload, which the model never sees. `submitted` and `hmo_pending`
+never expire. Rows locked by another transaction (a verify or an upload in flight) are
+skipped and picked up on the next run, so overlapping runs are safe; it returns how
+many expired. Replaces `cammi_connect_notify_doctor` so a doctor reads "cancelled by
+the system (request expired)". Adds `payment_receipts.purged_at` and
+`cammi_connect_mark_receipts_purged(uuid[])`. Execute for `service_role` only. Safe to
+re-run.
+
+- **pg_cron (D2, every 5 minutes).** The file schedules the job
+  `cammi-connect-expire-unpaid` (`*/5 * * * *`) only when the `pg_cron` extension is
+  installed; otherwise it prints a notice. On the hosted project, enable **pg_cron**
+  (Dashboard → Integrations → Cron, or `create extension if not exists pg_cron with
+  schema pg_catalog;`), then run the file again (or just its last `do $$ … $$` block).
+  Check with `select jobname, schedule, active from cron.job;` and
+  `select status, return_message, start_time from cron.job_run_details order by start_time desc limit 5;`.
+  Until the job runs, an unpaid request past its deadline shows **Overdue** at the
+  front desk. To run it by hand: `select public.cammi_connect_expire_unpaid();`.
+- **Receipt retention (D5).** `npm run payments:purge-receipts` (needs `.env.local` with
+  `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; add `-- --dry-run` to only
+  count) deletes receipt images from the `payment-receipts` bucket 90 days after their
+  payment closed (`verified`, `hmo_approved`, `expired`, `refunded`, `not_required`,
+  `collect_at_counter`, or an unfinished payment whose request is no longer pending;
+  `refund_due` stays open), then sets `purged_at`. Payment rows, receipt rows, and
+  history stay. It prints counts only. There is no scheduler for it: run it monthly by
+  hand (or from any cron host with the env vars). A front desk "View receipt" on a
+  purged receipt fails to load the image.
+- Local SQL check (Docker, `scripts/db-local-apply.sh`, synthetic rows in a rolled-back
+  transaction, run as `service_role`): of six overdue-or-not requests, the overdue
+  `awaiting_payment` consultation, overdue `rejected` consultation, and overdue
+  `awaiting_payment` CBC + urinalysis visit → `cancelled`/`system`/"Payment not
+  received", payment `expired`, one `cancelled` audit row (no actor) and one `expired`
+  event each; the overdue `submitted`, overdue `hmo_pending`, and not-yet-due
+  `awaiting_payment` ones are untouched; the first run returns 3, the second 0. Three
+  Expired messages ("Dr. Liza Synthetic on 1 Dec, 9:00 AM", "CBC + Urinalysis on 2 Dec,
+  7:00 AM") land in the patient's most recently updated conversation with
+  `{"kind":"payment_update"}`; the doctor gets "cancelled by the system (request
+  expired)"; a new request at the expired slot is accepted. A profile with role
+  `system` is refused (`profiles_role_not_system`). Marking two receipts purged returns
+  2, again 0. `anon`/`authenticated` have no execute. With committed rows, a payment
+  locked by another session (`select … for update`) is skipped (2 expired) and the next
+  run expires it (1). With pg_cron installed locally the file schedules one job and
+  re-running keeps one; the job ran on its own and expired an overdue request.
+  `npm run payments:purge-receipts` against the local API deleted the image of an
+  expired payment closed 91 days ago and marked it, kept a `submitted` one, and a second
+  run found nothing. The file applies twice without error.
+- Smoke test (hosted): with payments on, book with "I'll pay" as a synthetic patient and
+  don't pay. Set that payment's deadline into the past
+  (`update public.payments set deadline_at = now() - interval '1 minute' where id = '…';`).
+  `/front-desk/requests` shows **Overdue** until the next job run (≤ 5 minutes); then the
+  request is gone from the queue, the patient's chat shows the Expired message, My
+  appointments shows it cancelled, and the slot is offered again. Upload a receipt on a
+  second booking and backdate it the same way: it stays **Receipt to check**. At
+  `/admin/analytics` the **Revenue** section shows collected, refunded, refund due,
+  outstanding, and HMO approved for the period.
 
 Audit log (ADM-16, no migration): as an admin, open `/admin/audit-log`, filter by
 "Settings (settings.*)", open an entry and check its previous and new values, then use
@@ -1056,3 +1388,16 @@ Do not use real patient or clinician email addresses for synthetic testing.
   audit-log immutability, and concurrent booking are verified only by the manual
   smoke test above.
 - There is no local database for integration or E2E tests yet.
+
+## Local test database (Supabase CLI)
+
+For development testing only; the hosted project stays the real database (ADR-0003).
+`supabase/config.toml` uses ports 553xx (DB `postgresql://postgres:postgres@127.0.0.1:55322/postgres`,
+API `http://127.0.0.1:55321`) to avoid clashing with other local Supabase projects.
+
+```bash
+supabase start                  # needs Docker
+scripts/db-local-apply.sh       # drops public schema, applies db/migrations in order
+supabase status                 # local URL and keys for a local .env.local
+supabase stop
+```

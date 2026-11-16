@@ -6,6 +6,7 @@ import {
   getServiceDetail,
   listServices,
   saveService,
+  saveServiceSchedule,
   setServiceActive,
   type ServiceAdminStore,
 } from "@/server/services/service";
@@ -25,6 +26,13 @@ const XRAY: HospitalService = {
   requiresAppointment: false,
   bookingMode: "walk_in",
   isActive: true,
+  category: "other",
+  priceCentavos: null,
+  vatable: false,
+  philhealthBenefitCentavos: 0,
+  hmoCoverable: true,
+  requiresDoctorRequest: false,
+  dailyCapacity: null,
 };
 
 function fakeStore() {
@@ -33,6 +41,8 @@ function fakeStore() {
     getService: vi.fn().mockResolvedValue(XRAY),
     save: vi.fn().mockResolvedValue({ ok: true, serviceId: XRAY_ID }),
     setActive: vi.fn().mockResolvedValue({ ok: true }),
+    listSchedules: vi.fn().mockResolvedValue([]),
+    saveSchedule: vi.fn().mockResolvedValue({ ok: true }),
   } satisfies ServiceAdminStore;
 }
 
@@ -66,6 +76,13 @@ describe("saveService", () => {
     departmentId: RADIOLOGY_ID,
     requiresAppointment: false,
     bookingMode: "walk_in" as const,
+    category: "imaging" as const,
+    priceCentavos: 40000,
+    vatable: false,
+    philhealthBenefitCentavos: 0,
+    hmoCoverable: true,
+    requiresDoctorRequest: false,
+    dailyCapacity: null,
   };
 
   it("saves as the acting admin and returns the service id", async () => {
@@ -108,5 +125,32 @@ describe("setServiceActive", () => {
     await expect(
       setServiceActive({ actorId: ADMIN_ID, serviceId: XRAY_ID, isActive: false }, store),
     ).resolves.toEqual({ ok: false, message: "Nothing to change." });
+  });
+});
+
+describe("saveServiceSchedule (PAY-07)", () => {
+  const input = {
+    dayOfWeek: 1,
+    startTime: "08:00",
+    endTime: "12:00",
+    slotDurationMinutes: 30,
+    capacityPerSlot: 1,
+    effectiveFrom: "2026-11-17",
+    effectiveUntil: null,
+    isActive: true,
+  };
+
+  it("maps an overlap refusal to its message", async () => {
+    store.saveSchedule.mockResolvedValue({ ok: false, code: "overlap" });
+    await expect(
+      saveServiceSchedule({ actorId: "a", serviceId: XRAY_ID, scheduleId: null, input }, store),
+    ).resolves.toEqual({ ok: false, message: "These hours overlap another period on the same day." });
+  });
+
+  it("saves through the store", async () => {
+    await expect(
+      saveServiceSchedule({ actorId: "a", serviceId: XRAY_ID, scheduleId: null, input }, store),
+    ).resolves.toEqual({ ok: true, message: "Hours saved." });
+    expect(store.saveSchedule).toHaveBeenCalledWith({ actorId: "a", serviceId: XRAY_ID, scheduleId: null, ...input });
   });
 });

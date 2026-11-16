@@ -1,5 +1,6 @@
 import "server-only";
 
+import { interpretAnalytics, summarize, type AnalyticsSummary } from "@/lib/analytics/interpretation";
 import {
   byDoctor,
   computeKpis,
@@ -25,6 +26,7 @@ import {
   previousPeriod,
   type AnalyticsQuery,
 } from "@/lib/analytics/period";
+import { revenueSummary, type RevenuePayment, type RevenueSummary } from "@/lib/analytics/revenue";
 import type { AppointmentAuditAction } from "@/lib/appointments/audit";
 import type { AppointmentStatus } from "@/lib/appointments/status";
 
@@ -70,6 +72,24 @@ export async function loadAnalytics(
 }
 
 export type { AnalyticsDatasets };
+
+// ---------------------------------------------------------------------------
+// Revenue (PAY-08)
+// ---------------------------------------------------------------------------
+
+export type RevenueReader = {
+  /**
+   * Payments verified, refunded, or HMO-decided in `[start, end)`, plus every
+   * open refund_due or unpaid one (the snapshots). No patient fields.
+   */
+  listRevenuePayments(query: { start: string; end: string }): Promise<RevenuePayment[]>;
+};
+
+/** Revenue numbers for the analytics period. Callers must have passed `getAdminSession()`. */
+export async function loadRevenue(query: AnalyticsQuery, reader: RevenueReader): Promise<RevenueSummary> {
+  const period = analyticsPeriodBounds(query);
+  return revenueSummary(await reader.listRevenuePayments(period), period);
+}
 
 // ---------------------------------------------------------------------------
 // Admin dashboard (ADM-12)
@@ -127,6 +147,8 @@ export type DashboardData = {
   daily: DailyVolume[];
   statusDistribution: Record<VolumeStatus, number>;
   topDoctors: DoctorAnalytics[];
+  /** ADM-17 Summary card, interpreting this period's rows like the analytics page. */
+  summary: AnalyticsSummary;
   appointmentActivity: AppointmentActivityEntry[];
   adminActivity: AdminActivityEntry[];
 };
@@ -152,13 +174,24 @@ export async function loadDashboard(
 
   const cards = dashboardCards(rows, cancelled);
   const previousTotal = dashboardCards(previousRows, 0).total;
+  const doctors = byDoctor(rows, now);
+  const months = analyticsPeriodMonths(query);
   return {
     cards,
     pending,
     trend: { previousTotal, percent: trendPercent(cards.total, previousTotal) },
     daily: dailyVolume(rows, analyticsPeriodDays(query)),
     statusDistribution: statusDistribution(rows),
-    topDoctors: byDoctor(rows, now).slice(0, TOP_DOCTOR_COUNT),
+    topDoctors: doctors.slice(0, TOP_DOCTOR_COUNT),
+    summary: summarize(
+      interpretAnalytics({
+        monthly: monthlyVolume(rows, months),
+        byDoctor: doctors,
+        heatmap: heatmap(rows),
+        outcomesByMonth: outcomesByMonth(rows, months, now),
+        ratesByWeekday: ratesByWeekday(rows, now),
+      }),
+    ),
     appointmentActivity,
     adminActivity,
   };

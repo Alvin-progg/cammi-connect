@@ -67,6 +67,13 @@ describe("parseRequestQueueFilters", () => {
   });
 });
 
+describe("receipt-to-check filter (PAY-05)", () => {
+  it("adds the filter only for payment=receipt", () => {
+    expect(parseRequestQueueFilters({ payment: "receipt" }).receiptsToCheck).toBe(true);
+    expect(parseRequestQueueFilters({ payment: "other" })).not.toHaveProperty("receiptsToCheck");
+  });
+});
+
 describe("formatRequestId", () => {
   it("shows the first eight characters in upper case", () => {
     expect(formatRequestId("ab12cd34-0000-4000-8000-000000000201")).toBe(

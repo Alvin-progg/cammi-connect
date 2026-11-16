@@ -51,6 +51,8 @@ export type RequestQueueQuery = {
   doctorId: string | null;
   specialtyId: string | null;
   limit: number;
+  /** Only requests whose payment is `submitted` (PAY-05). */
+  receiptsToCheck?: true;
 };
 
 /**
@@ -81,9 +83,15 @@ export async function listRequestQueue(
     doctorId: filters.doctorId,
     specialtyId: filters.specialtyId,
     limit: QUEUE_LIMIT,
+    ...(filters.receiptsToCheck ? { receiptsToCheck: true as const } : {}),
   });
 
-  return { items, limitReached: items.length >= QUEUE_LIMIT };
+  // Receipts to check first (PAY-05); the sort is stable, so the rest keep
+  // their order.
+  const sorted = items.toSorted(
+    (a, b) => Number(b.payment?.status === "submitted") - Number(a.payment?.status === "submitted"),
+  );
+  return { items: sorted, limitReached: items.length >= QUEUE_LIMIT };
 }
 
 export async function getRequestDetails(
@@ -148,6 +156,10 @@ const DECISION_REFUSAL_MESSAGES: Record<string, string> = {
     "The requested time is no longer within the doctor's consultation hours.",
   blocked: "The doctor is unavailable at the requested time.",
   inactive_doctor: "This doctor is no longer accepting appointments.",
+  // PAY-07 (0038): a service visit whose service was deactivated.
+  service_unavailable: "This service is no longer offered. Reject the request instead.",
+  // PAY-05 confirm gate (0036).
+  payment_not_verified: "Payment not verified yet. Verify the payment before confirming.",
   reason_required: "A rejection reason is required.",
 };
 

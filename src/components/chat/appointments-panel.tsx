@@ -7,8 +7,10 @@ import type { PatientAppointmentGroups } from "@/lib/appointments/patient";
 import type { PatientAppointment } from "@/lib/appointments/types";
 import { MANILA_TIME_ZONE } from "@/lib/appointments/filters";
 import { formatManilaTime } from "@/lib/appointments/format";
+import type { BookedPayment } from "@/lib/chat/schemas";
 
 import { CancelAppointmentButton } from "./cancel-appointment-button";
+import { BookedPaymentDetails } from "./payment-cards";
 
 const MONTH_FORMATTER = new Intl.DateTimeFormat("en-PH", {
   timeZone: MANILA_TIME_ZONE,
@@ -31,9 +33,12 @@ const WEEKDAY_FORMATTER = new Intl.DateTimeFormat("en-PH", {
 function AppointmentCard({
   appointment,
   cancellable,
+  payment,
 }: {
   appointment: PatientAppointment;
   cancellable: boolean;
+  /** An unpaid payment, so the patient can pay later (PAY-04). */
+  payment?: BookedPayment;
 }) {
   const start = new Date(appointment.scheduledAt);
   const whenLabel = `${WEEKDAY_FORMATTER.format(start)}, ${MONTH_FORMATTER.format(start)} ${DAY_FORMATTER.format(start)} · ${formatManilaTime(appointment.scheduledAt)}`;
@@ -67,6 +72,7 @@ function AppointmentCard({
         {appointment.reason ? (
           <p className="mt-1 break-words text-sm text-ink-muted">{appointment.reason}</p>
         ) : null}
+        {payment ? <BookedPaymentDetails payment={payment} /> : null}
         {cancellable ? (
           <div className="mt-3">
             <CancelAppointmentButton
@@ -92,7 +98,13 @@ function SectionHeading({ id, title, count }: { id: string; title: string; count
   );
 }
 
-function UpcomingSection({ appointments }: { appointments: PatientAppointment[] }) {
+function UpcomingSection({
+  appointments,
+  payments,
+}: {
+  appointments: PatientAppointment[];
+  payments: Record<string, BookedPayment>;
+}) {
   return (
     <section aria-labelledby="appointments-upcoming">
       <SectionHeading id="appointments-upcoming" title="Upcoming" count={appointments.length} />
@@ -102,7 +114,12 @@ function UpcomingSection({ appointments }: { appointments: PatientAppointment[] 
         <ul className="mt-3 flex flex-col gap-3">
           {/* Upcoming appointments are requested or confirmed, so each can be cancelled. */}
           {appointments.map((appointment) => (
-            <AppointmentCard key={appointment.id} appointment={appointment} cancellable />
+            <AppointmentCard
+              key={appointment.id}
+              appointment={appointment}
+              cancellable
+              payment={payments[appointment.id]}
+            />
           ))}
         </ul>
       )}
@@ -151,8 +168,15 @@ function PastSection({ appointments }: { appointments: PatientAppointment[] }) {
   );
 }
 
-/** The patient's appointments; upcoming ones can be cancelled (AI-APT-001 S4). */
-export function AppointmentsPanel({ upcoming, past }: PatientAppointmentGroups) {
+/**
+ * The patient's appointments; upcoming ones can be cancelled (AI-APT-001 S4)
+ * and unpaid ones show their payment card (PAY-04).
+ */
+export function AppointmentsPanel({
+  upcoming,
+  past,
+  payments,
+}: PatientAppointmentGroups & { payments: Record<string, BookedPayment> }) {
   const isEmpty = upcoming.length === 0 && past.length === 0;
 
   return (
@@ -186,7 +210,7 @@ export function AppointmentsPanel({ upcoming, past }: PatientAppointmentGroups) 
           />
         ) : (
           <>
-            <UpcomingSection appointments={upcoming} />
+            <UpcomingSection appointments={upcoming} payments={payments} />
             <PastSection appointments={past} />
           </>
         )}
