@@ -1056,3 +1056,16 @@ Do not use real patient or clinician email addresses for synthetic testing.
   audit-log immutability, and concurrent booking are verified only by the manual
   smoke test above.
 - There is no local database for integration or E2E tests yet.
+
+## Local test database (Supabase CLI)
+
+For development testing only; the hosted project stays the real database (ADR-0003).
+`supabase/config.toml` uses ports 553xx (DB `postgresql://postgres:postgres@127.0.0.1:55322/postgres`,
+API `http://127.0.0.1:55321`) to avoid clashing with other local Supabase projects.
+
+```bash
+supabase start                  # needs Docker
+scripts/db-local-apply.sh       # drops public schema, applies db/migrations in order
+supabase status                 # local URL and keys for a local .env.local
+supabase stop
+```
