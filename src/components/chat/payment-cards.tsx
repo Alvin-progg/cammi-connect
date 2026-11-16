@@ -1,6 +1,8 @@
 "use client";
 
-import { useId, useState } from "react";
+import Image from "next/image";
+import { createContext, useContext, useId, useState } from "react";
+import { toast } from "sonner";
 
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,9 +10,15 @@ import { CONTROL_CLASS } from "@/components/ui/field";
 import { formatManilaDateTime } from "@/lib/appointments/format";
 import { privilegeChoiceSchema } from "@/lib/billing/compute";
 import { formatPesos } from "@/lib/billing/money";
-import { PAYMENT_STATUS_LABELS } from "@/lib/billing/payments";
-import { PRIVILEGE_LABELS, paymentChoiceLabel } from "@/lib/chat/payment";
-import type { BookedPayment, ChargeSummary, ChatMessagePayload } from "@/lib/chat/schemas";
+import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "@/lib/billing/payments";
+import { RECEIPT_ACCEPT } from "@/lib/billing/receipts";
+import { PAYMENT_COPY, PRIVILEGE_LABELS, paymentChoiceLabel } from "@/lib/chat/payment";
+import type {
+  BookedPayment,
+  ChargeSummary,
+  ChatMessage,
+  ChatMessagePayload,
+} from "@/lib/chat/schemas";
 import { HMO_MEMBER_NUMBER_MAX_LENGTH, type PaymentChoice } from "@/lib/chat/state";
 
 import type { CardProps } from "./booking-cards";
@@ -182,12 +190,116 @@ export function ChargeBreakdown({ charge }: { charge: ChargeSummary }) {
   );
 }
 
-/** After booking with a charge. The QR card comes with PAY-04. */
-export function BookedPaymentDetails({ payment }: { payment: BookedPayment }) {
+export type PaymentQr = {
+  /** payment.qr_image_path when it is a same-site path; null when not configured. */
+  imageSrc: string | null;
+  accountName: string;
+};
+
+/**
+ * What payment cards need from the page: the QR settings (null while
+ * payment.enabled is off), the open chat, and where Cami's reply goes.
+ */
+export const PaymentCardContext = createContext<{
+  qr: PaymentQr | null;
+  conversationId: string | null;
+  onReceiptMessage?: (message: ChatMessage) => void;
+}>({ qr: null, conversationId: null });
+
+const RECEIPT_STATUSES: readonly PaymentStatus[] = ["awaiting_payment", "rejected"];
+
+/** Reads the server's fixed error copy; it never contains receipt content. */
+async function receiptErrorMessage(response: Response): Promise<string> {
+  try {
+    const body: { error?: { message?: unknown } } = await response.json();
+    if (typeof body.error?.message === "string") return body.error.message;
+  } catch {}
+  return RECEIPT_FALLBACK_ERROR;
+}
+
+const RECEIPT_FALLBACK_ERROR = "Your receipt couldn't be sent right now. Please try again in a moment.";
+
+/**
+ * PAY-04: the photo goes only to the receipt route, which checks it and
+ * stores it privately; it is never sent to the chat or the assistant.
+ */
+function ReceiptUpload({ paymentId, onSent }: { paymentId: string; onSent: () => void }) {
+  const { conversationId, onReceiptMessage } = useContext(PaymentCardContext);
+  const [file, setFile] = useState<File | null>(null);
+  const [sending, setSending] = useState(false);
+  const id = useId();
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!file) return;
+    const body = new FormData();
+    body.set("receipt", file);
+    if (conversationId) body.set("conversationId", conversationId);
+    setSending(true);
+    try {
+      const response = await fetch(`/api/v1/payments/${paymentId}/receipt`, { method: "POST", body });
+      if (!response.ok) {
+        toast.error("Receipt not sent", {
+          id: "receipt-upload-error",
+          description: await receiptErrorMessage(response),
+        });
+        return;
+      }
+      const result: { message: ChatMessage | null } = await response.json();
+      onSent();
+      if (result.message) onReceiptMessage?.(result.message);
+    } catch {
+      toast.error("Receipt not sent", { id: "receipt-upload-error", description: RECEIPT_FALLBACK_ERROR });
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
-    <div className="mt-2 border-t border-line pt-2">
-      <Badge tone={payment.status === "awaiting_payment" ? "warning" : "neutral"}>
-        {PAYMENT_STATUS_LABELS[payment.status]}
+    <form onSubmit={submit} className="mt-3 flex flex-col gap-2">
+      <label htmlFor={`${id}-receipt`} className="text-sm font-medium text-ink">
+        Photo of your receipt
+      </label>
+      <input
+        id={`${id}-receipt`}
+        name="receipt"
+        type="file"
+        accept={RECEIPT_ACCEPT}
+        onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+        aria-describedby={`${id}-hint`}
+        className="text-sm text-ink-secondary file:mr-3 file:rounded-md file:border file:border-line file:bg-surface file:px-3 file:py-1.5 file:text-sm file:text-ink"
+      />
+      <p id={`${id}-hint`} className="text-xs text-ink-muted">
+        JPEG, PNG, or WebP, up to 5 MB.
+      </p>
+      <div>
+        <button
+          type="submit"
+          disabled={sending || !file}
+          className={buttonVariants({ variant: "primary" })}
+        >
+          {sending ? "Sending…" : "Send receipt"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * The payment after booking, and in My appointments for paying later
+ * (PAY-04): status, amount, reference code, deadline, and for a QR payer the
+ * hospital's QR Ph with a receipt upload.
+ */
+export function BookedPaymentDetails({ payment }: { payment: BookedPayment }) {
+  const { qr } = useContext(PaymentCardContext);
+  // The server moved it to submitted; the card follows without a reload.
+  const [status, setStatus] = useState(payment.status);
+  const showQr = qr !== null && RECEIPT_STATUSES.includes(status) && payment.method !== "counter";
+
+  return (
+    <div role="group" aria-label="Payment" className="mt-2 border-t border-line pt-2">
+      <Badge tone={RECEIPT_STATUSES.includes(status) ? "warning" : "neutral"}>
+        {PAYMENT_STATUS_LABELS[status]}
       </Badge>
       <dl className="mt-2 space-y-1 text-sm">
         <div className="flex justify-between gap-3">
@@ -204,7 +316,30 @@ export function BookedPaymentDetails({ payment }: { payment: BookedPayment }) {
             <dd className="text-ink">{formatManilaDateTime(payment.deadline)}</dd>
           </div>
         ) : null}
+        {showQr && qr.imageSrc && qr.accountName ? (
+          <div className="flex justify-between gap-3">
+            <dt className="text-ink-muted">Account name</dt>
+            <dd className="text-ink">{qr.accountName}</dd>
+          </div>
+        ) : null}
       </dl>
+      {showQr && qr.imageSrc ? (
+        <>
+          <Image
+            src={qr.imageSrc}
+            alt={`QR Ph code for ${qr.accountName || "the hospital"}`}
+            width={192}
+            height={192}
+            unoptimized
+            className="mt-3 rounded-md border border-line bg-white p-2"
+          />
+          {payment.id ? (
+            <ReceiptUpload paymentId={payment.id} onSent={() => setStatus("submitted")} />
+          ) : null}
+        </>
+      ) : showQr ? (
+        <p className="mt-2 text-sm text-ink-secondary">{PAYMENT_COPY.qrNotConfigured}</p>
+      ) : null}
     </div>
   );
 }

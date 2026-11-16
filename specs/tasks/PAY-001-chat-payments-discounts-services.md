@@ -1,6 +1,6 @@
 # PAY-001 — Chat Payments, Discounts and Coverage, and Non-Consultation Services
 
-- Status: **Approved** 2026-11-16 by the project owner (all decisions D1–D10 at their recommended defaults); in progress (PAY-01, PAY-02, PAY-03 built)
+- Status: **Approved** 2026-11-16 by the project owner (all decisions D1–D10 at their recommended defaults); in progress (PAY-01 to PAY-04 built)
 - Date: 2026-11-16
 - Type: Feature
 - Priority: High
@@ -32,7 +32,19 @@
   hospital" (D6) is a self-pay method with the same deadline. A visit starting within 2
   hours can't be booked with payment ("pick a later time"). The payment request is text
   only (amount, reference code, deadline); the QR card is PAY-04. With
-  `payment.enabled` off, booking is unchanged. PAY-04 onward not started.
+  `payment.enabled` off, booking is unchanged.
+- 2026-11-17 — **PAY-04 built** (migration `0035_payment_receipts.sql`): private
+  `payment-receipts` bucket (5 MB, JPEG/PNG/WebP, no storage policies), `payment_receipts`,
+  and `cammi_connect_submit_payment_receipt` (owner check reported as not found,
+  `awaiting_payment`/`rejected` only, `payment.max_receipts`, 5 uploads per 10 minutes per
+  patient, moves to `submitted` with a `receipt_submitted` event). `POST
+  /api/v1/payments/[id]/receipt` checks the session, ownership, limits, size, and file
+  signature, stores the image server-side under a random name, and removes it if the
+  database refuses. The QR card (QR image, account name, amount, reference, deadline,
+  upload) follows the payment request, falls back to "pay at the cashier" when no QR is
+  set, and is shown again under unpaid requests in My appointments. Cami's "Got your
+  receipt" reply is appended server-side. A "Pay at the hospital" payment gets no QR or
+  upload. The payment request now uses the spec's QR wording. PAY-05 onward not started.
 
 ## Objective
 
@@ -324,12 +336,15 @@ Order: 01 → 02 → 03 → 04 → 05 → 06. PAY-07 can start after 03, in para
       offered for consultations; services in PAY-06/07)*
 - [x] Confirm creates the appointment, charge, and payment together or not at all.
       *(PAY-03, local SQL smoke)*
-- [ ] Cami sends the QR card with exact amount, reference code, and deadline.
-- [ ] Only JPEG/PNG/WebP up to 5 MB are accepted, checked by file signature.
+- [x] Cami sends the QR card with exact amount, reference code, and deadline. *(PAY-04)*
+- [x] Only JPEG/PNG/WebP up to 5 MB are accepted, checked by file signature. *(PAY-04,
+      route tests and bucket limits in local Storage)*
 - [ ] Another patient's payment can't be viewed or uploaded to (reported as not found).
+      *(PAY-04: upload verified in tests and local SQL; viewing is PAY-05)*
 - [ ] The same transaction reference number can't verify two payments.
 - [ ] An appointment can't be confirmed while its payment is unverified (enforced in SQL).
-- [ ] A rejected receipt lets the patient resend, up to the limit.
+- [ ] A rejected receipt lets the patient resend, up to the limit. *(PAY-04: SQL resend and
+      limit verified locally; the reject action is PAY-05)*
 - [ ] HMO denial switches to self-pay and Cami sends the QR.
 - [ ] Overdue unpaid requests are cancelled and release the slot; submitted receipts don't
       expire on their own.

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 210" width="210" height="210" role="img" aria-label="Synthetic demo QR placeholder, not payable">
+  <!-- SYNTHETIC local-demo placeholder (PAY-04). Not a QR Ph code and not scannable; replace with the hospital's merchant QR Ph image before go-live. -->
+  <rect width="210" height="210" fill="#fff"/>
+  <g fill="#1f2937">
+    <path d="M10 10h50v50H10zM20 20v30h30V20zM28 28h14v14H28z" fill-rule="evenodd"/>
+    <path d="M150 10h50v50h-50zM160 20v30h30V20zM168 28h14v14h-14z" fill-rule="evenodd"/>
+    <path d="M10 150h50v50H10zM20 160v30h30v-30zM28 168h14v14H28z" fill-rule="evenodd"/>
+    <path d="M75 15h10v10H75zM95 15h10v20H95zM115 25h20v10h-20zM75 45h20v10H75zM120 45h10v10h-10zM150 75h10v10h-10zM170 80h20v10h-20zM160 150h10v10h-10zM180 160h20v10h-20zM150 180h20v10h-20zM185 185h10v10h-10zM75 170h10v20H75zM95 180h20v10H95zM125 165h10v10h-10zM15 75h20v10H15zM45 85h10v10H45zM20 120h10v10H20z"/>
+  </g>
+  <rect x="62" y="80" width="86" height="56" rx="6" fill="#fef3c7" stroke="#b45309"/>
+  <text x="105" y="100" font-family="sans-serif" font-size="11" font-weight="700" text-anchor="middle" fill="#92400e">SYNTHETIC</text>
+  <text x="105" y="114" font-family="sans-serif" font-size="9" text-anchor="middle" fill="#92400e">DEMO ONLY</text>
+  <text x="105" y="127" font-family="sans-serif" font-size="9" text-anchor="middle" fill="#92400e">NOT PAYABLE</text>
+</svg>

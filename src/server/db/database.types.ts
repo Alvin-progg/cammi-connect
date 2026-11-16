@@ -260,6 +260,23 @@ export type Database = {
         Update: { [_ in never]: never };
         Relationships: [];
       };
+      /** Migration 0035 (PAY-04). One row per accepted receipt upload. */
+      payment_receipts: {
+        Row: {
+          id: string;
+          payment_id: string;
+          patient_id: string;
+          storage_path: string;
+          content_type: "image/jpeg" | "image/png" | "image/webp";
+          size_bytes: number;
+          uploaded_at: string;
+          outcome: "pending" | "verified" | "rejected";
+        };
+        // Written only by cammi_connect_submit_payment_receipt.
+        Insert: { [_ in never]: never };
+        Update: { [_ in never]: never };
+        Relationships: [];
+      };
       /** Migration 0034 (PAY-03). Append-only payment history. */
       payment_events: {
         Row: {
@@ -808,6 +825,25 @@ export type Database = {
     };
     Views: { [_ in never]: never };
     Functions: {
+      /**
+       * Migration 0035 (PAY-04). Raises P0001 payment_not_found,
+       * payment_not_open, receipt_limit_reached, receipt_rate_limited, or
+       * invalid_receipt.
+       */
+      cammi_connect_submit_payment_receipt: {
+        Args: {
+          p_payment_id: string;
+          p_patient_id: string;
+          p_storage_path: string;
+          p_content_type: string;
+          p_size_bytes: number;
+        };
+        Returns: {
+          receipt_id: string;
+          payment_status: Database["public"]["Enums"]["payment_status"];
+          attempts: number;
+        }[];
+      };
       /**
        * Migration 0014 (admin user management). The mutating functions raise
        * P0001 not_admin, reason_required, not_found, unchanged, self_change,

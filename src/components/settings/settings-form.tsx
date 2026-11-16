@@ -435,7 +435,7 @@ function PaymentFields({ settings }: { settings: SystemSettings }) {
         Online payment in chat is on
       </label>
       <p className={`${HINT_CLASS} -mt-4`}>
-        When on, Cami asks about senior/PWD discounts and who pays, shows the price, and books with a charge. Receipt upload comes in a later update.
+        When on, Cami asks about senior/PWD discounts and who pays, shows the price, books with a charge, and shows the QR card where patients upload their receipt. The QR image path must be a path on this site (for example /payment/qr.png); leave it empty and patients are told to pay at the cashier.
       </p>
       <TextField
         name="payment.qr_image_path"

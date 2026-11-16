@@ -17,6 +17,12 @@ export const PAYMENT_COPY = {
   priceOnRequest:
     "The fee for this visit is available on request, so I can't book it here. Please contact the hospital front desk and they'll help you book.",
   hmoUnavailable: "That HMO isn't available for booking anymore.",
+  /** PAY-04: appended by the receipt route after a successful upload. */
+  receiptReceived:
+    "Got your receipt, thank you! The front desk will check it and I'll let you know here.",
+  /** PAY-04: shown on the payment card when payment.qr_image_path is not set. */
+  qrNotConfigured:
+    "The hospital's QR code isn't set up yet. Please pay at the hospital cashier and give your reference code.",
   /** What the model sees instead of a message that carries payment details. */
   hiddenFromModel: "(Booking details were shown in a card.)",
 } as const;
@@ -62,10 +68,7 @@ export function formatPaymentDeadline(deadline: string, now: Date): string {
   return `${time} on ${formatManilaShortDate(deadline)}`;
 }
 
-/**
- * The payment request after Confirm. The QR card itself comes with PAY-04;
- * until then the patient gets the amount, deadline, and reference code.
- */
+/** The payment request after Confirm; a QR payer also gets the QR card (PAY-04). */
 export function paymentRequestCopy(input: {
   amountDueCentavos: number;
   referenceCode: string;
@@ -75,11 +78,19 @@ export function paymentRequestCopy(input: {
 }): string {
   const amount = formatPesos(input.amountDueCentavos);
   const deadline = formatPaymentDeadline(input.deadline, input.now);
-  const lead =
-    input.method === "qr_ph"
-      ? `Almost done! To hold your slot, please pay ${amount} by ${deadline} and put ${input.referenceCode} in the payment message/notes.`
-      : `Almost done! To hold your slot, please pay ${amount} at the hospital cashier by ${deadline} and give the reference code ${input.referenceCode}.`;
-  return `${lead} If it isn't paid by then, the request may be cancelled.`;
+  if (input.method === "qr_ph") {
+    return `Almost done! To hold your slot, please pay ${amount} by ${deadline}. Scan the QR with GCash, Maya, or your bank app and put ${input.referenceCode} in the message/notes. Then send me a photo of your receipt here.`;
+  }
+  return `Almost done! To hold your slot, please pay ${amount} at the hospital cashier by ${deadline} and give the reference code ${input.referenceCode}. If it isn't paid by then, the request may be cancelled.`;
+}
+
+/**
+ * payment.qr_image_path as an image source, or null when it is unset or not
+ * a same-site path (the CSP allows only same-origin images anyway).
+ */
+export function paymentQrImageSrc(path: string): string | null {
+  const trimmed = path.trim();
+  return /^\/(?![/\\])[^\s\\]*$/.test(trimmed) ? trimmed : null;
 }
 
 export function hmoPendingCopy(hmoName: string): string {

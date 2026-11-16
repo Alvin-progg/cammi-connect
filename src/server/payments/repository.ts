@@ -1,8 +1,13 @@
 import "server-only";
 
+import type { PaymentStatus } from "@/lib/billing/payments";
+import type { BookedPayment } from "@/lib/chat/schemas";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
+import type { ReceiptStore } from "./receipts";
 import type { ChargeStore } from "./service";
+
+const RECEIPT_BUCKET = "payment-receipts";
 
 /**
  * Prices and HMOs are read live, never from the reference cache: the
@@ -67,10 +72,21 @@ export const supabaseChargeRepository: ChargeStore = {
     if (!row) {
       throw new Error("Unable to book the appointment.");
     }
+    // The receipt route needs the payment's ID (PAY-04).
+    const { data: paymentRow, error: paymentError } = await getSupabaseAdminClient()
+      .from("payments")
+      .select("id, method")
+      .eq("appointment_id", row.appointment_id)
+      .single();
+    if (paymentError) {
+      throw new Error("Unable to load the payment.");
+    }
     return {
       ok: true,
       appointmentId: row.appointment_id,
       payment: {
+        id: paymentRow.id,
+        method: paymentRow.method,
         status: row.payment_status,
         amountDueCentavos: row.amount_due_centavos,
         referenceCode: row.reference_code,
@@ -79,3 +95,128 @@ export const supabaseChargeRepository: ChargeStore = {
     };
   },
 };
+
+/**
+ * PAY-04 receipt uploads. Payments are reached only through the patient's
+ * own appointments, and objects go to the private bucket with the
+ * service-role key, which never leaves the server.
+ */
+export const supabaseReceiptRepository: ReceiptStore = {
+  async findPaymentForPatient(patientId, paymentId) {
+    const supabase = getSupabaseAdminClient();
+    const { data: payment, error } = await supabase
+      .from("payments")
+      .select("appointment_id, status, attempts")
+      .eq("id", paymentId)
+      .maybeSingle();
+    if (error) {
+      throw new Error("Unable to load the payment.");
+    }
+    if (!payment) return null;
+    const { data: appointment, error: appointmentError } = await supabase
+      .from("appointments")
+      .select("id")
+      .eq("id", payment.appointment_id)
+      .eq("patient_id", patientId)
+      .maybeSingle();
+    if (appointmentError) {
+      throw new Error("Unable to load the payment.");
+    }
+    return appointment ? { status: payment.status, attempts: payment.attempts } : null;
+  },
+
+  async countRecentUploads(patientId, since) {
+    const { count, error } = await getSupabaseAdminClient()
+      .from("payment_receipts")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", patientId)
+      .gt("uploaded_at", since.toISOString());
+    if (error) {
+      throw new Error("Unable to count receipts.");
+    }
+    return count ?? 0;
+  },
+
+  async uploadObject(path, bytes, contentType) {
+    const { error } = await getSupabaseAdminClient()
+      .storage.from(RECEIPT_BUCKET)
+      .upload(path, bytes, { contentType, upsert: false });
+    if (error) {
+      throw new Error("Unable to store the receipt.");
+    }
+  },
+
+  async removeObject(path) {
+    const { error } = await getSupabaseAdminClient().storage.from(RECEIPT_BUCKET).remove([path]);
+    if (error) {
+      throw new Error("Unable to remove the receipt.");
+    }
+  },
+
+  async submitReceipt({ patientId, paymentId, path, contentType, sizeBytes }) {
+    const { error } = await getSupabaseAdminClient().rpc("cammi_connect_submit_payment_receipt", {
+      p_payment_id: paymentId,
+      p_patient_id: patientId,
+      p_storage_path: path,
+      p_content_type: contentType,
+      p_size_bytes: sizeBytes,
+    });
+    if (!error) return { ok: true };
+    if (error.code === "P0001") return { ok: false, code: error.message };
+    throw new Error("Unable to submit the receipt.");
+  },
+};
+
+const PAYABLE_LATER: PaymentStatus[] = ["awaiting_payment", "rejected", "submitted"];
+
+/**
+ * "Pay later" (PAY-04): payments still waiting on the patient or the front
+ * desk, keyed by appointment ID, for the patient's requested appointments.
+ */
+export async function listOpenPaymentsForPatient(
+  patientId: string,
+): Promise<Record<string, BookedPayment>> {
+  const supabase = getSupabaseAdminClient();
+  const { data: appointments, error } = await supabase
+    .from("appointments")
+    .select("id")
+    .eq("patient_id", patientId)
+    .eq("status", "requested");
+  if (error) {
+    throw new Error("Unable to load payments.");
+  }
+  if (!appointments?.length) return {};
+
+  const { data: payments, error: paymentError } = await supabase
+    .from("payments")
+    .select("id, appointment_id, charge_id, status, method, amount_due_centavos, deadline_at")
+    .in("appointment_id", appointments.map((appointment) => appointment.id))
+    .in("status", PAYABLE_LATER);
+  if (paymentError) {
+    throw new Error("Unable to load payments.");
+  }
+  if (!payments?.length) return {};
+
+  const { data: charges, error: chargeError } = await supabase
+    .from("appointment_charges")
+    .select("id, reference_code")
+    .in("id", payments.map((payment) => payment.charge_id));
+  if (chargeError) {
+    throw new Error("Unable to load payments.");
+  }
+  const references = new Map((charges ?? []).map((charge) => [charge.id, charge.reference_code]));
+
+  return Object.fromEntries(
+    payments.map((payment) => [
+      payment.appointment_id,
+      {
+        id: payment.id,
+        method: payment.method,
+        status: payment.status,
+        amountDueCentavos: payment.amount_due_centavos,
+        referenceCode: references.get(payment.charge_id) ?? "",
+        deadline: payment.deadline_at,
+      } satisfies BookedPayment,
+    ]),
+  );
+}

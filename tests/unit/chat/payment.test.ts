@@ -7,6 +7,7 @@ import {
   hmoPendingCopy,
   maskMemberNumber,
   modelHistory,
+  paymentQrImageSrc,
   paymentRequestCopy,
 } from "@/lib/chat/payment";
 import type { ChatMessage } from "@/lib/chat/schemas";
@@ -33,6 +34,31 @@ describe("payment copy (PAY-03)", () => {
 
     expect(text).toContain("Almost done! To hold your slot, please pay ₱560.00 by 4:30 PM today");
     expect(text).toContain("CC-7F3K2");
+  });
+
+  it("uses the spec's payment request with the QR and receipt steps (PAY-04)", () => {
+    const text = paymentRequestCopy({
+      amountDueCentavos: 56000,
+      referenceCode: "CC-7F3K2",
+      deadline: "2026-10-31T08:30:00Z",
+      method: "qr_ph",
+      now: NOW,
+    });
+
+    expect(text).toBe(
+      "Almost done! To hold your slot, please pay ₱560.00 by 4:30 PM today. Scan the QR with GCash, Maya, or your bank app and put CC-7F3K2 in the message/notes. Then send me a photo of your receipt here.",
+    );
+    expect(PAYMENT_COPY.receiptReceived).toBe(
+      "Got your receipt, thank you! The front desk will check it and I'll let you know here.",
+    );
+  });
+
+  it("only shows a same-site QR image path", () => {
+    expect(paymentQrImageSrc("/payment/qr-synthetic-demo.svg")).toBe("/payment/qr-synthetic-demo.svg");
+    expect(paymentQrImageSrc("  /payment/qr.png ")).toBe("/payment/qr.png");
+    for (const unsafe of ["", "https://evil.example/qr.png", "//evil.example/qr.png", "javascript:alert(1)", "qr.png", "/\\evil"]) {
+      expect(paymentQrImageSrc(unsafe)).toBeNull();
+    }
   });
 
   it("sends a counter payer to the cashier with the same deadline", () => {

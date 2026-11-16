@@ -10,6 +10,8 @@ import { getSupabaseAdminClient } from "@/server/db/admin-client";
 import type { Database } from "@/server/db/database.types";
 
 import type { ChatStore, NewChatMessage } from "./handler";
+import type { ReceiptChatStore } from "@/server/payments/receipts";
+
 import type { ChatViewStore } from "./service";
 
 type ConversationRow = Pick<
@@ -46,7 +48,7 @@ function toMessage(row: MessageRow): ChatMessage {
  * is filtered by the patient ID from the session; message queries are only
  * reached after the conversation's ownership has been checked.
  */
-export const supabaseChatRepository: ChatStore & ChatViewStore = {
+export const supabaseChatRepository: ChatStore & ChatViewStore & ReceiptChatStore = {
   async getConversation(patientId, conversationId) {
     const { data, error } = await getSupabaseAdminClient()
       .from("chat_conversations")
@@ -71,6 +73,20 @@ export const supabaseChatRepository: ChatStore & ChatViewStore = {
       throw new Error("Unable to load conversations.");
     }
     return (data ?? []).map(toConversation);
+  },
+
+  async latestConversationId(patientId) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from("chat_conversations")
+      .select("id")
+      .eq("patient_id", patientId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      throw new Error("Unable to load conversations.");
+    }
+    return data?.id ?? null;
   },
 
   async listMessages(conversationId) {

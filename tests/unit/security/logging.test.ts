@@ -7,14 +7,18 @@ import { describe, expect, it } from "vitest";
 /**
  * SPEC §7.3: no chat content or patient health details in logs. Server code
  * logs fixed strings only. The one exception is the chat route's structured
- * line, which the handler builds from request IDs and outcomes (its tests
- * check that message text never reaches `log`).
+ * line and the receipt route's (PAY-04), which their handlers build from
+ * request IDs and outcomes (their tests check that message text, amounts,
+ * and references never reach `log`).
  */
 
 const SRC = join(process.cwd(), "src");
 const CONSOLE_CALL = /console\.(?:log|info|warn|error|debug)\(([^)]*)\)/g;
 const STRING_LITERAL = /^\s*(["'`])(?:(?!\1|\$\{)[^\\]|\\.)*\1\s*$/;
-const ALLOWED = new Set([join("app", "api", "v1", "chat", "route.ts") + ": line"]);
+const ALLOWED = new Set([
+  join("app", "api", "v1", "chat", "route.ts") + ": line",
+  join("app", "api", "v1", "payments", "[id]", "receipt", "route.ts") + ": line",
+]);
 
 describe("console logging", () => {
   it("logs only fixed strings, never variables that could carry patient data", () => {

@@ -198,4 +198,24 @@ Authorization model note: under ADR-0003, every table has RLS on with no policie
 | The LLM never sees amounts or reference codes (messages with payment details are masked in history); no model call in payment steps | test | `tests/unit/chat/handler.test.ts`, `tests/unit/chat/payment.test.ts`, `tests/unit/chat/booking-payment.test.ts` |
 | `payment.enabled` off keeps the old no-charge booking | test | `tests/unit/chat/booking-payment.test.ts` |
 | `src/server/payments` never caches | test | `tests/unit/security/reference-cache.test.ts` |
-| QR card, receipt upload, front desk verification | gap (PAY-04, PAY-05) | — |
+| QR card, receipt upload, front desk verification | built in PAY-04 (QR card, upload); front desk verification is PAY-05 | see PAY-04 |
+
+## PAY-04 Pay in chat
+
+| Item | Status | Where |
+|---|---|---|
+| Spec payment request text (scan the QR, put the reference in the notes, send a photo of the receipt) and the "Got your receipt…" reply, both templated | test | `tests/unit/chat/payment.test.ts`, `tests/unit/payments/receipt-upload.test.ts` |
+| QR card with QR image (`payment.qr_image_path`, same-site paths only), account name, amount, reference code, and deadline; "QR isn't set up yet, pay at the cashier" fallback; no QR or upload for a counter payment | test | `tests/component/chat/pay-in-chat.test.tsx`, `tests/unit/chat/payment.test.ts` |
+| Receipt upload control (labelled file input, `accept` JPEG/PNG/WebP) posts to `POST /api/v1/payments/[id]/receipt`; Cami's reply is appended and the card shows "Receipt sent"; refusals show the server's fixed message | test | `tests/component/chat/pay-in-chat.test.tsx` |
+| Only JPEG/PNG/WebP up to 5 MB, by file signature (GIF, PDF, renamed text, empty, > 5 MB refused; the detected type wins over the browser's) | test + local Storage smoke | `tests/unit/billing/receipts.test.ts`, `tests/unit/payments/receipt-upload.test.ts`, db/README.md (0035) |
+| Another patient's payment (or a malformed ID) is reported as not found (404), in the route and in SQL | test + local SQL smoke | `tests/unit/payments/receipt-upload.test.ts`, `tests/unit/billing/payment-receipts-sql.test.ts`, db/README.md (0035) |
+| Attempt limit (`payment.max_receipts`, default 3) → 409; 5 uploads per 10 minutes per patient → 429; checked before storing and again in SQL | test + local SQL smoke | `tests/unit/payments/receipt-upload.test.ts`, `tests/unit/billing/payment-receipts-sql.test.ts` |
+| A rejected receipt lets the patient resend, up to the limit (SQL accepts `rejected`; the reject action itself is PAY-05) | local SQL smoke | db/README.md (0035) |
+| Upload moves the payment to `submitted`, adds an attempt, and writes `receipt_submitted`, in one transaction | test (static) + local SQL smoke | `tests/unit/billing/payment-receipts-sql.test.ts`, db/README.md (0035) |
+| Random object name under `{patient_id}/{payment_id}/`; service-role upload server-side only, no signed upload URL; object removed when the database refuses or fails | test | `tests/unit/payments/receipt-upload.test.ts` |
+| Private bucket, 5 MB and MIME limits, no storage policies; `payment_receipts` and the function per ADR-0003 | test (static) + local SQL and Storage smoke | `tests/unit/billing/payment-receipts-sql.test.ts`, db/README.md (0035) |
+| 401/403 before any read; `payment.enabled` off → 503; fixed error messages; logs hold request ID, outcome, and status only | test | `tests/unit/payments/receipt-upload.test.ts`, `tests/unit/security/logging.test.ts` |
+| Every `/api/v1` route resolves the patient session | test (static) | `tests/unit/security/patient-api-routes.test.ts` |
+| The receipt and payment data never reach an AI provider (the route and handler import no AI, chat orchestrator, or knowledge code) | test (static) | `tests/unit/payments/receipt-upload.test.ts` |
+| "Pay later": My appointments shows the payment card (QR, amount, reference, upload) under an unpaid requested appointment | test | `tests/component/chat/pay-in-chat.test.tsx` |
+| End-to-end upload through the running app against Supabase | manual | db/README.md (0035 smoke test) |

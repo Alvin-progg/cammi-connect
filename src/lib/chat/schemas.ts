@@ -147,6 +147,10 @@ export type ChargeSummary = z.infer<typeof chargeSummarySchema>;
 
 /** The payment row cammi_connect_book_with_charge created. */
 export const bookedPaymentSchema = z.object({
+  /** PAY-04: the receipt route's payment ID; absent on cards saved before PAY-04. */
+  id: z.string().optional(),
+  /** PAY-04: "counter" pays at the cashier, so its card has no QR or upload. */
+  method: z.enum(["qr_ph", "counter"]).nullable().optional(),
   status: z.enum(PAYMENT_STATUSES),
   amountDueCentavos: centavos,
   referenceCode: z.string(),

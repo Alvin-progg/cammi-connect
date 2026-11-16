@@ -97,7 +97,8 @@ then `db/migrations/0021_admin_services.sql` once, then
 `db/migrations/0031_patient_booking_cap.sql` once, then
 `db/migrations/0032_specialty_routing_hints.sql` once, then
 `db/migrations/0033_price_catalogue.sql` once, then
-`db/migrations/0034_chat_booking_charges.sql` once.
+`db/migrations/0034_chat_booking_charges.sql` once, then
+`db/migrations/0035_payment_receipts.sql` once.
 After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
@@ -566,6 +567,47 @@ with no charge. Safe to re-run.
   with My HMO and a member number: the summary shows the HMO with the number masked, and
   the payment is `hmo_pending`. Turn payments off again: booking works as before with no
   charge. Cancel the smoke-test appointments afterwards.
+
+`0035_payment_receipts.sql` (PAY-04 pay in chat): creates the private Storage bucket
+`payment-receipts` (not public, 5 MB per object, `image/jpeg`/`image/png`/`image/webp`
+only; idempotent upsert into `storage.buckets`, so it also runs on the local stack whose
+storage schema `scripts/db-local-apply.sh` does not reset), adds no storage policies (only
+the server's service-role client can read or write it), the `payment_receipts` table (one
+row per accepted upload: payment, patient, storage path, content type, size, uploaded at,
+outcome `pending`), and `cammi_connect_submit_payment_receipt`. That function refuses
+`payment_not_found` (no such payment, or another patient's), `payment_not_open` (not
+`awaiting_payment`/`rejected`, or the appointment is no longer `requested`),
+`receipt_limit_reached` (`payment.max_receipts`, default 3), `receipt_rate_limited` (5
+uploads in 10 minutes per patient, counted from `payment_receipts`), and
+`invalid_receipt` (path outside `{patient_id}/{payment_id}/`, bad type or size); otherwise
+it records the receipt, moves the payment to `submitted`, adds 1 to `attempts`, and writes
+a `receipt_submitted` event, in one transaction. Uploads go only through
+`POST /api/v1/payments/[id]/receipt`. Safe to re-run.
+- Local SQL check (Docker, synthetic rows in a rolled-back transaction, as
+  `service_role`): another patient's payment → `payment_not_found`; a path outside the
+  folder → `invalid_receipt`; first upload → `submitted`, attempts 1; a second while
+  `submitted` → `payment_not_open`; after setting `rejected` the 2nd and 3rd uploads pass
+  and the 4th → `receipt_limit_reached`; the 6th upload by the same patient within 10
+  minutes (on another payment) → `receipt_rate_limited`; one `receipt_submitted` event per
+  accepted upload. `anon`/`authenticated` have no table or execute access, and the file
+  applies twice without error.
+- Local Storage check (service-role and anon keys from `supabase status -o env`, in a
+  throwaway script): the service role uploads a JPEG; uploading to the same path again,
+  a `image/gif` object, or a 5 MB + 1 byte object is refused; the anon key can neither
+  download nor upload, and the public URL answers 400; remove works.
+- Smoke test: as an admin, on the Payment tab set **QR Ph image path** to
+  `/payment/qr-synthetic-demo.svg` (a synthetic, unscannable placeholder for local demos
+  only; replace it with the hospital's merchant QR Ph image before go-live) and an
+  account name. As a synthetic patient, book with "I'll pay": the reply asks to scan the
+  QR and send a photo of the receipt, and the card shows the QR, account name, amount,
+  `CC-` code, deadline, and a **Photo of your receipt** field. Send a small JPEG: Cami adds
+  "Got your receipt, thank you! …", the card shows "Receipt sent", and in SQL the payment
+  is `submitted` with one `payment_receipts` row whose object is in the bucket under
+  `{patient_id}/{payment_id}/`. A `.gif` or a text file renamed `.jpg` is refused with
+  "Please send a JPEG, PNG, or WebP photo."; another patient's payment ID answers 404.
+  Book another QR payment and open **My appointments**: the request shows the same payment
+  card with the upload. Clear the QR path: the card says to pay at the cashier and has no
+  upload. Cancel the smoke-test appointments afterwards.
 
 Audit log (ADM-16, no migration): as an admin, open `/admin/audit-log`, filter by
 "Settings (settings.*)", open an entry and check its previous and new values, then use

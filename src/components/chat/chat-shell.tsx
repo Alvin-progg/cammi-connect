@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import type { PatientAppointmentGroups } from "@/lib/appointments/patient";
 import type {
+  BookedPayment,
   CardEvent,
   ChatEvent,
   ChatMessage,
@@ -13,6 +14,7 @@ import type {
 } from "@/lib/chat/schemas";
 
 import { AppointmentsPanel } from "./appointments-panel";
+import { PaymentCardContext, type PaymentQr } from "./payment-cards";
 
 import { ChatComposer } from "./chat-composer";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -61,6 +63,7 @@ export function ChatShell({
   conversationId,
   initialMessages,
   appointments,
+  paymentQr = null,
 }: {
   salutation: string;
   firstName: string;
@@ -71,8 +74,13 @@ export function ChatShell({
   conversations: ConversationSummary[];
   conversationId: string | null;
   initialMessages: ChatMessage[];
-  /** Set when `/chat?view=appointments` is open; the chat thread is hidden then. */
-  appointments: PatientAppointmentGroups | null;
+  /**
+   * Set when `/chat?view=appointments` is open; the chat thread is hidden then.
+   * `payments` are unpaid payments by appointment ID, for paying later (PAY-04).
+   */
+  appointments: (PatientAppointmentGroups & { payments?: Record<string, BookedPayment> }) | null;
+  /** The hospital's QR settings; null while payment.enabled is off (PAY-04). */
+  paymentQr?: PaymentQr | null;
 }) {
   const router = useRouter();
   const [activeConversationId, setActiveConversationId] = useState(conversationId);
@@ -180,91 +188,103 @@ export function ChatShell({
   }
 
   return (
-    <div className="flex min-h-0 flex-1">
-      {/* Reserves the rail's width on mobile, where the open sidebar overlays the chat. */}
-      <div className="w-16 shrink-0 md:w-auto">
-        {sidebarOverlays ? (
-          <div
-            aria-hidden="true"
-            onClick={() => setSidebarChoice(false)}
-            className="fixed inset-0 z-30 bg-overlay md:hidden"
-          />
-        ) : null}
-        <ChatSidebar
-          state={sidebarState}
-          onToggle={() => setSidebarChoice(!(sidebarExpanded ?? true))}
-          onExpand={() => setSidebarChoice(true)}
-          onNavigate={() => {
-            if (isDesktop === false) setSidebarChoice(false);
-          }}
-          searchOpen={searchOpen}
-          onSearchOpenChange={setSearchOpen}
-          conversations={conversations}
-          activeConversationId={appointments ? null : activeConversationId}
-          appointmentsActive={appointments !== null}
-          patientName={patientName}
-        />
-      </div>
-
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {appointments ? (
-          <AppointmentsPanel upcoming={appointments.upcoming} past={appointments.past} />
-        ) : (
-          <>
-            {hasThread ? (
-              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-                <h1 className="sr-only">Chat with CamiConnect</h1>
-                <ol
-                  role="log"
-                  aria-label="Conversation"
-                  aria-live="polite"
-                  className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-4 py-8"
-                >
-                  {messages.map((message) => (
-                    <MessageBubble
-                      key={message.id}
-                      role={message.role}
-                      content={message.content}
-                      payload={message.payload}
-                      interactive={message.id === latestAssistantId}
-                      busy={isSending}
-                      onEvent={sendCardEvent}
-                      reveal={
-                        message.id in replyTimes ? { elapsedMs: replyTimes[message.id] } : null
-                      }
-                    />
-                  ))}
-                  {pending !== null ? (
-                    <>
-                      {pending.text !== null ? (
-                        <MessageBubble role="user" content={pending.text} />
-                      ) : null}
-                      <AssistantStatus startedAt={pending.startedAt} />
-                    </>
-                  ) : null}
-                  <li ref={threadEndRef} aria-hidden="true" />
-                </ol>
-              </div>
-            ) : (
-              <ChatEmptyState
-                salutation={salutation}
-                firstName={firstName}
-                welcomeMessage={welcomeMessage}
-                disabled={isSending}
-                onSuggestion={(message) => send(message, { fromDraft: false })}
-              />
-            )}
-
-            <ChatComposer
-              draft={draft}
-              onDraftChange={setDraft}
-              onSubmit={() => send(draft, { fromDraft: true })}
-              onOpenHistory={openHistory}
-              isSending={isSending}
+    <PaymentCardContext
+      value={{
+        qr: paymentQr,
+        conversationId: activeConversationId,
+        onReceiptMessage: (message) => setMessages((current) => [...current, message]),
+      }}
+    >
+      <div className="flex min-h-0 flex-1">
+        {/* Reserves the rail's width on mobile, where the open sidebar overlays the chat. */}
+        <div className="w-16 shrink-0 md:w-auto">
+          {sidebarOverlays ? (
+            <div
+              aria-hidden="true"
+              onClick={() => setSidebarChoice(false)}
+              className="fixed inset-0 z-30 bg-overlay md:hidden"
             />
-          </>
-        )}
+          ) : null}
+          <ChatSidebar
+            state={sidebarState}
+            onToggle={() => setSidebarChoice(!(sidebarExpanded ?? true))}
+            onExpand={() => setSidebarChoice(true)}
+            onNavigate={() => {
+              if (isDesktop === false) setSidebarChoice(false);
+            }}
+            searchOpen={searchOpen}
+            onSearchOpenChange={setSearchOpen}
+            conversations={conversations}
+            activeConversationId={appointments ? null : activeConversationId}
+            appointmentsActive={appointments !== null}
+            patientName={patientName}
+          />
+        </div>
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {appointments ? (
+            <AppointmentsPanel
+              upcoming={appointments.upcoming}
+              past={appointments.past}
+              payments={appointments.payments ?? {}}
+            />
+          ) : (
+            <>
+              {hasThread ? (
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                  <h1 className="sr-only">Chat with CamiConnect</h1>
+                  <ol
+                    role="log"
+                    aria-label="Conversation"
+                    aria-live="polite"
+                    className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-4 py-8"
+                  >
+                    {messages.map((message) => (
+                      <MessageBubble
+                        key={message.id}
+                        role={message.role}
+                        content={message.content}
+                        payload={message.payload}
+                        interactive={message.id === latestAssistantId}
+                        busy={isSending}
+                        onEvent={sendCardEvent}
+                        reveal={
+                          message.id in replyTimes ? { elapsedMs: replyTimes[message.id] } : null
+                        }
+                      />
+                    ))}
+                    {pending !== null ? (
+                      <>
+                        {pending.text !== null ? (
+                          <MessageBubble role="user" content={pending.text} />
+                        ) : null}
+                        <AssistantStatus startedAt={pending.startedAt} />
+                      </>
+                    ) : null}
+                    <li ref={threadEndRef} aria-hidden="true" />
+                  </ol>
+                </div>
+              ) : (
+                <ChatEmptyState
+                  salutation={salutation}
+                  firstName={firstName}
+                  welcomeMessage={welcomeMessage}
+                  disabled={isSending}
+                  onSuggestion={(message) => send(message, { fromDraft: false })}
+                />
+              )}
+
+              <ChatComposer
+                draft={draft}
+                onDraftChange={setDraft}
+                onSubmit={() => send(draft, { fromDraft: true })}
+                onOpenHistory={openHistory}
+                isSending={isSending}
+              />
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </PaymentCardContext>
   );
 }
