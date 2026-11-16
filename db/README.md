@@ -96,7 +96,8 @@ then `db/migrations/0021_admin_services.sql` once, then
 `db/migrations/0030_query_indexes.sql` once, then
 `db/migrations/0031_patient_booking_cap.sql` once, then
 `db/migrations/0032_specialty_routing_hints.sql` once, then
-`db/migrations/0033_price_catalogue.sql` once.
+`db/migrations/0033_price_catalogue.sql` once, then
+`db/migrations/0034_chat_booking_charges.sql` once.
 After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
@@ -530,6 +531,41 @@ everywhere); the hospital's billing office replaces them before go-live.
   shows a validation error. Create, edit, and deactivate an HMO at `/admin/hmo-providers`.
   The **Payment** tab at `/admin/settings` saves the deadline and shows the 20% discount
   read-only. As a patient, Cami shows no prices.
+
+`0034_chat_booking_charges.sql` (PAY-03 charges in chat booking): adds the
+`payment_status` enum (every PAY-001 status), `appointment_charges` (one per
+appointment, unique `CC-XXXXX` reference code), `appointment_charge_items` (snapshotted
+price and each deduction), `payments` (one per charge; `transaction_reference` unique
+ignoring case and spaces), the append-only `payment_events`, and
+`cammi_connect_book_with_charge`. That function books through
+`cammi_connect_book_appointment` (so the 0031 cap and availability checks still apply)
+and writes the charge, line, payment, and `created` event in the same transaction. It
+reads the fee itself (doctor fee, else specialty default), recomputes the breakdown,
+and refuses `price_changed` if the amount differs from the summary the patient saw;
+`price_on_request` for a null fee; `payment_too_soon` when a self-pay visit starts
+within 2 hours. The deadline is now + `payment.deadline_minutes` (default 120), clamped
+to 2 hours before the visit; HMO (`hmo_pending`) and ₱0 (`not_required`) bookings get
+none. `payment.enabled` is checked by the chat server: with it off, Cami books as before
+with no charge. Safe to re-run.
+- Local SQL check (Docker, `scripts/db-local-apply.sh`, synthetic rows): Cardiology ₱700
+  none/self → `awaiting_payment`, 70000, deadline now + 120 min; senior → 56000 (14000
+  off); doctor fee ₱500 over a ₱700 specialty default with full HMO → `hmo_pending`, 0,
+  no deadline; a visit 3.5 h away → deadline 2 h before it. Refusals (`price_changed`,
+  `payment_too_soon`, `price_on_request`, slot taken 23P01, PhilHealth on a consult,
+  blank member number, inactive HMO, the 4th booking at the cap) leave the appointment,
+  charge, payment, and event counts unchanged. A duplicate reference code or
+  transaction reference is refused, `payment_events` rejects update and delete, and
+  `anon`/`authenticated` have no table or execute access.
+- Smoke test: as an admin, tick "Online payment in chat is on" on the Payment tab at
+  `/admin/settings`. As a synthetic patient, book a Cardiology doctor with Cami: after the time, Cami asks about
+  Senior/PWD/None and then who pays (no PhilHealth button for a consult). Choose Senior
+  and "I'll pay": the summary shows Price ₱700.00, 20% discount −₱140.00, Amount to pay
+  ₱560.00. Confirm: Cami replies "Almost done! To hold your slot, please pay ₱560.00 by
+  …" with a `CC-` code, and in SQL the appointment has one `appointment_charges` row,
+  one item, a `payments` row in `awaiting_payment`, and one `created` event. Book again
+  with My HMO and a member number: the summary shows the HMO with the number masked, and
+  the payment is `hmo_pending`. Turn payments off again: booking works as before with no
+  charge. Cancel the smoke-test appointments afterwards.
 
 Audit log (ADM-16, no migration): as an admin, open `/admin/audit-log`, filter by
 "Settings (settings.*)", open an entry and check its previous and new values, then use

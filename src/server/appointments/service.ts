@@ -316,7 +316,7 @@ export async function rescheduleDoctorAppointment(
 }
 
 /** Messages for the coded rejections raised by the booking function. */
-const BOOKING_REJECTION_MESSAGES: Record<string, string> = {
+export const BOOKING_REJECTION_MESSAGES: Record<string, string> = {
   inactive_doctor: "This doctor is not accepting appointments.",
   past: "Choose a future appointment time.",
   outside_hours: "That time is outside the doctor's consultation hours.",
@@ -325,8 +325,9 @@ const BOOKING_REJECTION_MESSAGES: Record<string, string> = {
     "You already have the maximum number of upcoming appointments. Cancel one first, or call the front desk to book another.",
 };
 
-const RAISED_EXCEPTION = "P0001";
-const EXCLUSION_VIOLATION = "23P01";
+export const RAISED_EXCEPTION = "P0001";
+export const EXCLUSION_VIOLATION = "23P01";
+export const SLOT_TAKEN_MESSAGE = "That slot was just booked. Choose another time.";
 
 /**
  * Books a slot as a `requested` appointment. Availability is re-checked and
@@ -358,7 +359,7 @@ export async function bookAppointment(
 
   const { code, message } = result.error;
   if (code === EXCLUSION_VIOLATION) {
-    return { ok: false, message: "That slot was just booked. Choose another time." };
+    return { ok: false, message: SLOT_TAKEN_MESSAGE };
   }
   if (code === RAISED_EXCEPTION && Object.hasOwn(BOOKING_REJECTION_MESSAGES, message)) {
     return { ok: false, message: BOOKING_REJECTION_MESSAGES[message] };

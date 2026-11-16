@@ -179,3 +179,23 @@ Authorization model note: under ADR-0003, every table has RLS on with no policie
 | PhilHealth clamped to what is left; HMO skips non-coverable items; co-pay once per booking, never negative | test | `tests/unit/billing/compute.test.ts` |
 | Peso formatting (`₱560.00`, thousands separators) | test | `tests/unit/billing/money.test.ts` |
 | No UI | by construction | nothing imports `src/lib/billing/compute.ts` yet |
+
+## PAY-03 Discount, payer, and price in chat booking
+
+| Item | Status | Where |
+|---|---|---|
+| With `payment.enabled`, the slot is followed by the discount question (Senior 60+ / PWD / None, one only) and the payer question (I'll pay / Pay at the hospital / My HMO with active HMOs and a member number) | test | `tests/unit/chat/booking-payment.test.ts`, `tests/component/chat/payment-cards.test.tsx` |
+| PhilHealth offered only when the item's benefit is above ₱0 (never for a consultation); a PhilHealth answer for a consult is refused in TS and SQL | test + local SQL smoke | `tests/unit/chat/booking-payment.test.ts`, `tests/component/chat/payment-cards.test.tsx`, db/README.md (0034) |
+| Consultation fee from the database: doctor fee overrides the specialty default; null is "price on request" and not bookable in chat | test + local SQL smoke | `tests/unit/chat/booking-payment.test.ts`, `tests/unit/billing/chat-booking-charges-sql.test.ts` |
+| Summary card shows price, VAT exemption, 20%, PhilHealth, HMO, and amount to pay from `computeCharge`; HMO member number masked | test | `tests/unit/chat/booking-payment.test.ts`, `tests/component/chat/payment-cards.test.tsx` |
+| Confirm creates appointment, charge, line item, payment, and `created` event in one transaction, or nothing | local SQL smoke | db/README.md (0034); `tests/unit/billing/chat-booking-charges-sql.test.ts` (static) |
+| SQL recomputes the charge from its own prices and refuses `price_changed` when it differs from the summary | test (static) + local SQL smoke | `tests/unit/billing/chat-booking-charges-sql.test.ts` |
+| Status on create: `awaiting_payment` (self, > ₱0), `hmo_pending` (HMO), `not_required` (₱0 without HMO) | local SQL smoke | db/README.md (0034) |
+| Deadline = now + `payment.deadline_minutes`, clamped to 2 h before the visit; visits within 2 h refused `payment_too_soon` → "pick a later time" | test + local SQL smoke | `tests/unit/payments/service.test.ts`, `tests/unit/chat/booking-payment.test.ts` |
+| Reference code `CC-XXXXX` unique; transaction reference unique ignoring case/spaces; `payment_events` append-only; ADR-0003 lockdown | test (static) + local SQL smoke | `tests/unit/billing/chat-booking-charges-sql.test.ts` |
+| Double Confirm books once (claim guard + exclusion constraint) | test + local SQL smoke | `tests/unit/chat/booking-payment.test.ts` |
+| Templated payment request with amount, reference code, and deadline; HMO pending message | test | `tests/unit/chat/payment.test.ts`, `tests/unit/chat/booking-payment.test.ts` |
+| The LLM never sees amounts or reference codes (messages with payment details are masked in history); no model call in payment steps | test | `tests/unit/chat/handler.test.ts`, `tests/unit/chat/payment.test.ts`, `tests/unit/chat/booking-payment.test.ts` |
+| `payment.enabled` off keeps the old no-charge booking | test | `tests/unit/chat/booking-payment.test.ts` |
+| `src/server/payments` never caches | test | `tests/unit/security/reference-cache.test.ts` |
+| QR card, receipt upload, front desk verification | gap (PAY-04, PAY-05) | — |

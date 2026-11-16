@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 import { APPOINTMENT_STATUSES } from "@/lib/appointments/status";
-import { BOOKING_REASON_MAX_LENGTH } from "@/lib/chat/state";
+import { privilegeChoiceSchema } from "@/lib/billing/compute";
+import { PAYMENT_STATUSES } from "@/lib/billing/payments";
+import { BOOKING_REASON_MAX_LENGTH, paymentChoiceSchema } from "@/lib/chat/state";
 
 export const MESSAGE_MAX_LENGTH = 1000;
 /** Matches the chat_messages.content check in 0004_chat.sql. */
@@ -24,7 +26,8 @@ export const chatEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("confirm_booking") }),
   z.object({
     type: z.literal("change_booking"),
-    field: z.enum(["specialty", "doctor", "slot"]),
+    // payment: the discount and payer answers (PAY-03).
+    field: z.enum(["specialty", "doctor", "slot", "payment"]),
   }),
   z.object({ type: z.literal("cancel_booking") }),
   // AI-APT-002: edit the reason for visit on the summary, and accept the booking offer.
@@ -33,6 +36,9 @@ export const chatEventSchema = z.discriminatedUnion("type", [
     reason: z.string().trim().min(1).max(BOOKING_REASON_MAX_LENGTH),
   }),
   z.object({ type: z.literal("accept_booking_offer") }),
+  // PAY-03: the discount and payer answers.
+  z.object({ type: z.literal("select_privilege"), privilege: privilegeChoiceSchema }),
+  z.object({ type: z.literal("select_payer"), payment: paymentChoiceSchema }),
   z.object({ type: z.literal("request_cancellation"), appointmentId: z.uuid() }),
   z.object({ type: z.literal("confirm_cancellation"), appointmentId: z.uuid() }),
 ]);
@@ -120,6 +126,36 @@ const doctorOptionSchema = z.object({
 
 export type DoctorOption = z.infer<typeof doctorOptionSchema>;
 
+const centavos = z.number().int().min(0);
+
+/**
+ * PAY-03 summary breakdown, computed by src/lib/billing/compute.ts from the
+ * fee in the database. The HMO member number is only ever shown masked.
+ */
+export const chargeSummarySchema = z.object({
+  privilege: privilegeChoiceSchema,
+  payerLabel: z.string(),
+  baseCentavos: centavos,
+  vatExemptionCentavos: centavos,
+  privilegeDiscountCentavos: centavos,
+  philhealthCentavos: centavos,
+  hmoCentavos: centavos,
+  amountDueCentavos: centavos,
+});
+
+export type ChargeSummary = z.infer<typeof chargeSummarySchema>;
+
+/** The payment row cammi_connect_book_with_charge created. */
+export const bookedPaymentSchema = z.object({
+  status: z.enum(PAYMENT_STATUSES),
+  amountDueCentavos: centavos,
+  referenceCode: z.string(),
+  /** Null for HMO and ₱0 bookings. */
+  deadline: z.string().nullable(),
+});
+
+export type BookedPayment = z.infer<typeof bookedPaymentSchema>;
+
 /**
  * Structured data shown with an assistant reply, stored in
  * chat_messages.payload. Sources are copied from knowledge_documents rows,
@@ -152,6 +188,14 @@ export const chatMessagePayloadSchema = z.discriminatedUnion("kind", [
     alternative: z.object({ id: z.string(), name: z.string() }).optional(),
   }),
   z.object({ kind: z.literal("book_offer") }),
+  // PAY-03: the discount and payer questions; their buttons are fixed.
+  z.object({ kind: z.literal("privilege_options") }),
+  z.object({
+    kind: z.literal("payer_options"),
+    /** Only when the item has a PhilHealth benefit above ₱0. */
+    philhealth: z.boolean(),
+    hmoProviders: z.array(z.object({ id: z.string(), name: z.string() })),
+  }),
   z.object({
     kind: z.literal("slot_picker"),
     doctorName: z.string(),
@@ -169,12 +213,16 @@ export const chatMessagePayloadSchema = z.discriminatedUnion("kind", [
     start: z.string(),
     end: z.string(),
     reason: z.string().nullable(),
+    /** Present only while payment.enabled (PAY-03). */
+    charge: chargeSummarySchema.optional(),
   }),
   z.object({
     kind: z.literal("booking_result"),
     doctorName: z.string(),
     start: z.string(),
     end: z.string(),
+    /** Present only for a booking with a charge (PAY-03). */
+    payment: bookedPaymentSchema.optional(),
   }),
   z.object({
     kind: z.literal("appointments"),

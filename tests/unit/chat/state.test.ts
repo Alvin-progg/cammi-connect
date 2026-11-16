@@ -22,7 +22,7 @@ const FULL_DRAFT: BookingDraft = {
 };
 
 describe("booking steps", () => {
-  it("has the eleven states of the booking flow", () => {
+  it("has the thirteen states of the booking flow", () => {
     expect(BOOKING_STEPS).toEqual([
       "idle",
       // AI-APT-002: medical advice declined, booking offered.
@@ -31,6 +31,9 @@ describe("booking steps", () => {
       "choosing_doctor",
       "choosing_doctor_specialty",
       "choosing_slot",
+      // PAY-03: discount and payer questions, only while payment.enabled.
+      "choosing_privilege",
+      "choosing_payer",
       "awaiting_confirmation",
       "booking",
       "booked",
@@ -71,6 +74,16 @@ describe("parseBookingState", () => {
 });
 
 describe("acceptsEvent", () => {
+  it("accepts the discount and payer answers only at their own question (PAY-03)", () => {
+    for (const step of BOOKING_STEPS) {
+      expect(acceptsEvent(step, "select_privilege")).toBe(step === "choosing_privilege");
+      expect(acceptsEvent(step, "select_payer")).toBe(step === "choosing_payer");
+    }
+    expect(acceptsEvent("choosing_privilege", "cancel_booking")).toBe(true);
+    expect(acceptsEvent("choosing_payer", "cancel_booking")).toBe(true);
+  });
+
+
   it("accepts Confirm only while awaiting confirmation", () => {
     for (const step of BOOKING_STEPS) {
       expect(acceptsEvent(step, "confirm_booking")).toBe(step === "awaiting_confirmation");

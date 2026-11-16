@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { privilegeChoiceSchema } from "@/lib/billing/compute";
+
 /**
  * Steps of the server-owned booking flow (AI-APT-001). The step and draft are
  * stored in chat_conversations.booking_state and only the server moves them.
@@ -13,6 +15,9 @@ export const BOOKING_STEPS = [
   // Path B: the named doctor has several specialties and the patient picks one.
   "choosing_doctor_specialty",
   "choosing_slot",
+  // PAY-03, only while payment.enabled: senior/PWD discount, then who pays.
+  "choosing_privilege",
+  "choosing_payer",
   "awaiting_confirmation",
   "booking",
   "booked",
@@ -40,6 +45,26 @@ const careNeedSchema = z.object({
 
 export type CareNeed = z.infer<typeof careNeedSchema>;
 
+/** Matches appointment_charges.hmo_member_number in 0034. */
+export const HMO_MEMBER_NUMBER_MAX_LENGTH = 50;
+
+/**
+ * PAY-03: who pays. A self-paying patient pays by QR Ph or at the hospital
+ * counter (decision D6, same deadline). The HMO is re-read from the active
+ * list every time it is used.
+ */
+export const paymentChoiceSchema = z.discriminatedUnion("payer", [
+  z.object({ payer: z.literal("self"), method: z.enum(["qr_ph", "counter"]) }),
+  z.object({
+    payer: z.literal("hmo"),
+    hmoProviderId: z.uuid(),
+    memberNumber: z.string().trim().min(1).max(HMO_MEMBER_NUMBER_MAX_LENGTH),
+  }),
+  z.object({ payer: z.literal("philhealth") }),
+]);
+
+export type PaymentChoice = z.infer<typeof paymentChoiceSchema>;
+
 /**
  * What the patient has chosen so far. Only database IDs and times are kept;
  * names shown to the patient are re-read from the database on every turn.
@@ -54,6 +79,8 @@ export const bookingDraftSchema = z.object({
   careNeed: careNeedSchema.optional(),
   /** R5: the age question was already asked once in this booking. */
   ageAsked: z.boolean().optional(),
+  privilege: privilegeChoiceSchema.optional(),
+  payment: paymentChoiceSchema.optional(),
 });
 
 export type BookingDraft = z.infer<typeof bookingDraftSchema>;
@@ -83,7 +110,9 @@ export type BookingEventType =
   | "change_booking"
   | "cancel_booking"
   | "update_reason"
-  | "accept_booking_offer";
+  | "accept_booking_offer"
+  | "select_privilege"
+  | "select_payer";
 
 const ACCEPTED_FROM: Record<BookingEventType, readonly BookingStep[]> = {
   // choosing_doctor: the routed doctor list offers an alternative specialty.
@@ -99,11 +128,15 @@ const ACCEPTED_FROM: Record<BookingEventType, readonly BookingStep[]> = {
     "choosing_doctor",
     "choosing_doctor_specialty",
     "choosing_slot",
+    "choosing_privilege",
+    "choosing_payer",
     "awaiting_confirmation",
     "failed",
   ],
   update_reason: ["awaiting_confirmation"],
   accept_booking_offer: ["offering_booking"],
+  select_privilege: ["choosing_privilege"],
+  select_payer: ["choosing_payer"],
 };
 
 /** Rejects events that would skip a step, such as Confirm before a slot is chosen. */

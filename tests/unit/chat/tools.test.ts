@@ -10,6 +10,7 @@ import type {
 import type { AvailabilitySource } from "@/server/availability/service";
 import { createChatTools, type ChatToolDeps } from "@/server/chat/tools";
 import type { DirectoryStore } from "@/server/directory/service";
+import type { ChargeStore } from "@/server/payments/service";
 
 vi.mock("server-only", () => ({}));
 
@@ -109,8 +110,28 @@ function toolDeps(
     availability: fakeAvailability(),
     booker: fakeBooker(),
     patientAppointments,
+    charges: fakeCharges(),
     now: () => NOW,
     minLeadHours: async () => 0,
+  };
+}
+
+function fakeCharges(): ChargeStore {
+  return {
+    getConsultationFee: vi.fn(async () => 70000),
+    listActiveHmoProviders: vi.fn(async () => [
+      { id: "00000000-0000-4000-8000-00000000a0a1", name: "Maxicare", copayCentavos: 0 },
+    ]),
+    bookWithCharge: vi.fn(async () => ({
+      ok: true as const,
+      appointmentId: "a1",
+      payment: {
+        status: "awaiting_payment" as const,
+        amountDueCentavos: 56000,
+        referenceCode: "CC-7F3K2",
+        deadline: "2026-10-31T03:00:00.000Z",
+      },
+    })),
   };
 }
 
@@ -368,6 +389,60 @@ describe("chat booking tools", () => {
       message:
         "You already have the maximum number of upcoming appointments. Cancel one first, or call the front desk to book another.",
     });
+  });
+});
+
+describe("chat payment tools (PAY-03)", () => {
+  it("reads the consultation fee for the doctor and specialty", async () => {
+    const deps = toolDeps();
+    const tools = createChatTools(deps);
+
+    await expect(
+      tools.getConsultationFee({ doctorId: DOCTOR_ID, specialtyId: SPECIALTY_ID }),
+    ).resolves.toBe(70000);
+    expect(deps.charges.getConsultationFee).toHaveBeenCalledWith({
+      doctorId: DOCTOR_ID,
+      specialtyId: SPECIALTY_ID,
+    });
+  });
+
+  it("books with a charge for the patient from the caller", async () => {
+    const deps = toolDeps();
+    const tools = createChatTools(deps);
+    const input = {
+      patientId: PATIENT_ID,
+      doctorId: DOCTOR_ID,
+      specialtyId: SPECIALTY_ID,
+      start: "2026-11-03T01:00:00.000Z",
+      reason: null,
+      privilege: "senior" as const,
+      payment: { payer: "self" as const, method: "qr_ph" as const },
+      expectedAmountDueCentavos: 56000,
+    };
+
+    const result = await tools.createChargedAppointment(input);
+
+    expect(result).toMatchObject({ ok: true, payment: { referenceCode: "CC-7F3K2" } });
+    expect(deps.charges.bookWithCharge).toHaveBeenCalledWith(input);
+  });
+
+  it("rejects a malformed charged booking before the database", async () => {
+    const deps = toolDeps();
+    const tools = createChatTools(deps);
+
+    await expect(
+      tools.createChargedAppointment({
+        patientId: PATIENT_ID,
+        doctorId: DOCTOR_ID,
+        specialtyId: SPECIALTY_ID,
+        start: "2026-11-03T01:00:00.000Z",
+        reason: null,
+        privilege: "none",
+        payment: { payer: "self", method: "qr_ph" },
+        expectedAmountDueCentavos: -1,
+      }),
+    ).rejects.toThrow();
+    expect(deps.charges.bookWithCharge).not.toHaveBeenCalled();
   });
 });
 

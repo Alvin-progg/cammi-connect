@@ -14,6 +14,7 @@ import type { NotificationType } from "@/lib/notifications/types";
 import type { RequirementStatus } from "@/lib/requirements/types";
 import type { ScheduleExceptionType } from "@/lib/schedules/types";
 import type { ServiceBookingMode, ServiceCategory } from "@/lib/services/types";
+import type { PaymentStatus } from "@/lib/billing/payments";
 
 export type Json =
   | string
@@ -179,6 +180,102 @@ export type Database = {
           is_active?: boolean;
           updated_at?: string;
         };
+        Relationships: [];
+      };
+      /** Migration 0034 (PAY-03). One charge per appointment, written only by cammi_connect_book_with_charge. */
+      appointment_charges: {
+        Row: {
+          id: string;
+          appointment_id: string;
+          reference_code: string;
+          privilege: "none" | "senior" | "pwd";
+          payer: "self" | "hmo" | "philhealth";
+          hmo_provider_id: string | null;
+          hmo_member_number: string | null;
+          base_centavos: number;
+          vat_exemption_centavos: number;
+          privilege_discount_centavos: number;
+          philhealth_centavos: number;
+          hmo_centavos: number;
+          amount_due_centavos: number;
+          created_at: string;
+        };
+        // Written only by cammi_connect_book_with_charge.
+        Insert: { [_ in never]: never };
+        Update: { [_ in never]: never };
+        Relationships: [];
+      };
+      /** Migration 0034 (PAY-03). Snapshotted line items of a charge. */
+      appointment_charge_items: {
+        Row: {
+          id: string;
+          charge_id: string;
+          line_number: number;
+          kind: "consultation";
+          description: string;
+          doctor_id: string | null;
+          specialty_id: string | null;
+          vatable: boolean;
+          philhealth_benefit_centavos: number;
+          hmo_coverable: boolean;
+          base_centavos: number;
+          vat_exemption_centavos: number;
+          privilege_discount_centavos: number;
+          philhealth_centavos: number;
+          hmo_centavos: number;
+          amount_due_centavos: number;
+        };
+        // Written only by cammi_connect_book_with_charge.
+        Insert: { [_ in never]: never };
+        Update: { [_ in never]: never };
+        Relationships: [];
+      };
+      /** Migration 0034 (PAY-03). One payment per charge; transaction_reference is unique. */
+      payments: {
+        Row: {
+          id: string;
+          charge_id: string;
+          appointment_id: string;
+          status: Database["public"]["Enums"]["payment_status"];
+          method: "qr_ph" | "counter" | null;
+          amount_due_centavos: number;
+          deadline_at: string | null;
+          attempts: number;
+          transaction_reference: string | null;
+          amount_received_centavos: number | null;
+          received_at: string | null;
+          verified_by: string | null;
+          verified_at: string | null;
+          rejected_reason: string | null;
+          rejected_by: string | null;
+          rejected_at: string | null;
+          refund_reference: string | null;
+          refunded_by: string | null;
+          refunded_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        // Written only by cammi_connect_book_with_charge.
+        Insert: { [_ in never]: never };
+        Update: { [_ in never]: never };
+        Relationships: [];
+      };
+      /** Migration 0034 (PAY-03). Append-only payment history. */
+      payment_events: {
+        Row: {
+          id: string;
+          payment_id: string;
+          actor_profile_id: string | null;
+          action: string;
+          previous_status: Database["public"]["Enums"]["payment_status"] | null;
+          new_status: Database["public"]["Enums"]["payment_status"];
+          new_values: Json | null;
+          reason: string | null;
+          created_at: string;
+        };
+        // Written only by cammi_connect_book_with_charge.
+        Insert: { [_ in never]: never };
+        Update: { [_ in never]: never };
         Relationships: [];
       };
       /** Migration 0027 (admin system settings). A missing key uses its default. */
@@ -1063,6 +1160,35 @@ export type Database = {
         };
         Returns: string;
       };
+      /**
+       * Migration 0034 (PAY-03). Books through cammi_connect_book_appointment and
+       * writes the charge, line, payment, and created event in one transaction.
+       * Raises P0001 invalid_payment_choice, invalid_member_number,
+       * hmo_unavailable, invalid_specialty, price_on_request, price_changed,
+       * payment_too_soon, or any cammi_connect_book_appointment refusal.
+       */
+      cammi_connect_book_with_charge: {
+        Args: {
+          p_doctor_id: string;
+          p_specialty_id: string;
+          p_patient_id: string;
+          p_scheduled_at: string;
+          p_reason: string | null;
+          p_privilege: string;
+          p_payer: string;
+          p_payment_method: string | null;
+          p_hmo_provider_id: string | null;
+          p_hmo_member_number: string | null;
+          p_expected_amount_due_centavos: number;
+        };
+        Returns: {
+          appointment_id: string;
+          reference_code: string;
+          payment_status: Database["public"]["Enums"]["payment_status"];
+          amount_due_centavos: number;
+          deadline_at: string | null;
+        }[];
+      };
       /** Migration 0009. Raises P0001 not_found, not_pending, inactive_doctor, past, outside_hours, or blocked. */
       cammi_connect_confirm_appointment: {
         Args: {
@@ -1172,6 +1298,7 @@ export type Database = {
       booking_source: BookingSource;
       doctor_notification_type: NotificationType;
       schedule_exception_type: ScheduleExceptionType;
+      payment_status: PaymentStatus;
     };
     CompositeTypes: { [_ in never]: never };
   };

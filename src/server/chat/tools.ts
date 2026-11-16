@@ -18,6 +18,15 @@ import {
 } from "@/server/appointments/service";
 import { getAvailableSlots, type AvailabilitySource } from "@/server/availability/service";
 import { listBookableDoctors, type DirectoryStore } from "@/server/directory/service";
+import {
+  bookConsultationWithCharge,
+  type ChargedBookingInput,
+  type ChargedBookingOutcome,
+  type ChargeStore,
+  type HmoOption,
+} from "@/server/payments/service";
+import { privilegeChoiceSchema } from "@/lib/billing/compute";
+import { paymentChoiceSchema } from "@/lib/chat/state";
 
 const doctorDetailsInputSchema = z.object({
   doctorName: z.string().trim().min(1).max(200),
@@ -48,6 +57,15 @@ const createAppointmentInputSchema = z.object({
   doctorId: z.uuid(),
   start: z.iso.datetime({ offset: true }),
   reason: z.string().max(BOOKING_REASON_MAX_LENGTH).nullable(),
+});
+
+const consultationFeeInputSchema = z.object({ doctorId: z.uuid(), specialtyId: z.uuid() });
+
+const chargedAppointmentInputSchema = createAppointmentInputSchema.extend({
+  specialtyId: z.uuid(),
+  privilege: privilegeChoiceSchema,
+  payment: paymentChoiceSchema,
+  expectedAmountDueCentavos: z.number().int().min(0),
 });
 
 export type DoctorLookup =
@@ -89,6 +107,11 @@ export type ChatTools = {
     start: string;
     reason: string | null;
   }): Promise<BookingOutcome>;
+  /** PAY-03: the doctor's own fee, else the specialty default; null is "price on request". */
+  getConsultationFee(input: { doctorId: string; specialtyId: string }): Promise<number | null>;
+  getActiveHmoProviders(): Promise<HmoOption[]>;
+  /** PAY-03: books with a charge and payment in one transaction (payment.enabled only). */
+  createChargedAppointment(input: ChargedBookingInput): Promise<ChargedBookingOutcome>;
   /** Upcoming requested or confirmed appointments, soonest first. */
   getPatientAppointments(input: { patientId: string }): Promise<PatientAppointment[]>;
   getPatientAppointment(input: {
@@ -106,6 +129,7 @@ export type ChatToolDeps = {
   availability: AvailabilitySource;
   booker: AppointmentBooker;
   patientAppointments: PatientAppointmentsStore;
+  charges: ChargeStore;
   now: () => Date;
   /**
    * The admin's `appointment.min_lead_hours`. Cami offers, and so books, only
@@ -122,6 +146,7 @@ export function createChatTools({
   availability,
   booker,
   patientAppointments,
+  charges,
   now,
   minLeadHours,
 }: ChatToolDeps): ChatTools {
@@ -190,6 +215,18 @@ export function createChatTools({
         },
         booker,
       );
+    },
+
+    async getConsultationFee(input) {
+      return charges.getConsultationFee(consultationFeeInputSchema.parse(input));
+    },
+
+    async getActiveHmoProviders() {
+      return charges.listActiveHmoProviders();
+    },
+
+    async createChargedAppointment(input) {
+      return bookConsultationWithCharge(chargedAppointmentInputSchema.parse(input), charges);
     },
 
     async getPatientAppointments(input) {

@@ -435,7 +435,7 @@ function PaymentFields({ settings }: { settings: SystemSettings }) {
         Online payment in chat is on
       </label>
       <p className={`${HINT_CLASS} -mt-4`}>
-        Saved for the payment rollout; Cami does not ask for payment yet.
+        When on, Cami asks about senior/PWD discounts and who pays, shows the price, and books with a charge. Receipt upload comes in a later update.
       </p>
       <TextField
         name="payment.qr_image_path"

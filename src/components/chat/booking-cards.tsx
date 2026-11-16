@@ -12,11 +12,15 @@ import { BOOKING_REASON_MAX_LENGTH } from "@/lib/chat/state";
 
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
+import { BookedPaymentDetails, ChargeBreakdown, PayerOptions, PrivilegeOptions } from "./payment-cards";
+
 export type BookingPayload = Extract<
   ChatMessagePayload,
   {
     kind:
       | "book_offer"
+      | "privilege_options"
+      | "payer_options"
       | "specialty_options"
       | "doctor_options"
       | "slot_picker"
@@ -27,6 +31,8 @@ export type BookingPayload = Extract<
 
 const BOOKING_KINDS = new Set<ChatMessagePayload["kind"]>([
   "book_offer",
+  "privilege_options",
+  "payer_options",
   "specialty_options",
   "doctor_options",
   "slot_picker",
@@ -66,6 +72,10 @@ export function BookingCard({ payload, ...props }: CardProps & { payload: Bookin
           </button>
         </div>
       );
+    case "privilege_options":
+      return <PrivilegeOptions {...props} />;
+    case "payer_options":
+      return <PayerOptions payload={payload} {...props} />;
     case "specialty_options":
       return <SpecialtyOptions specialties={payload.specialties} {...props} />;
     case "doctor_options":
@@ -290,6 +300,7 @@ function BookingSummary({
         </SummaryRow>
         {payload.reason ? <SummaryRow term="Reason for visit">{payload.reason}</SummaryRow> : null}
       </dl>
+      {payload.charge ? <ChargeBreakdown charge={payload.charge} /> : null}
       {editingReason ? (
         <form
           className="mt-3 flex flex-col gap-2"
@@ -351,6 +362,16 @@ function BookingSummary({
         >
           Change time
         </button>
+        {payload.charge ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onEvent({ type: "change_booking", field: "payment" })}
+            className={buttonVariants({ variant: "ghost" })}
+          >
+            Change discount or payment
+          </button>
+        ) : null}
         <button
           type="button"
           disabled={disabled}
@@ -398,6 +419,7 @@ function BookingResult({ payload }: { payload: Extract<BookingPayload, { kind: "
           {formatManilaTime(payload.start)} – {formatManilaTime(payload.end)} (Asia/Manila)
         </SummaryRow>
       </dl>
+      {payload.payment ? <BookedPaymentDetails payment={payload.payment} /> : null}
       <p className="mt-2 text-xs text-ink-muted">Awaiting the doctor&apos;s confirmation.</p>
       <Link
         href="/chat?view=appointments"

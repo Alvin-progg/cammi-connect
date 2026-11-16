@@ -12,6 +12,7 @@ import { createChatTools } from "@/server/chat/tools";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import { supabaseKnowledgeRepository } from "@/server/knowledge/repository";
 import { searchHospitalInformation } from "@/server/knowledge/service";
+import { supabaseChargeRepository } from "@/server/payments/repository";
 import { supabaseSettingsRepository } from "@/server/settings/repository";
 import { getSettings } from "@/server/settings/service";
 
@@ -40,6 +41,7 @@ export async function POST(request: Request): Promise<Response> {
       availability: supabaseAvailabilitySource,
       booker: supabaseAppointmentBooker,
       patientAppointments: supabasePatientAppointmentsRepository,
+      charges: supabaseChargeRepository,
       now: () => new Date(),
       minLeadHours: async () => (await loadSettings())["appointment.min_lead_hours"],
     }),
@@ -52,6 +54,7 @@ export async function POST(request: Request): Promise<Response> {
           adult: current["chatbot.first_contact_specialty_adult"],
           child: current["chatbot.first_contact_specialty_child"],
         },
+        paymentEnabled: current["payment.enabled"],
       };
     },
     now: () => new Date(),

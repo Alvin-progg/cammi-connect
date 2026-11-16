@@ -89,6 +89,9 @@ beforeEach(() => {
       getDoctorsBySpecialty: vi.fn(async () => []),
       getDoctorAvailability: vi.fn(async () => []),
       createAppointment: vi.fn(async () => ({ ok: false as const, message: "unused" })),
+      getConsultationFee: vi.fn(async () => null),
+      getActiveHmoProviders: vi.fn(async () => []),
+      createChargedAppointment: vi.fn(async () => ({ ok: false as const, message: "unused" })),
       getPatientAppointments: vi.fn(async () => []),
       getPatientAppointment: vi.fn(async () => null),
       requestAppointmentCancellation: vi.fn(async () => ({
@@ -97,7 +100,7 @@ beforeEach(() => {
         message: "unused",
       })),
     },
-    loadChatSettings: vi.fn(async () => ({ enabled: true, bookingHorizonDays: 60, firstContact: DEFAULT_FIRST_CONTACT })),
+    loadChatSettings: vi.fn(async () => ({ enabled: true, bookingHorizonDays: 60, firstContact: DEFAULT_FIRST_CONTACT, paymentEnabled: false })),
     now: () => NOW,
     newId: () => (nextId++ === 0 ? REQUEST_ID : NEW_CONVERSATION_ID),
     log: (entry) => logged.push(entry),
@@ -137,7 +140,7 @@ describe("handleChatRequest", () => {
   });
 
   it("refuses with 503 while an admin has turned the chatbot off (chatbot.enabled)", async () => {
-    vi.mocked(deps.loadChatSettings).mockResolvedValue({ enabled: false, bookingHorizonDays: 60, firstContact: DEFAULT_FIRST_CONTACT });
+    vi.mocked(deps.loadChatSettings).mockResolvedValue({ enabled: false, bookingHorizonDays: 60, firstContact: DEFAULT_FIRST_CONTACT, paymentEnabled: false });
 
     const response = await handleChatRequest(chatRequest(messageBody("Hi")), deps);
 
@@ -161,7 +164,7 @@ describe("handleChatRequest", () => {
   });
 
   it("passes the admin's booking horizon to the turn", async () => {
-    vi.mocked(deps.loadChatSettings).mockResolvedValue({ enabled: true, bookingHorizonDays: 7, firstContact: DEFAULT_FIRST_CONTACT });
+    vi.mocked(deps.loadChatSettings).mockResolvedValue({ enabled: true, bookingHorizonDays: 7, firstContact: DEFAULT_FIRST_CONTACT, paymentEnabled: false });
     vi.mocked(deps.generate).mockResolvedValue(
       JSON.stringify({ intent: "book", specialty: "Pediatrics", preferredDate: "2026-12-31" }),
     );
@@ -378,6 +381,79 @@ describe("handleChatRequest", () => {
       }),
     );
     expect(vi.mocked(store.appendMessages).mock.calls[0][0]).toBe(OWN_CONVERSATION_ID);
+  });
+
+  it("never sends payment amounts or reference codes to the model (PAY-03)", async () => {
+    vi.mocked(store.listMessages).mockResolvedValue([
+      { id: "m1", role: "user", content: "Confirm booking", payload: null, createdAt: NOW.toISOString() },
+      {
+        id: "m2",
+        role: "assistant",
+        content: "Almost done! To hold your slot, please pay ₱560.00 by 4:30 PM today. CC-7F3K2",
+        payload: {
+          kind: "booking_result",
+          doctorName: "Dr. Maya Santos",
+          start: "2026-11-03T01:00:00.000Z",
+          end: "2026-11-03T01:30:00.000Z",
+          payment: {
+            status: "awaiting_payment",
+            amountDueCentavos: 56000,
+            referenceCode: "CC-7F3K2",
+            deadline: "2026-10-30T03:00:00.000Z",
+          },
+        },
+        createdAt: NOW.toISOString(),
+      },
+    ]);
+
+    const response = await handleChatRequest(
+      chatRequest(messageBody("Thanks!", OWN_CONVERSATION_ID)),
+      deps,
+    );
+
+    expect(response.status).toBe(200);
+    const prompts = JSON.stringify(vi.mocked(deps.generate).mock.calls);
+    expect(prompts).not.toContain("₱");
+    expect(prompts).not.toContain("CC-7F3K2");
+  });
+
+  it("passes payment.enabled to the booking flow (PAY-03)", async () => {
+    vi.mocked(deps.loadChatSettings).mockResolvedValue({
+      enabled: true,
+      bookingHorizonDays: 60,
+      firstContact: DEFAULT_FIRST_CONTACT,
+      paymentEnabled: true,
+    });
+    vi.mocked(store.getBookingState).mockResolvedValue({
+      step: "choosing_slot",
+      draft: {
+        specialtyId: "00000000-0000-4000-8000-0000000005a1",
+        doctorId: "00000000-0000-4000-8000-0000000000d1",
+      },
+    });
+    vi.mocked(deps.tools.getDoctor).mockResolvedValue({
+      id: "00000000-0000-4000-8000-0000000000d1",
+      fullName: "Maya Santos",
+      departmentId: null,
+      departmentName: null,
+      isActive: true,
+      specialties: [{ id: "00000000-0000-4000-8000-0000000005a1", name: "Cardiology" }],
+    });
+    vi.mocked(deps.tools.getDoctorAvailability).mockResolvedValue([
+      { start: "2026-11-03T01:00:00.000Z", end: "2026-11-03T01:30:00.000Z" },
+    ]);
+    vi.mocked(deps.tools.getConsultationFee).mockResolvedValue(70000);
+
+    const response = await handleChatRequest(
+      chatRequest({
+        conversationId: OWN_CONVERSATION_ID,
+        event: { type: "select_slot", start: "2026-11-03T01:00:00.000Z" },
+      }),
+      deps,
+    );
+
+    const body = await response.json();
+    expect(body.state.step).toBe("choosing_privilege");
   });
 
   it("never logs message text", async () => {

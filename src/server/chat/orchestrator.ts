@@ -119,6 +119,8 @@ export type TurnInput = {
   bookingHorizonDays: number;
   /** The admin's first-contact specialties (AI-APT-002). */
   firstContact: FirstContactSettings;
+  /** The admin's `payment.enabled` (PAY-03); absent means off. */
+  paymentEnabled?: boolean;
 };
 
 export type TurnDeps = {
@@ -269,6 +271,7 @@ export async function handleTurn(input: TurnInput, deps: TurnDeps): Promise<Turn
     firstContact: input.firstContact,
     tools: deps.tools,
     claimBooking: deps.claimBooking,
+    paymentEnabled: input.paymentEnabled,
   };
   const event = input.event;
   if (event.type === "request_cancellation" || event.type === "confirm_cancellation") {

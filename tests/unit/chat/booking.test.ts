@@ -92,6 +92,9 @@ function fakeTools(slots: Record<string, TimeSlot[]> = { [MAYA.id]: MAYA_SLOTS }
     ),
     getDoctorAvailability: vi.fn(async ({ doctorId }: { doctorId: string }) => slots[doctorId] ?? []),
     createAppointment: vi.fn(async () => ({ ok: true as const, appointmentId: "appt-1" })),
+    getConsultationFee: vi.fn(async () => null),
+    getActiveHmoProviders: vi.fn(async () => []),
+    createChargedAppointment: vi.fn(async () => ({ ok: false as const, message: "unused" })),
     getPatientAppointments: vi.fn(async () => []),
     getPatientAppointment: vi.fn(async () => null),
     requestAppointmentCancellation: vi.fn(async () => ({

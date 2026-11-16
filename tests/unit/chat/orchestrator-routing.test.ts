@@ -74,6 +74,9 @@ function fakeTools(): ChatTools {
     ),
     getDoctorAvailability: vi.fn(async () => [SLOT]),
     createAppointment: vi.fn(async () => ({ ok: true as const, appointmentId: "appt-1" })),
+    getConsultationFee: vi.fn(async () => null),
+    getActiveHmoProviders: vi.fn(async () => []),
+    createChargedAppointment: vi.fn(async () => ({ ok: false as const, message: "unused" })),
     getPatientAppointments: vi.fn(async () => []),
     getPatientAppointment: vi.fn(async () => null),
     requestAppointmentCancellation: vi.fn(async () => ({

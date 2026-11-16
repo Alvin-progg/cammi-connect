@@ -1,6 +1,6 @@
 # PAY-001 — Chat Payments, Discounts and Coverage, and Non-Consultation Services
 
-- Status: **Approved** 2026-11-16 by the project owner (all decisions D1–D10 at their recommended defaults); in progress (PAY-01, PAY-02 built)
+- Status: **Approved** 2026-11-16 by the project owner (all decisions D1–D10 at their recommended defaults); in progress (PAY-01, PAY-02, PAY-03 built)
 - Date: 2026-11-16
 - Type: Feature
 - Priority: High
@@ -22,7 +22,17 @@
   half-up rounding) with every worked example and pricing-doc example as test vectors. The
   HMO co-pay is charged once per booking, on the first HMO-coverable items. The two
   criteria ticked below are verified at the math level only; chat-level verification comes
-  in PAY-03. PAY-03 onward not started.
+  in PAY-03.
+- 2026-11-16 — **PAY-03 built** (migration `0034_chat_booking_charges.sql`): with
+  `payment.enabled` on, Cami asks the discount and payer questions after the slot, shows
+  the breakdown on the summary, and Confirm books through `cammi_connect_book_with_charge`
+  (appointment, charge snapshot, line item, payment, and `created` event in one
+  transaction; the SQL recomputes the price from the database and refuses a mismatch).
+  Status on create is `awaiting_payment`, `hmo_pending`, or `not_required`. "Pay at the
+  hospital" (D6) is a self-pay method with the same deadline. A visit starting within 2
+  hours can't be booked with payment ("pick a later time"). The payment request is text
+  only (amount, reference code, deadline); the QR card is PAY-04. With
+  `payment.enabled` off, booking is unchanged. PAY-04 onward not started.
 
 ## Objective
 
@@ -307,11 +317,13 @@ Order: 01 → 02 → 03 → 04 → 05 → 06. PAY-07 can start after 03, in para
 
 - [ ] Every price Cami shows comes from the database; the LLM never states a price.
 - [x] The breakdown follows VAT exemption → 20% senior/PWD → PhilHealth → HMO, and matches
-      the worked examples. *(PAY-02, math level; chat in PAY-03)*
+      the worked examples. *(PAY-02, math level; PAY-03, chat summary and SQL snapshot)*
 - [x] Senior and PWD can't both be applied to one booking. *(PAY-02, one `privilege`
-      choice; chat in PAY-03)*
-- [ ] PhilHealth is offered only for services with a benefit above ₱0.
-- [ ] Confirm creates the appointment, charge, and payment together or not at all.
+      choice; PAY-03, one chat answer and one `privilege` column)*
+- [ ] PhilHealth is offered only for services with a benefit above ₱0. *(PAY-03: never
+      offered for consultations; services in PAY-06/07)*
+- [x] Confirm creates the appointment, charge, and payment together or not at all.
+      *(PAY-03, local SQL smoke)*
 - [ ] Cami sends the QR card with exact amount, reference code, and deadline.
 - [ ] Only JPEG/PNG/WebP up to 5 MB are accepted, checked by file signature.
 - [ ] Another patient's payment can't be viewed or uploaded to (reported as not found).

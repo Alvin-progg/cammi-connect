@@ -38,6 +38,7 @@ const UNCACHED_DIRS = [
   "analytics",
   "audit",
   "auth",
+  "payments",
 ];
 
 function filesUnder(dir: string): string[] {

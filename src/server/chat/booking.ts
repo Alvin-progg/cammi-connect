@@ -1,6 +1,7 @@
 import "server-only";
 
 import { todayInManila } from "@/lib/appointments/filters";
+import { computeCharge, type PrivilegeChoice } from "@/lib/billing/compute";
 import { formatManilaShortDate, formatManilaTime } from "@/lib/appointments/format";
 import {
   BOOKING_COPY,
@@ -15,6 +16,15 @@ import {
   matchSpecialtiesByName,
   resolvePreferredDate,
 } from "@/lib/chat/resolve";
+import {
+  PAYMENT_COPY,
+  PRIVILEGE_LABELS,
+  consultationLine,
+  hmoPendingCopy,
+  maskMemberNumber,
+  paymentChoiceLabel,
+  paymentRequestCopy,
+} from "@/lib/chat/payment";
 import { routeToSpecialty, type FirstContactSettings } from "@/lib/chat/routing";
 import {
   BOOKING_OFFER,
@@ -22,7 +32,9 @@ import {
   ROUTING_COPY,
 } from "@/lib/chat/safety";
 import type {
+  BookedPayment,
   BookingEvent,
+  ChargeSummary,
   ChatMessagePayload,
   DoctorOption,
   IntentExtraction,
@@ -34,6 +46,7 @@ import {
   type BookingDraft,
   type BookingState,
   type CareNeed,
+  type PaymentChoice,
 } from "@/lib/chat/state";
 import type { DoctorSummary, Specialty } from "@/lib/directory/types";
 
@@ -61,6 +74,12 @@ export type BookingContext = {
    * book twice.
    */
   claimBooking: (next: BookingState) => Promise<boolean>;
+  /**
+   * The admin's `payment.enabled` (PAY-03). When on, the discount and payer
+   * questions follow the slot and Confirm books with a charge; when off,
+   * booking works as before with no charge.
+   */
+  paymentEnabled?: boolean;
 };
 
 /** `state` is the context's own object when nothing changed, so callers can skip saving it. */
@@ -77,6 +96,8 @@ const IN_PROGRESS_STEPS: readonly BookingState["step"][] = [
   "choosing_doctor",
   "choosing_doctor_specialty",
   "choosing_slot",
+  "choosing_privilege",
+  "choosing_payer",
   "awaiting_confirmation",
   "failed",
 ];
@@ -91,12 +112,15 @@ const EVENT_LABELS: Record<BookingEvent["type"], string> = {
   cancel_booking: "Stop booking",
   update_reason: "Edited the reason for visit",
   accept_booking_offer: "Yes, book",
+  select_privilege: "Chose a discount",
+  select_payer: "Chose how to pay",
 };
 
 const CHANGE_LABELS = {
   specialty: "Change the specialty",
   doctor: "Change the doctor",
   slot: "Change the time",
+  payment: "Change the discount or payment",
 } as const;
 
 function withLead(lead: string | undefined, reply: string): string {
@@ -503,6 +527,15 @@ async function selectSlot(start: string, ctx: BookingContext): Promise<BookingRe
     return offerSlots(doctor, draft, ctx, BOOKING_COPY.slotTaken);
   }
 
+  let summaryDraft: BookingDraft = { ...draft, slotStart: slot.start };
+  let charge: ChargeSummary | undefined;
+  if (ctx.paymentEnabled) {
+    const quote = await quoteConsultation(summaryDraft, doctor.id, ctx);
+    if (!quote.ok) return quote.reply;
+    charge = quote.charge;
+    summaryDraft = quote.draft;
+  }
+
   const specialty = await findSpecialty(ctx, draft.specialtyId);
   return {
     reply: BOOKING_COPY.confirmPrompt,
@@ -513,8 +546,104 @@ async function selectSlot(start: string, ctx: BookingContext): Promise<BookingRe
       start: slot.start,
       end: slot.end,
       reason: draft.reason ?? null,
+      ...(charge ? { charge } : {}),
     },
-    state: { step: "awaiting_confirmation", draft: { ...draft, slotStart: slot.start } },
+    state: { step: "awaiting_confirmation", draft: summaryDraft },
+  };
+}
+
+type Quote =
+  | {
+      ok: true;
+      charge: ChargeSummary;
+      draft: BookingDraft;
+      specialtyId: string;
+      privilege: PrivilegeChoice;
+      payment: PaymentChoice;
+      hmoName: string | undefined;
+    }
+  | { ok: false; reply: BookingReply };
+
+/**
+ * PAY-03: the consultation's charge, computed from the fee in the database,
+ * or the next question while the discount or payer is still missing. A fee
+ * of null is "price on request" and cannot be booked in chat. An HMO that is
+ * no longer active, or PhilHealth for an item with no PhilHealth benefit,
+ * asks the payer question again.
+ */
+async function quoteConsultation(
+  draft: BookingDraft,
+  doctorId: string,
+  ctx: BookingContext,
+): Promise<Quote> {
+  const { specialtyId, privilege } = draft;
+  const fee = specialtyId ? await ctx.tools.getConsultationFee({ doctorId, specialtyId }) : null;
+  if (!specialtyId || fee === null) {
+    return {
+      ok: false,
+      reply: { reply: PAYMENT_COPY.priceOnRequest, payload: null, state: { step: "cancelled", draft: {} } },
+    };
+  }
+  if (!privilege) {
+    return {
+      ok: false,
+      reply: {
+        reply: PAYMENT_COPY.privilegeQuestion,
+        payload: { kind: "privilege_options" },
+        state: { step: "choosing_privilege", draft },
+      },
+    };
+  }
+
+  const line = consultationLine(fee);
+  const philhealthOffered = line.philhealthBenefitCentavos > 0;
+  const hmoProviders = await ctx.tools.getActiveHmoProviders();
+  let payment = draft.payment;
+  let lead: string | undefined;
+  if (payment?.payer === "philhealth" && !philhealthOffered) {
+    payment = undefined;
+  }
+  const hmoChoice = payment?.payer === "hmo" ? payment : undefined;
+  const hmo = hmoChoice
+    ? hmoProviders.find((provider) => provider.id === hmoChoice.hmoProviderId)
+    : undefined;
+  if (hmoChoice && !hmo) {
+    payment = undefined;
+    lead = PAYMENT_COPY.hmoUnavailable;
+  }
+  if (!payment) {
+    return {
+      ok: false,
+      reply: {
+        reply: withLead(lead, PAYMENT_COPY.payerQuestion),
+        payload: {
+          kind: "payer_options",
+          philhealth: philhealthOffered,
+          hmoProviders: hmoProviders.map(({ id, name }) => ({ id, name })),
+        },
+        state: { step: "choosing_payer", draft: { ...draft, payment: undefined } },
+      },
+    };
+  }
+
+  const { totals } = computeCharge({
+    items: [line],
+    privilege,
+    payer: payment.payer,
+    hmoCopayCentavos: hmo?.copayCentavos ?? 0,
+  });
+  const payerLabel =
+    payment.payer === "hmo" && hmo
+      ? `${hmo.name} (member ${maskMemberNumber(payment.memberNumber)})`
+      : paymentChoiceLabel(payment);
+  return {
+    ok: true,
+    charge: { privilege, payerLabel, ...totals },
+    draft: { ...draft, payment },
+    specialtyId,
+    privilege,
+    payment,
+    hmoName: hmo?.name,
   };
 }
 
@@ -554,6 +683,10 @@ async function confirmBooking(ctx: BookingContext): Promise<BookingReply> {
     return failBooking(doctor, draft, ctx, BOOKING_COPY.slotTaken);
   }
 
+  if (ctx.paymentEnabled) {
+    return confirmWithCharge(doctor, slot, draft, ctx);
+  }
+
   const outcome = await ctx.tools.createAppointment({
     patientId: ctx.patientId,
     doctorId: doctor.id,
@@ -574,6 +707,83 @@ async function confirmBooking(ctx: BookingContext): Promise<BookingReply> {
     },
     state: { step: "booked", draft },
   };
+}
+
+/** The templated reply for a booking with a charge; amounts come from the payment row. */
+function bookedPaymentReply(
+  payment: BookedPayment,
+  choice: PaymentChoice,
+  hmoName: string | undefined,
+  now: Date,
+): string {
+  if (payment.status === "hmo_pending") {
+    return hmoPendingCopy(hmoName ?? "HMO");
+  }
+  if (payment.status === "awaiting_payment" && payment.deadline) {
+    return paymentRequestCopy({
+      amountDueCentavos: payment.amountDueCentavos,
+      referenceCode: payment.referenceCode,
+      deadline: payment.deadline,
+      method: choice.payer === "self" ? choice.method : "qr_ph",
+      now,
+    });
+  }
+  return BOOKING_COPY.requested;
+}
+
+/**
+ * PAY-03 Confirm: the charge is quoted again from the database and booked
+ * with the appointment and payment in one transaction. The database
+ * recomputes the amount and refuses if it differs from the summary.
+ */
+async function confirmWithCharge(
+  doctor: DoctorSummary,
+  slot: TimeSlot,
+  draft: BookingDraft,
+  ctx: BookingContext,
+): Promise<BookingReply> {
+  const quote = await quoteConsultation(draft, doctor.id, ctx);
+  if (!quote.ok) {
+    return quote.reply;
+  }
+
+  const outcome = await ctx.tools.createChargedAppointment({
+    patientId: ctx.patientId,
+    doctorId: doctor.id,
+    specialtyId: quote.specialtyId,
+    start: slot.start,
+    reason: draft.reason ?? null,
+    privilege: quote.privilege,
+    payment: quote.payment,
+    expectedAmountDueCentavos: quote.charge.amountDueCentavos,
+  });
+  if (!outcome.ok) {
+    return failBooking(doctor, draft, ctx, outcome.message);
+  }
+
+  return {
+    reply: bookedPaymentReply(outcome.payment, quote.payment, quote.hmoName, ctx.now),
+    payload: {
+      kind: "booking_result",
+      doctorName: doctorDisplayName(doctor.fullName),
+      start: slot.start,
+      end: slot.end,
+      payment: outcome.payment,
+    },
+    state: { step: "booked", draft },
+  };
+}
+
+/** Saves a discount or payer answer and moves on from the slot, which is re-checked. */
+function answerPaymentQuestion(
+  changes: Pick<BookingDraft, "privilege" | "payment">,
+  ctx: BookingContext,
+): Promise<BookingReply> {
+  const draft = { ...ctx.state.draft, ...changes };
+  if (!draft.slotStart) {
+    return Promise.resolve({ reply: BOOKING_COPY.outOfOrder, payload: null, state: ctx.state });
+  }
+  return selectSlot(draft.slotStart, { ...ctx, state: { ...ctx.state, draft } });
 }
 
 type LabelledReply = BookingReply & { label?: string };
@@ -635,7 +845,7 @@ async function updateReason(reason: string, ctx: BookingContext): Promise<Bookin
 }
 
 function changeBooking(
-  field: "specialty" | "doctor" | "slot",
+  field: "specialty" | "doctor" | "slot" | "payment",
   ctx: BookingContext,
 ): Promise<BookingReply> {
   const { draft } = ctx.state;
@@ -646,6 +856,8 @@ function changeBooking(
       return advance({ ...draft, doctorId: undefined, slotStart: undefined }, ctx);
     case "slot":
       return advance({ ...draft, slotStart: undefined }, ctx);
+    case "payment":
+      return answerPaymentQuestion({ privilege: undefined, payment: undefined }, ctx);
   }
 }
 
@@ -688,6 +900,16 @@ export async function handleBookingEvent(
       };
     case "update_reason":
       return { ...(await updateReason(event.reason, ctx)), userContent: fallbackLabel };
+    case "select_privilege":
+      return {
+        ...(await answerPaymentQuestion({ privilege: event.privilege }, ctx)),
+        userContent: PRIVILEGE_LABELS[event.privilege],
+      };
+    case "select_payer":
+      return {
+        ...(await answerPaymentQuestion({ payment: event.payment }, ctx)),
+        userContent: paymentChoiceLabel(event.payment),
+      };
     case "accept_booking_offer":
       return { ...(await routeBooking(ctx.state.draft, ctx)), userContent: fallbackLabel };
     case "cancel_booking":
