@@ -170,7 +170,7 @@ function AssistantMessage({
                   busy={busy}
                   onEvent={onEvent}
                 />
-              ) : (
+              ) : payload.kind === "payment_update" ? null : (
                 <ReplyPayload payload={payload} />
               )}
             </div>

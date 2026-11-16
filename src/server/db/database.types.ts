@@ -290,7 +290,7 @@ export type Database = {
           reason: string | null;
           created_at: string;
         };
-        // Written only by cammi_connect_book_with_charge.
+        // Written only by the 0034–0036 payment functions and the 0036 refund trigger.
         Insert: { [_ in never]: never };
         Update: { [_ in never]: never };
         Relationships: [];
@@ -830,6 +830,41 @@ export type Database = {
        * payment_not_open, receipt_limit_reached, receipt_rate_limited, or
        * invalid_receipt.
        */
+      /**
+       * Migration 0036 (PAY-05). Front desk/admin only (P0001 not_allowed);
+       * verify also raises payment_not_found, not_open, not_pending,
+       * reference_required, duplicate_reference, amount_short, or
+       * invalid_received_at; reject raises reason_required; mark refunded
+       * raises reference_required.
+       */
+      cammi_connect_verify_payment: {
+        Args: {
+          p_payment_id: string;
+          p_staff_id: string;
+          p_transaction_reference: string;
+          p_amount_received_centavos: number;
+          p_received_at: string;
+        };
+        Returns: { patient_id: string; amount_due_centavos: number }[];
+      };
+      cammi_connect_reject_payment_receipt: {
+        Args: {
+          p_payment_id: string;
+          p_staff_id: string;
+          p_reason_code: string;
+          p_reason: string;
+        };
+        Returns: { patient_id: string; amount_due_centavos: number }[];
+      };
+      cammi_connect_mark_refunded: {
+        Args: { p_payment_id: string; p_staff_id: string; p_refund_reference: string };
+        Returns: { patient_id: string; amount_due_centavos: number }[];
+      };
+      /** Migration 0036. Audits the view; returns the latest receipt's storage path. */
+      cammi_connect_record_receipt_view: {
+        Args: { p_payment_id: string; p_staff_id: string };
+        Returns: string;
+      };
       cammi_connect_submit_payment_receipt: {
         Args: {
           p_payment_id: string;

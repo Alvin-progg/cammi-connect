@@ -122,6 +122,39 @@ describe("listRequestQueue", () => {
   });
 });
 
+describe("listRequestQueue payments (PAY-05)", () => {
+  it("passes the receipt-to-check filter", async () => {
+    const reader = createReader();
+
+    await listRequestQueue(
+      { status: "all", date: null, doctorId: null, specialtyId: null, receiptsToCheck: true },
+      reader,
+    );
+
+    expect(reader.listRequests).toHaveBeenCalledWith(
+      expect.objectContaining({ receiptsToCheck: true }),
+    );
+  });
+
+  it("sorts receipts to check first and keeps the rest in order", async () => {
+    const reader = createReader({
+      listRequests: vi.fn().mockResolvedValue([
+        { id: "a", payment: null },
+        { id: "b", payment: { status: "submitted", deadline: null } },
+        { id: "c" },
+        { id: "d", payment: { status: "submitted", deadline: null } },
+      ]),
+    });
+
+    const queue = await listRequestQueue(
+      { status: "pending", date: null, doctorId: null, specialtyId: null },
+      reader,
+    );
+
+    expect(queue.items.map((item) => item.id)).toEqual(["b", "d", "a", "c"]);
+  });
+});
+
 describe("getRequestDetails", () => {
   it("returns null for a malformed id without reading", async () => {
     const reader = createReader();
@@ -203,6 +236,7 @@ describe("confirmRequest", () => {
     ["outside_hours", "The requested time is no longer within the doctor's consultation hours."],
     ["blocked", "The doctor is unavailable at the requested time."],
     ["inactive_doctor", "This doctor is no longer accepting appointments."],
+    ["payment_not_verified", "Payment not verified yet. Verify the payment before confirming."],
   ])("explains a %s refusal", async (code, message) => {
     const writer = createWriter({ confirm: failingWith(code) });
 

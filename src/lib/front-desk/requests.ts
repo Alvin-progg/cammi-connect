@@ -3,6 +3,8 @@ import type { AppointmentAuditAction } from "@/lib/appointments/audit";
 import { isValidManilaDate } from "@/lib/appointments/filters";
 import type { AppointmentStatus, BookingSource } from "@/lib/appointments/status";
 import type { UserRole } from "@/lib/auth/roles";
+import type { PaymentStatus } from "@/lib/billing/payments";
+import type { FrontDeskPayment } from "@/lib/billing/verification";
 
 /**
  * Status filters for the front desk request queue (SPEC-frontdesk §5).
@@ -41,6 +43,8 @@ export type RequestQueueFilters = {
   date: string | null;
   doctorId: string | null;
   specialtyId: string | null;
+  /** PAY-05 "Receipt to check" filter (`?payment=receipt`); absent when off. */
+  receiptsToCheck?: true;
 };
 
 /** One row of the request queue. Contact fields are null when not on file. */
@@ -56,6 +60,8 @@ export type RequestQueueItem = {
   durationMinutes: number;
   createdAt: string;
   status: AppointmentStatus;
+  /** PAY-05 badge; null or absent when the appointment has no payment row. */
+  payment?: { status: PaymentStatus; deadline: string | null } | null;
 };
 
 /** One `appointment_audit_logs` entry with the actor's name resolved. */
@@ -87,6 +93,8 @@ export type RequestDetails = RequestQueueItem & {
   rejectionReason: string | null;
   cancellationReason: string | null;
   history: RequestAuditEntry[];
+  /** PAY-05 payment panel; null or absent when there is no payment row. */
+  paymentDetails?: FrontDeskPayment | null;
 };
 
 type SearchParam = string | string[] | undefined;
@@ -100,6 +108,7 @@ export function parseRequestQueueFilters(params: {
   date?: SearchParam;
   doctor?: SearchParam;
   specialty?: SearchParam;
+  payment?: SearchParam;
 }): RequestQueueFilters {
   const status = firstValue(params.status);
   const date = firstValue(params.date);
@@ -109,6 +118,7 @@ export function parseRequestQueueFilters(params: {
     date: date && isValidManilaDate(date) ? date : null,
     doctorId: parseRecordIdParam(params.doctor),
     specialtyId: parseRecordIdParam(params.specialty),
+    ...(firstValue(params.payment) === "receipt" ? { receiptsToCheck: true as const } : {}),
   };
 }
 

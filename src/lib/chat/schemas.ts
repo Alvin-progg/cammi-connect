@@ -250,6 +250,9 @@ export const chatMessagePayloadSchema = z.discriminatedUnion("kind", [
     doctorName: z.string(),
     start: z.string(),
   }),
+  // PAY-05: a front desk payment decision (D9); the text is templated and
+  // hidden from the model because it can name an amount.
+  z.object({ kind: z.literal("payment_update") }),
   z.object({
     kind: z.literal("cancel_result"),
     doctorName: z.string(),

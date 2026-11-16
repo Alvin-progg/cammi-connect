@@ -98,7 +98,8 @@ then `db/migrations/0021_admin_services.sql` once, then
 `db/migrations/0032_specialty_routing_hints.sql` once, then
 `db/migrations/0033_price_catalogue.sql` once, then
 `db/migrations/0034_chat_booking_charges.sql` once, then
-`db/migrations/0035_payment_receipts.sql` once.
+`db/migrations/0035_payment_receipts.sql` once, then
+`db/migrations/0036_payment_verification.sql` once.
 After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
@@ -608,6 +609,58 @@ a `receipt_submitted` event, in one transaction. Uploads go only through
   Book another QR payment and open **My appointments**: the request shows the same payment
   card with the upload. Clear the QR path: the card says to pay at the cashier and has no
   upload. Cancel the smoke-test appointments afterwards.
+
+`0036_payment_verification.sql` (PAY-05 front desk verification): replaces
+`cammi_connect_confirm_appointment` so it also refuses `payment_not_verified` unless the
+appointment's payment is `verified`, `hmo_approved`, `not_required`, or
+`collect_at_counter`. An appointment with **no payment row** is not gated: front-desk
+bookings (0012 creates them already confirmed, with no charge), bookings from before
+payments existed, and chat bookings made with `payment.enabled` off. Adds
+`cammi_connect_verify_payment` (from `awaiting_payment`, `submitted`, or `rejected`;
+needs a transaction reference that no other payment used, ignoring case and spaces, an
+amount received of at least the amount due, and a time received not in the future),
+`cammi_connect_reject_payment_receipt` (a `submitted` receipt; reason codes
+`not_found`, `amount_different`, `unreadable`, `already_used`, `other`),
+`cammi_connect_mark_refunded` (`refund_due` → `refunded` with a refund reference), and
+`cammi_connect_record_receipt_view` (returns the latest receipt's path for a 60-second
+signed URL and writes `receipt_viewed` plus an `audit_logs` `payment.receipt_viewed`
+row). All four re-check that the staff profile is an active `front_desk` or `admin`
+(`not_allowed`); verify and reject also need the request to still be `requested`
+(`not_pending`). The `appointments_payment_refund` trigger applies D4 on every cancel or
+reject path: a `verified` payment becomes `refund_due`, except a patient's own
+cancellation less than `payment.refund_cutoff_hours` (24) before the visit, which keeps
+`verified` and records a `no_refund` event (free rebooking within 30 days is handled by
+staff). A front desk cancellation counts as a hospital cancellation (full refund), even
+when the reason is "Patient request". The `payment_events` action check gains
+`no_refund`. Safe to re-run.
+- Local SQL check (Docker, synthetic rows in a rolled-back transaction, as
+  `service_role`): confirm refused while `awaiting_payment`, `submitted`, and `rejected`;
+  a doctor viewing a receipt → `not_allowed`; reject with a bad code →
+  `reason_required`; reject → `rejected` and the patient's resubmission is accepted;
+  verify refused for ₱699.99 of ₱700 (`amount_short`), a blank reference, a time an hour
+  ahead, and a doctor; verify → `verified` and confirm then succeeds; a second verify →
+  `not_open`; the same reference in another case on another payment →
+  `duplicate_reference`; an `awaiting_payment` (counter) payment verifies without a
+  receipt; front desk cancel and front desk reject of verified requests → `refund_due`;
+  mark refunded with a blank reference → `reference_required`, then `refunded`, then
+  `not_open`; patient cancel ≥ 24 h ahead → `refund_due`, < 24 h → stays `verified` with
+  `no_refund`; a front-desk booking and a legacy request with no payment row are still
+  confirmed; one `audit_logs` `payment.receipt_viewed` row; `anon`/`authenticated` have
+  no execute. The file applies twice without error.
+- Smoke test: with payments on and a QR path set, book with "I'll pay" as a synthetic
+  patient and send a receipt. At `/front-desk/requests` the card shows **Receipt to
+  check** (also under the Payment filter, and first in the list); an unpaid request past
+  its deadline shows **Overdue**. Open it: the Payment panel shows the breakdown,
+  `CC-` code, deadline, and receipts sent, and **Confirm request** is disabled with
+  "Payment not verified yet". **View receipt** shows the image (a new `payment.receipt_viewed`
+  row appears at `/admin/audit-log`). **Reject receipt** → *Amount is different*: the
+  patient's chat gets "The front desk couldn't match your payment: amount is different
+  from ₱…". Send another receipt, then **Verify payment** with a made-up reference, the
+  amount, and the time: the chat gets "Payment received ✔…", and Confirm now works.
+  Verifying another payment with the same reference is refused. Cancel the confirmed
+  appointment: it appears under **Refund due** on the requests page; **Mark refunded**
+  with a reference, and the chat gets "Your refund has been sent…". Doctors see no
+  payment information on `/doctor`. Cancel the smoke-test appointments afterwards.
 
 Audit log (ADM-16, no migration): as an admin, open `/admin/audit-log`, filter by
 "Settings (settings.*)", open an entry and check its previous and new values, then use

@@ -262,3 +262,22 @@ describe("CancelAppointment", () => {
     expect(screen.getByRole("alertdialog", { name: "Cancel this appointment?" })).toBeInTheDocument();
   });
 });
+
+describe("RequestDecision payment gate (PAY-05)", () => {
+  it("disables confirming with the reason until payment allows it", () => {
+    render(
+      <RequestDecision
+        appointmentId={APPOINTMENT_ID}
+        patientName="Synthetic Patient B"
+        doctorName="Dr. Synthetic Reyes"
+        whenLabel="Nov 4, 2026, 10:30 AM"
+        confirmBlockedReason="Payment not verified yet"
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Confirm request" })).toBeDisabled();
+    expect(screen.getByText("Payment not verified yet")).toBeInTheDocument();
+    // Rejecting stays available.
+    expect(screen.getByRole("button", { name: "Reject request" })).toBeEnabled();
+  });
+});

@@ -7,6 +7,8 @@ import {
   hmoPendingCopy,
   maskMemberNumber,
   modelHistory,
+  receiptRejectedCopy,
+  refundSentCopy,
   paymentQrImageSrc,
   paymentRequestCopy,
 } from "@/lib/chat/payment";
@@ -127,5 +129,24 @@ describe("modelHistory", () => {
       { role: "assistant", content: PAYMENT_COPY.hiddenFromModel },
       { role: "assistant", content: "Hello!" },
     ]);
+  });
+});
+
+describe("front desk payment updates (PAY-05)", () => {
+  it("uses the spec's verified and rejected texts", () => {
+    expect(PAYMENT_COPY.paymentVerified).toBe(
+      "Payment received ✔. Your appointment is now waiting for front desk confirmation.",
+    );
+    expect(receiptRejectedCopy("amount is different from ₱560.00")).toBe(
+      "The front desk couldn't match your payment: amount is different from ₱560.00. Please check and send the correct receipt.",
+    );
+    expect(refundSentCopy("R-77")).toBe("Your refund has been sent. Refund reference: R-77.");
+  });
+
+  it("hides payment updates from the model", () => {
+    const history = modelHistory([
+      assistant(receiptRejectedCopy("amount is different from ₱560.00"), { kind: "payment_update" }),
+    ]);
+    expect(history).toEqual([{ role: "assistant", content: PAYMENT_COPY.hiddenFromModel }]);
   });
 });

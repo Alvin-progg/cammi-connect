@@ -1,6 +1,6 @@
 # PAY-001 — Chat Payments, Discounts and Coverage, and Non-Consultation Services
 
-- Status: **Approved** 2026-11-16 by the project owner (all decisions D1–D10 at their recommended defaults); in progress (PAY-01 to PAY-04 built)
+- Status: **Approved** 2026-11-16 by the project owner (all decisions D1–D10 at their recommended defaults); in progress (PAY-01 to PAY-05 built)
 - Date: 2026-11-16
 - Type: Feature
 - Priority: High
@@ -44,7 +44,22 @@
   upload) follows the payment request, falls back to "pay at the cashier" when no QR is
   set, and is shown again under unpaid requests in My appointments. Cami's "Got your
   receipt" reply is appended server-side. A "Pay at the hospital" payment gets no QR or
-  upload. The payment request now uses the spec's QR wording. PAY-05 onward not started.
+  upload. The payment request now uses the spec's QR wording.
+- 2026-11-17 — **PAY-05 built** (migration `0036_payment_verification.sql`): the confirm
+  function refuses `payment_not_verified` unless the payment is `verified`,
+  `hmo_approved`, `not_required`, or `collect_at_counter`. An appointment with no
+  payment row is not gated; front-desk bookings keep having none (they are created
+  confirmed, and a `collect_at_counter` row would need a priced charge), which deviates
+  from the ADR-0007 amendment's wording but has the same effect. Audited verify (unique
+  reference, amount ≥ due, time received; also from `awaiting_payment` for "pay at the
+  hospital"), reject (preset reasons), mark refunded, and receipt view
+  (`payment.receipt_viewed`, 60-second signed URL). A trigger applies D4 on every cancel
+  or reject path (`refund_due`, or `no_refund` for a patient's own cancellation under
+  `payment.refund_cutoff_hours`); a front desk cancellation is always a hospital
+  cancellation. Request queue badges, "Receipt to check" filter and sort, Payment panel,
+  disabled Confirm, "Refund due" list. Cami's Verified, Rejected, and refund-sent texts
+  are appended to the patient's latest chat (D9), hidden from the LLM. HMO actions are
+  PAY-06; automatic expiry PAY-08.
 
 ## Objective
 
@@ -339,20 +354,24 @@ Order: 01 → 02 → 03 → 04 → 05 → 06. PAY-07 can start after 03, in para
 - [x] Cami sends the QR card with exact amount, reference code, and deadline. *(PAY-04)*
 - [x] Only JPEG/PNG/WebP up to 5 MB are accepted, checked by file signature. *(PAY-04,
       route tests and bucket limits in local Storage)*
-- [ ] Another patient's payment can't be viewed or uploaded to (reported as not found).
-      *(PAY-04: upload verified in tests and local SQL; viewing is PAY-05)*
-- [ ] The same transaction reference number can't verify two payments.
-- [ ] An appointment can't be confirmed while its payment is unverified (enforced in SQL).
-- [ ] A rejected receipt lets the patient resend, up to the limit. *(PAY-04: SQL resend and
-      limit verified locally; the reject action is PAY-05)*
+- [x] Another patient's payment can't be viewed or uploaded to (reported as not found).
+      *(PAY-04: upload verified in tests and local SQL; PAY-05: only active front desk or
+      admin staff can view receipts, re-checked in SQL; patients have no receipt view)*
+- [x] The same transaction reference number can't verify two payments. *(PAY-05, local SQL)*
+- [x] An appointment can't be confirmed while its payment is unverified (enforced in SQL).
+      *(PAY-05, local SQL)*
+- [x] A rejected receipt lets the patient resend, up to the limit. *(PAY-04 limit; PAY-05
+      reject then resubmit, local SQL)*
 - [ ] HMO denial switches to self-pay and Cami sends the QR.
 - [ ] Overdue unpaid requests are cancelled and release the slot; submitted receipts don't
       expire on their own.
-- [ ] Cancelling a paid appointment creates a refund to track.
+- [x] Cancelling a paid appointment creates a refund to track. *(PAY-05, local SQL;
+      Mark refunded with a reference)*
 - [ ] Patients can book lab tests (multi-select), imaging slots, and packages, and see
       their requirements before paying.
 - [ ] Emergency-sounding messages never get a payment request.
-- [ ] Doctors never see payment data; receipt views are audited.
+- [x] Doctors never see payment data; receipt views are audited. *(PAY-05, static test and
+      local SQL)*
 
 ## Decisions (approved 2026-11-16)
 

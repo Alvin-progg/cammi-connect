@@ -6,6 +6,7 @@ import type {
   BookingSource,
 } from "@/lib/appointments/status";
 import type { UserRole } from "@/lib/auth/roles";
+import type { FrontDeskPayment, RefundDueItem } from "@/lib/billing/verification";
 import {
   PATIENT_SEARCH_LIMIT,
   type PatientMatch,
@@ -159,13 +160,124 @@ async function loadSpecialtyNames(
   );
 }
 
+/** PAY-05 queue badges: each appointment's payment status and deadline. */
+async function loadPaymentBadges(
+  appointmentIds: string[],
+): Promise<Map<string, NonNullable<RequestQueueItem["payment"]>>> {
+  const { data, error } = await getSupabaseAdminClient()
+    .from("payments")
+    .select("appointment_id, status, deadline_at")
+    .in("appointment_id", appointmentIds);
+  if (error) {
+    throw new Error("Unable to load payments.");
+  }
+  return new Map(
+    (data ?? []).map((payment) => [
+      payment.appointment_id,
+      { status: payment.status, deadline: payment.deadline_at },
+    ]),
+  );
+}
+
+/** PAY-05 payment panel. Front desk only; the doctor dashboard never reads payments. */
+async function loadPaymentDetails(appointmentId: string): Promise<FrontDeskPayment | null> {
+  const supabase = getSupabaseAdminClient();
+  const { data: payment, error } = await supabase
+    .from("payments")
+    .select(
+      "id, charge_id, status, method, amount_due_centavos, deadline_at, attempts, transaction_reference, amount_received_centavos, received_at, rejected_reason, refund_reference",
+    )
+    .eq("appointment_id", appointmentId)
+    .maybeSingle();
+  if (error) {
+    throw new Error("Unable to load the payment.");
+  }
+  if (!payment) return null;
+
+  const [charge, receipts] = await Promise.all([
+    supabase
+      .from("appointment_charges")
+      .select(
+        "reference_code, privilege, payer, base_centavos, vat_exemption_centavos, privilege_discount_centavos, philhealth_centavos, hmo_centavos",
+      )
+      .eq("id", payment.charge_id)
+      .single(),
+    supabase
+      .from("payment_receipts")
+      .select("id", { count: "exact", head: true })
+      .eq("payment_id", payment.id),
+  ]);
+  if (charge.error || receipts.error) {
+    throw new Error("Unable to load the payment.");
+  }
+
+  return {
+    id: payment.id,
+    status: payment.status,
+    method: payment.method,
+    amountDueCentavos: payment.amount_due_centavos,
+    deadline: payment.deadline_at,
+    attempts: payment.attempts,
+    referenceCode: charge.data.reference_code,
+    privilege: charge.data.privilege,
+    payer: charge.data.payer,
+    baseCentavos: charge.data.base_centavos,
+    vatExemptionCentavos: charge.data.vat_exemption_centavos,
+    privilegeDiscountCentavos: charge.data.privilege_discount_centavos,
+    philhealthCentavos: charge.data.philhealth_centavos,
+    hmoCentavos: charge.data.hmo_centavos,
+    transactionReference: payment.transaction_reference,
+    amountReceivedCentavos: payment.amount_received_centavos,
+    receivedAt: payment.received_at,
+    rejectedReason: payment.rejected_reason,
+    refundReference: payment.refund_reference,
+    hasReceipt: (receipts.count ?? 0) > 0,
+  };
+}
+
+/** The "Refund due" list (PAY-05), oldest first. */
+export async function listRefundsDue(limit = 50): Promise<RefundDueItem[]> {
+  const supabase = getSupabaseAdminClient();
+  const { data: payments, error } = await supabase
+    .from("payments")
+    .select("id, appointment_id, charge_id, amount_received_centavos, transaction_reference")
+    .eq("status", "refund_due")
+    .order("updated_at", { ascending: true })
+    .limit(limit);
+  if (error) {
+    throw new Error("Unable to load refunds.");
+  }
+  if (!payments?.length) return [];
+
+  const [appointments, charges] = await Promise.all([
+    supabase.from("appointments").select("id, patient_id").in("id", payments.map((p) => p.appointment_id)),
+    supabase.from("appointment_charges").select("id, reference_code").in("id", payments.map((p) => p.charge_id)),
+  ]);
+  if (appointments.error || charges.error) {
+    throw new Error("Unable to load refunds.");
+  }
+  const patientIds = new Map((appointments.data ?? []).map((row) => [row.id, row.patient_id]));
+  const references = new Map((charges.data ?? []).map((row) => [row.id, row.reference_code]));
+  const profiles = await loadProfiles(unique([...patientIds.values()]));
+
+  return payments.map((payment) => ({
+    paymentId: payment.id,
+    appointmentId: payment.appointment_id,
+    patientName: profiles.get(patientIds.get(payment.appointment_id) ?? "")?.full_name ?? "Patient",
+    referenceCode: references.get(payment.charge_id) ?? "",
+    amountReceivedCentavos: payment.amount_received_centavos,
+    transactionReference: payment.transaction_reference,
+  }));
+}
+
 async function toQueueItems(rows: RequestRow[]): Promise<RequestQueueItem[]> {
   if (rows.length === 0) {
     return [];
   }
-  const [profiles, specialtyNames] = await Promise.all([
+  const [profiles, specialtyNames, payments] = await Promise.all([
     loadProfiles(unique(rows.flatMap((row) => [row.patient_id, row.doctor_id]))),
     loadSpecialtyNames(rows),
+    loadPaymentBadges(rows.map((row) => row.id)),
   ]);
   const emails = await loadEmails(
     unique(
@@ -194,6 +306,7 @@ async function toQueueItems(rows: RequestRow[]): Promise<RequestQueueItem[]> {
       durationMinutes: row.duration_minutes,
       createdAt: row.created_at,
       status: row.status,
+      payment: payments.get(row.id) ?? null,
     } satisfies RequestQueueItem;
   });
 }
@@ -239,13 +352,25 @@ async function loadHistory(appointmentId: string): Promise<RequestAuditEntry[]> 
  * request (FD-001 decision 2026-11-03).
  */
 export const supabaseFrontDeskRequestsRepository: FrontDeskRequestsReader = {
-  async listRequests({ status, start, end, doctorId, specialtyId, limit }) {
+  async listRequests({ status, start, end, doctorId, specialtyId, limit, receiptsToCheck }) {
     const supabase = getSupabaseAdminClient();
 
     let query = supabase
       .from("appointments")
       .select(REQUEST_SELECT)
       .eq("booking_source", AI_BOOKING_SOURCE);
+    if (receiptsToCheck) {
+      const { data: submitted, error: paymentError } = await supabase
+        .from("payments")
+        .select("appointment_id")
+        .eq("status", "submitted");
+      if (paymentError) {
+        throw new Error("Unable to load payments.");
+      }
+      const ids = (submitted ?? []).map((payment) => payment.appointment_id);
+      if (ids.length === 0) return [];
+      query = query.in("id", ids);
+    }
     if (status) {
       query = query.eq("status", status);
     }
@@ -299,9 +424,10 @@ export const supabaseFrontDeskRequestsRepository: FrontDeskRequestsReader = {
     }
 
     const row: RequestRow = data;
-    const [[item], history] = await Promise.all([
+    const [[item], history, paymentDetails] = await Promise.all([
       toQueueItems([row]),
       loadHistory(row.id),
+      loadPaymentDetails(row.id),
     ]);
     if (!item) {
       return null;
@@ -314,6 +440,7 @@ export const supabaseFrontDeskRequestsRepository: FrontDeskRequestsReader = {
       rejectionReason: row.rejection_reason?.trim() || null,
       cancellationReason: row.cancellation_reason?.trim() || null,
       history,
+      paymentDetails,
     } satisfies RequestDetails;
   },
 };

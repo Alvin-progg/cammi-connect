@@ -6,6 +6,7 @@ import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
 import type { ReceiptStore } from "./receipts";
 import type { ChargeStore } from "./service";
+import type { PaymentDecisionStore } from "./verification";
 
 const RECEIPT_BUCKET = "payment-receipts";
 
@@ -220,3 +221,73 @@ export async function listOpenPaymentsForPatient(
     ]),
   );
 }
+
+type DecisionRpcResult = {
+  data: { patient_id: string; amount_due_centavos: number }[] | null;
+  error: { code: string; message: string } | null;
+};
+
+function toDecisionOutcome({ data, error }: DecisionRpcResult) {
+  if (error) return { ok: false as const, error: { code: error.code, message: error.message } };
+  const [row] = data ?? [];
+  if (!row) throw new Error("Unable to update the payment.");
+  return { ok: true as const, patientId: row.patient_id, amountDueCentavos: row.amount_due_centavos };
+}
+
+/**
+ * PAY-05 front desk decisions (0036). The functions re-check the staff role,
+ * so a caller that skipped the session check still cannot decide.
+ */
+export const supabasePaymentDecisionRepository: PaymentDecisionStore = {
+  async verify(input) {
+    return toDecisionOutcome(
+      await getSupabaseAdminClient().rpc("cammi_connect_verify_payment", {
+        p_payment_id: input.paymentId,
+        p_staff_id: input.staffId,
+        p_transaction_reference: input.transactionReference,
+        p_amount_received_centavos: input.amountReceivedCentavos,
+        p_received_at: input.receivedAt,
+      }),
+    );
+  },
+
+  async reject(input) {
+    return toDecisionOutcome(
+      await getSupabaseAdminClient().rpc("cammi_connect_reject_payment_receipt", {
+        p_payment_id: input.paymentId,
+        p_staff_id: input.staffId,
+        p_reason_code: input.reasonCode,
+        p_reason: input.rejectedReason,
+      }),
+    );
+  },
+
+  async markRefunded(input) {
+    return toDecisionOutcome(
+      await getSupabaseAdminClient().rpc("cammi_connect_mark_refunded", {
+        p_payment_id: input.paymentId,
+        p_staff_id: input.staffId,
+        p_refund_reference: input.refundReference,
+      }),
+    );
+  },
+
+  async recordReceiptView({ paymentId, staffId }) {
+    const { data, error } = await getSupabaseAdminClient().rpc("cammi_connect_record_receipt_view", {
+      p_payment_id: paymentId,
+      p_staff_id: staffId,
+    });
+    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    return { ok: true, storagePath: data };
+  },
+
+  async signReceiptUrl(storagePath, expiresInSeconds) {
+    const { data, error } = await getSupabaseAdminClient()
+      .storage.from(RECEIPT_BUCKET)
+      .createSignedUrl(storagePath, expiresInSeconds);
+    if (error) {
+      throw new Error("Unable to open the receipt.");
+    }
+    return data.signedUrl;
+  },
+};

@@ -23,6 +23,9 @@ export const PAYMENT_COPY = {
   /** PAY-04: shown on the payment card when payment.qr_image_path is not set. */
   qrNotConfigured:
     "The hospital's QR code isn't set up yet. Please pay at the hospital cashier and give your reference code.",
+  /** PAY-05: appended when the front desk verifies the payment (D9). */
+  paymentVerified:
+    "Payment received ✔. Your appointment is now waiting for front desk confirmation.",
   /** What the model sees instead of a message that carries payment details. */
   hiddenFromModel: "(Booking details were shown in a card.)",
 } as const;
@@ -97,6 +100,16 @@ export function hmoPendingCopy(hmoName: string): string {
   return `Thanks! The front desk will check your ${hmoName} coverage. Please request an LOA in your HMO app and bring your HMO card and a valid ID.`;
 }
 
+/** PAY-05: appended when the front desk rejects a receipt (D9). */
+export function receiptRejectedCopy(reason: string): string {
+  return `The front desk couldn't match your payment: ${reason}. Please check and send the correct receipt.`;
+}
+
+/** PAY-05: appended when the front desk marks a refund sent. */
+export function refundSentCopy(refundReference: string): string {
+  return `Your refund has been sent. Refund reference: ${refundReference}.`;
+}
+
 /**
  * Earlier messages as model context. A reply that carried payment details
  * (summary breakdown or payment request) is replaced, so the LLM never sees
@@ -106,7 +119,8 @@ export function modelHistory(messages: ChatMessage[]): { role: ChatRole; content
   return messages.map(({ role, content, payload }) => {
     const hasPaymentDetails =
       (payload?.kind === "booking_summary" && payload.charge !== undefined) ||
-      (payload?.kind === "booking_result" && payload.payment !== undefined);
+      (payload?.kind === "booking_result" && payload.payment !== undefined) ||
+      payload?.kind === "payment_update";
     return { role, content: hasPaymentDetails ? PAYMENT_COPY.hiddenFromModel : content };
   });
 }
