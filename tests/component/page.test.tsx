@@ -43,3 +43,10 @@ test("landing shows the doctors lineup and links to it from the header", () => {
   }
   expect(screen.getByRole("link", { name: "Doctors" })).toHaveAttribute("href", "#doctors");
 });
+
+test("doctors lineup is its own stacking context so photos stay under the sticky header", () => {
+  render(<Home />);
+
+  const lineup = screen.getByRole("img", { name: "Dr. Darren Jansen Manalo" }).closest("figure")?.parentElement;
+  expect(lineup).toHaveClass("isolate");
+});
