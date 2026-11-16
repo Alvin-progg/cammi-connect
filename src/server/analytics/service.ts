@@ -26,6 +26,7 @@ import {
   previousPeriod,
   type AnalyticsQuery,
 } from "@/lib/analytics/period";
+import { revenueSummary, type RevenuePayment, type RevenueSummary } from "@/lib/analytics/revenue";
 import type { AppointmentAuditAction } from "@/lib/appointments/audit";
 import type { AppointmentStatus } from "@/lib/appointments/status";
 
@@ -71,6 +72,24 @@ export async function loadAnalytics(
 }
 
 export type { AnalyticsDatasets };
+
+// ---------------------------------------------------------------------------
+// Revenue (PAY-08)
+// ---------------------------------------------------------------------------
+
+export type RevenueReader = {
+  /**
+   * Payments verified, refunded, or HMO-decided in `[start, end)`, plus every
+   * open refund_due or unpaid one (the snapshots). No patient fields.
+   */
+  listRevenuePayments(query: { start: string; end: string }): Promise<RevenuePayment[]>;
+};
+
+/** Revenue numbers for the analytics period. Callers must have passed `getAdminSession()`. */
+export async function loadRevenue(query: AnalyticsQuery, reader: RevenueReader): Promise<RevenueSummary> {
+  const period = analyticsPeriodBounds(query);
+  return revenueSummary(await reader.listRevenuePayments(period), period);
+}
 
 // ---------------------------------------------------------------------------
 // Admin dashboard (ADM-12)

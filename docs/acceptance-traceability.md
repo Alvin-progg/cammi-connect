@@ -269,3 +269,16 @@ Decisions: one appointment row per visit (`kind = 'service'`, `doctor_id` null, 
 | Analytics read consultations only | test (static) | `tests/unit/analytics/service-visits.test.ts` |
 | Admin service hours editor (add/remove, audited `service_schedule.*`) | test | `tests/unit/services/schedule-actions.test.ts`, `tests/unit/services/service.test.ts` |
 | Patient books and pays for a CBC + urinalysis and an ultrasound slot through the running app | manual | db/README.md (0038 smoke test) |
+
+## PAY-08 Expiry, refunds, revenue numbers
+
+| Item | Status | Where |
+|---|---|---|
+| `cammi_connect_expire_unpaid` (0039): overdue `awaiting_payment`/`rejected` payments of `requested` appointments only; appointment `cancelled` with `cancelled_by_role = 'system'` and "Payment not received" plus an audit row; payment `expired` plus a `payment_events` row; `submitted`, `hmo_pending`, and not-yet-due untouched; slot released; second run a no-op; skip locked; `service_role` only | test (static) + local SQL smoke | `tests/unit/billing/expire-unpaid-sql.test.ts`, `tests/unit/appointments/audit-coverage.test.ts`, db/README.md (0039) |
+| Cami's Expired message (spec text, doctor or service names) in the patient's latest conversation, `payment_update` payload hidden from the LLM | test (static) + local SQL smoke | `tests/unit/billing/expire-unpaid-sql.test.ts`, db/README.md (0039) |
+| No profile can hold the `system` role | test (static) + local SQL smoke | `tests/unit/billing/expire-unpaid-sql.test.ts`, db/README.md (0039) |
+| pg_cron every 5 minutes, scheduled only when the extension is installed | test (static) + local (job ran) | `tests/unit/billing/expire-unpaid-sql.test.ts`, db/README.md (0039) |
+| Receipt retention (D5): purgeable 90 days after the payment closed; `refund_due` and pending requests stay open; `npm run payments:purge-receipts` deletes images then marks `purged_at` | test + local run | `tests/unit/billing/retention.test.ts`, db/README.md (0039) |
+| Revenue for the analytics period: collected (by verified time), refunded, refund due, outstanding, HMO approved; on `/admin/analytics`; no patient fields | test | `tests/unit/analytics/revenue.test.ts`, `tests/component/analytics/page.test.tsx`, `tests/unit/security/analytics-privacy.test.ts` |
+| Refunds tracked (`refund_due` → `refunded`) | test (PAY-05) | see PAY-05 |
+| Overdue requests cancel automatically on the hosted project (pg_cron enabled) and the purge run there | manual | db/README.md (0039 smoke test) |

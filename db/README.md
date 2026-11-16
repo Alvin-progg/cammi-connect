@@ -762,6 +762,71 @@ Front desk reschedule is hidden for service visits. Safe to re-run.
   counts neither. As an admin, add and remove hours on a service's detail page and check
   `/admin/audit-log`. Cancel the smoke-test appointments afterwards.
 
+`0039_payment_expiry.sql` (PAY-08 expiry, receipt retention): adds `system` to
+`user_role` (used only by `appointments.cancelled_by_role`; `profiles_role_not_system`
+keeps every profile on one of the four real roles) and `cammi_connect_expire_unpaid()`,
+which cancels every `requested` appointment whose payment is `awaiting_payment` or
+`rejected` and past `deadline_at`: the appointment becomes `cancelled`
+(`cancelled_by_role = 'system'`, reason "Payment not received", an
+`appointment_audit_logs` row with no actor), the payment `expired` (a `payment_events`
+row), and Cami's templated Expired message ("Your request for Dr. … on … was cancelled
+because payment wasn't received in time. You can book again anytime.", the tests' names
+for a service visit) is added to the patient's latest conversation with a
+`payment_update` payload, which the model never sees. `submitted` and `hmo_pending`
+never expire. Rows locked by another transaction (a verify or an upload in flight) are
+skipped and picked up on the next run, so overlapping runs are safe; it returns how
+many expired. Replaces `cammi_connect_notify_doctor` so a doctor reads "cancelled by
+the system (request expired)". Adds `payment_receipts.purged_at` and
+`cammi_connect_mark_receipts_purged(uuid[])`. Execute for `service_role` only. Safe to
+re-run.
+
+- **pg_cron (D2, every 5 minutes).** The file schedules the job
+  `cammi-connect-expire-unpaid` (`*/5 * * * *`) only when the `pg_cron` extension is
+  installed; otherwise it prints a notice. On the hosted project, enable **pg_cron**
+  (Dashboard → Integrations → Cron, or `create extension if not exists pg_cron with
+  schema pg_catalog;`), then run the file again (or just its last `do $$ … $$` block).
+  Check with `select jobname, schedule, active from cron.job;` and
+  `select status, return_message, start_time from cron.job_run_details order by start_time desc limit 5;`.
+  Until the job runs, an unpaid request past its deadline shows **Overdue** at the
+  front desk. To run it by hand: `select public.cammi_connect_expire_unpaid();`.
+- **Receipt retention (D5).** `npm run payments:purge-receipts` (needs `.env.local` with
+  `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; add `-- --dry-run` to only
+  count) deletes receipt images from the `payment-receipts` bucket 90 days after their
+  payment closed (`verified`, `hmo_approved`, `expired`, `refunded`, `not_required`,
+  `collect_at_counter`, or an unfinished payment whose request is no longer pending;
+  `refund_due` stays open), then sets `purged_at`. Payment rows, receipt rows, and
+  history stay. It prints counts only. There is no scheduler for it: run it monthly by
+  hand (or from any cron host with the env vars). A front desk "View receipt" on a
+  purged receipt fails to load the image.
+- Local SQL check (Docker, `scripts/db-local-apply.sh`, synthetic rows in a rolled-back
+  transaction, run as `service_role`): of six overdue-or-not requests, the overdue
+  `awaiting_payment` consultation, overdue `rejected` consultation, and overdue
+  `awaiting_payment` CBC + urinalysis visit → `cancelled`/`system`/"Payment not
+  received", payment `expired`, one `cancelled` audit row (no actor) and one `expired`
+  event each; the overdue `submitted`, overdue `hmo_pending`, and not-yet-due
+  `awaiting_payment` ones are untouched; the first run returns 3, the second 0. Three
+  Expired messages ("Dr. Liza Synthetic on 1 Dec, 9:00 AM", "CBC + Urinalysis on 2 Dec,
+  7:00 AM") land in the patient's most recently updated conversation with
+  `{"kind":"payment_update"}`; the doctor gets "cancelled by the system (request
+  expired)"; a new request at the expired slot is accepted. A profile with role
+  `system` is refused (`profiles_role_not_system`). Marking two receipts purged returns
+  2, again 0. `anon`/`authenticated` have no execute. With committed rows, a payment
+  locked by another session (`select … for update`) is skipped (2 expired) and the next
+  run expires it (1). With pg_cron installed locally the file schedules one job and
+  re-running keeps one; the job ran on its own and expired an overdue request.
+  `npm run payments:purge-receipts` against the local API deleted the image of an
+  expired payment closed 91 days ago and marked it, kept a `submitted` one, and a second
+  run found nothing. The file applies twice without error.
+- Smoke test (hosted): with payments on, book with "I'll pay" as a synthetic patient and
+  don't pay. Set that payment's deadline into the past
+  (`update public.payments set deadline_at = now() - interval '1 minute' where id = '…';`).
+  `/front-desk/requests` shows **Overdue** until the next job run (≤ 5 minutes); then the
+  request is gone from the queue, the patient's chat shows the Expired message, My
+  appointments shows it cancelled, and the slot is offered again. Upload a receipt on a
+  second booking and backdate it the same way: it stays **Receipt to check**. At
+  `/admin/analytics` the **Revenue** section shows collected, refunded, refund due,
+  outstanding, and HMO approved for the period.
+
 Audit log (ADM-16, no migration): as an admin, open `/admin/audit-log`, filter by
 "Settings (settings.*)", open an entry and check its previous and new values, then use
 **Export CSV**. A new `audit.export` row appears at the top of the log. A patient

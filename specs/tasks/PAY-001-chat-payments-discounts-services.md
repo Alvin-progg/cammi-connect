@@ -1,6 +1,6 @@
 # PAY-001 — Chat Payments, Discounts and Coverage, and Non-Consultation Services
 
-- Status: **Approved** 2026-11-16 by the project owner (all decisions D1–D10 at their recommended defaults); in progress (PAY-01 to PAY-07 built)
+- Status: **Approved** 2026-11-16 by the project owner (all decisions D1–D10 at their recommended defaults); **built** 2026-11-17 (all slices, PAY-01 to PAY-08; two acceptance criteria below are still unverified)
 - Date: 2026-11-16
 - Type: Feature
 - Priority: High
@@ -100,6 +100,21 @@
   reschedule is hidden for service visits; doctors never see them. Decision: analytics
   (ADM-10/11/12) count consultations only; service visits wait for PAY-08 revenue
   numbers. Automatic expiry is PAY-08.
+- 2026-11-17 — **PAY-08 built** (migration `0039_payment_expiry.sql`):
+  `cammi_connect_expire_unpaid` cancels `requested` appointments whose payment is
+  `awaiting_payment` or `rejected` past its deadline (`cancelled_by_role = 'system'`,
+  "Payment not received", audit row; payment `expired` with an event; skip locked, so
+  runs can overlap) and writes Cami's Expired text into the patient's latest chat itself
+  (`payment_update`, hidden from the LLM), so it needs no app process. Decision: `system`
+  is added to `user_role` for `cancelled_by_role`, and a check keeps every profile off
+  it. pg_cron runs it every 5 minutes, scheduled by the migration only when the
+  extension is installed (enabling it on the hosted project is a manual step,
+  db/README.md); the front desk "Overdue" badge covers the gap. Receipt retention (D5):
+  `npm run payments:purge-receipts` deletes images 90 days after the payment closed
+  (`src/lib/billing/retention.ts`; `refund_due` stays open) and sets `purged_at`; run by
+  hand, no scheduler. Revenue: `/admin/analytics` shows collected, refunded, refund due,
+  outstanding, and HMO approved for the period, hospital-wide (definitions in
+  `docs/analytics-definitions.md`).
 
 ## Objective
 
@@ -406,8 +421,8 @@ Order: 01 → 02 → 03 → 04 → 05 → 06. PAY-07 can start after 03, in para
       reject then resubmit, local SQL)*
 - [x] HMO denial switches to self-pay and Cami sends the QR. *(PAY-06, local SQL and
       service/component tests)*
-- [ ] Overdue unpaid requests are cancelled and release the slot; submitted receipts don't
-      expire on their own.
+- [x] Overdue unpaid requests are cancelled and release the slot; submitted receipts don't
+      expire on their own. *(PAY-08, local SQL and pg_cron; hosted pg_cron is a manual step)*
 - [x] Cancelling a paid appointment creates a refund to track. *(PAY-05, local SQL;
       Mark refunded with a reference)*
 - [x] Patients can book lab tests (multi-select), imaging slots, and packages, and see

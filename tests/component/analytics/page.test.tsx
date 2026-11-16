@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AdminAnalyticsPage from "@/app/admin/analytics/page";
 import type { AnalyticsAppointment } from "@/lib/analytics/metrics";
-import { supabaseAnalyticsRepository } from "@/server/analytics/repository";
+import { supabaseAnalyticsRepository, supabaseRevenueRepository } from "@/server/analytics/repository";
 import { getAdminSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 
@@ -12,6 +12,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/admin/analytics" }));
 vi.mock("@/server/auth/dal", () => ({ getAdminSession: vi.fn() }));
 vi.mock("@/server/analytics/repository", () => ({
   supabaseAnalyticsRepository: { listAppointments: vi.fn(), countPending: vi.fn() },
+  supabaseRevenueRepository: { listRevenuePayments: vi.fn() },
 }));
 vi.mock("@/server/directory/repository", () => ({
   supabaseDirectoryRepository: { listDoctors: vi.fn(), listDepartments: vi.fn() },
@@ -73,6 +74,7 @@ describe("admin analytics page", () => {
       row("no_show", 4),
     ]);
     vi.mocked(supabaseAnalyticsRepository.countPending).mockResolvedValue(2);
+    vi.mocked(supabaseRevenueRepository.listRevenuePayments).mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -87,6 +89,43 @@ describe("admin analytics page", () => {
     expect(screen.getByRole("heading", { name: "Access denied" })).toBeInTheDocument();
     expect(getAdminSession).toHaveBeenCalledWith("/admin/analytics");
     expect(supabaseAnalyticsRepository.listAppointments).not.toHaveBeenCalled();
+    expect(supabaseRevenueRepository.listRevenuePayments).not.toHaveBeenCalled();
+  });
+
+  it("shows PAY-08 revenue for the period: collected, refunded, refund due, outstanding, HMO approved", async () => {
+    vi.mocked(supabaseRevenueRepository.listRevenuePayments).mockResolvedValue([
+      {
+        status: "refund_due",
+        amountDueCentavos: 56000,
+        amountReceivedCentavos: 56000,
+        verifiedAt: "2026-11-03T01:00:00+00:00",
+        refundedAt: null,
+        hmoDecidedAt: null,
+        hmoCentavos: 0,
+      },
+      {
+        status: "awaiting_payment",
+        amountDueCentavos: 70000,
+        amountReceivedCentavos: null,
+        verifiedAt: null,
+        refundedAt: null,
+        hmoDecidedAt: null,
+        hmoCentavos: 0,
+      },
+    ]);
+
+    await renderPage();
+
+    expect(supabaseRevenueRepository.listRevenuePayments).toHaveBeenCalledWith({
+      start: "2025-12-31T16:00:00.000Z",
+      end: "2026-12-31T16:00:00.000Z",
+    });
+    const revenue = screen.getByRole("region", { name: "Revenue" });
+    expect(within(revenue).getByRole("group", { name: "Collected" })).toHaveTextContent("₱560.00");
+    expect(within(revenue).getByRole("group", { name: "Refunded" })).toHaveTextContent("₱0.00");
+    expect(within(revenue).getByRole("group", { name: "Refund due now" })).toHaveTextContent("₱560.00");
+    expect(within(revenue).getByRole("group", { name: "Outstanding now" })).toHaveTextContent("₱700.00");
+    expect(within(revenue).getByRole("group", { name: "HMO approved" })).toHaveTextContent("₱0.00");
   });
 
   it("shows the reference KPIs over the outcome cohort with the pending snapshot", async () => {

@@ -279,6 +279,8 @@ export type Database = {
           size_bytes: number;
           uploaded_at: string;
           outcome: "pending" | "verified" | "rejected";
+          /** Migration 0039 (PAY-08): when the image was deleted from storage (D5). */
+          purged_at: string | null;
         };
         // Written only by cammi_connect_submit_payment_receipt.
         Insert: { [_ in never]: never };
@@ -478,7 +480,7 @@ export type Database = {
           status: AppointmentStatus;
           reason: string | null;
           cancellation_reason: string | null;
-          cancelled_by_role: UserRole | null;
+          cancelled_by_role: UserRole | "system" | null;
           rescheduled_from_at: string | null;
           booking_source: BookingSource;
           created_by_profile_id: string | null;
@@ -501,7 +503,7 @@ export type Database = {
           status?: AppointmentStatus;
           reason?: string | null;
           cancellation_reason?: string | null;
-          cancelled_by_role?: UserRole | null;
+          cancelled_by_role?: UserRole | "system" | null;
           rescheduled_from_at?: string | null;
           booking_source?: BookingSource;
           created_by_profile_id?: string | null;
@@ -518,7 +520,7 @@ export type Database = {
           status?: AppointmentStatus;
           reason?: string | null;
           cancellation_reason?: string | null;
-          cancelled_by_role?: UserRole | null;
+          cancelled_by_role?: UserRole | "system" | null;
           rescheduled_from_at?: string | null;
           confirmed_by_profile_id?: string | null;
           confirmed_at?: string | null;
@@ -894,6 +896,16 @@ export type Database = {
           p_reason: string;
         };
         Returns: { patient_id: string; amount_due_centavos: number }[];
+      };
+      /** Migration 0039 (PAY-08). Run by pg_cron every 5 minutes; returns how many expired. */
+      cammi_connect_expire_unpaid: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+      /** Migration 0039 (PAY-08). Used by scripts/purge-receipts.mts. */
+      cammi_connect_mark_receipts_purged: {
+        Args: { p_receipt_ids: string[] };
+        Returns: number;
       };
       cammi_connect_mark_refunded: {
         Args: { p_payment_id: string; p_staff_id: string; p_refund_reference: string };
@@ -1478,7 +1490,8 @@ export type Database = {
       };
     };
     Enums: {
-      user_role: UserRole;
+      /** 0039 adds "system", used only by appointments.cancelled_by_role; no profile can have it. */
+      user_role: UserRole | "system";
       appointment_status: AppointmentStatus;
       booking_source: BookingSource;
       doctor_notification_type: NotificationType;
