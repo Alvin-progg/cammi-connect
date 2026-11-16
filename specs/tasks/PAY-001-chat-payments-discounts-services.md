@@ -1,6 +1,6 @@
 # PAY-001 — Chat Payments, Discounts and Coverage, and Non-Consultation Services
 
-- Status: **Approved** 2026-11-16 by the project owner (all decisions D1–D10 at their recommended defaults); in progress (PAY-01 to PAY-06 built)
+- Status: **Approved** 2026-11-16 by the project owner (all decisions D1–D10 at their recommended defaults); in progress (PAY-01 to PAY-07 built)
 - Date: 2026-11-16
 - Type: Feature
 - Priority: High
@@ -75,6 +75,31 @@
   PAY-04 QR card, never the reason) go to the patient's latest chat, hidden from the LLM.
   PhilHealth is offered only when a chosen item has a benefit (`philhealthOffered`);
   consultations never have one, so services follow in PAY-07.
+- 2026-11-17 — **PAY-07 built** (migration `0038_service_booking.sql`): `appointments.kind`
+  and `service_id`, `doctor_id` null only for service visits (D3). Decision: **one
+  appointment per visit**; a lab multi-select (CBC + urinalysis) is one appointment, one
+  charge, and one line per test, with `appointments.service_id` the first test, and
+  capacity is counted per service through the charge lines (`cammi_connect_service_load`).
+  `service_schedules` (Manila effective dates, slot minutes, capacity per slot, overlap
+  exclusion) with an audited admin "Hours" editor on the service page; walk-in services
+  use their periods as opening hours (the visit holds the day from the first service's
+  opening), scheduled ones as slots. `cammi_connect_book_service` locks the services,
+  applies the patient cap, hours, hospital-wide holidays, `daily_capacity` per date and
+  capacity per slot, recomputes the charge like 0034, and writes the visit, charge,
+  lines, payment, and `created` event in one transaction, so every chat service booking
+  has a payment row and the PAY-05 confirm gate always applies (local SQL: confirm
+  refused until verified). Only active `walk_in`/`scheduled` services with a price are
+  bookable (ER and pharmacy never); several services only when all are walk-in lab tests.
+  Chat (payment on only; with it off, a service request gets a front desk reply): "What
+  kind?" chips beside the specialties, lab multi-select, single imaging or package,
+  dates or slots, published requirements (and "Doctor's request form" for services that
+  need one and list none) shown with the discount question before payer and payment,
+  PhilHealth only with a benefit and an HMO only when a line is HMO-coverable, one
+  summary, then the PAY-03..06 payment flow. AI-APT-002 `serviceCandidates` is wired.
+  Front desk and admin monitoring show the services where a doctor would be; front desk
+  reschedule is hidden for service visits; doctors never see them. Decision: analytics
+  (ADM-10/11/12) count consultations only; service visits wait for PAY-08 revenue
+  numbers. Automatic expiry is PAY-08.
 
 ## Objective
 
@@ -385,8 +410,9 @@ Order: 01 → 02 → 03 → 04 → 05 → 06. PAY-07 can start after 03, in para
       expire on their own.
 - [x] Cancelling a paid appointment creates a refund to track. *(PAY-05, local SQL;
       Mark refunded with a reference)*
-- [ ] Patients can book lab tests (multi-select), imaging slots, and packages, and see
-      their requirements before paying.
+- [x] Patients can book lab tests (multi-select), imaging slots, and packages, and see
+      their requirements before paying. *(PAY-07: chat flow and card tests, local SQL
+      smoke; the running-app smoke in db/README.md (0038) is still manual)*
 - [ ] Emergency-sounding messages never get a payment request.
 - [x] Doctors never see payment data; receipt views are audited. *(PAY-05, static test and
       local SQL)*

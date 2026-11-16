@@ -63,6 +63,14 @@ const SPECIALTY_FEES_CENTAVOS = {
   Cardiology: 70000,
 };
 
+/** PAY-07 synthetic walk-in caps per day, by category. */
+const WALK_IN_DAILY_CAPACITY = {
+  laboratory: 60,
+  imaging: 40,
+  cardiac_diagnostics: 30,
+  package: 20,
+};
+
 /**
  * PAY-01 synthetic services and prices (docs/pricing-recommendation.md).
  * PhilHealth benefit is 0 everywhere and nothing is VAT-able (decision D7);
@@ -99,10 +107,79 @@ const SEED_SERVICES = [
   philhealth_benefit_centavos: 0,
   hmo_coverable: true,
   requires_doctor_request: false,
-  daily_capacity: null,
+  // PAY-07: walk-in patients per day (synthetic).
+  daily_capacity: booking_mode === "walk_in" ? WALK_IN_DAILY_CAPACITY[category] : null,
   is_active: true,
   ...overrides,
 }));
+
+/**
+ * PAY-07 synthetic service hours (Manila). Walk-in services use them as
+ * opening hours (Mon–Sat); scheduled services as slots (slot minutes and one
+ * patient per slot, from docs/pricing-recommendation.md).
+ */
+const SEED_SERVICE_HOURS = {
+  laboratory: { days: [1, 2, 3, 4, 5, 6], start: "07:00", end: "12:00", slot: 60 },
+  imaging: { days: [1, 2, 3, 4, 5, 6], start: "08:00", end: "16:00", slot: 60 },
+  cardiac_diagnostics: { days: [1, 2, 3, 4, 5, 6], start: "08:00", end: "16:00", slot: 60 },
+  package: { days: [1, 2, 3, 4, 5, 6], start: "07:00", end: "11:00", slot: 60 },
+  "Whole abdomen ultrasound": { days: [1, 2, 3, 4, 5], start: "08:00", end: "12:00", slot: 30 },
+  "Pelvic ultrasound": { days: [1, 2, 3, 4, 5], start: "13:00", end: "16:00", slot: 30 },
+  "2D echocardiogram": { days: [1, 3, 5], start: "08:00", end: "11:00", slot: 45 },
+  "CT scan, single region, plain": { days: [2, 4], start: "13:00", end: "17:00", slot: 30 },
+};
+
+const SEED_SERVICE_SCHEDULES = SEED_SERVICES.filter(
+  (service) => service.booking_mode === "walk_in" || service.booking_mode === "scheduled",
+).flatMap((service) => {
+  const hours =
+    service.booking_mode === "scheduled"
+      ? SEED_SERVICE_HOURS[service.name]
+      : SEED_SERVICE_HOURS[service.category];
+  const serviceIndex = service.id.slice(-2);
+  return hours.days.map((day) => ({
+    id: `00000000-0000-4000-8000-00000000d${serviceIndex}${day}`,
+    service_id: service.id,
+    day_of_week: day,
+    start_time: hours.start,
+    end_time: hours.end,
+    slot_minutes: hours.slot,
+    capacity_per_slot: 1,
+    effective_from: "2026-01-01",
+    effective_until: null,
+    is_active: true,
+  }));
+});
+
+/** PAY-07 published requirements shown before payment (docs/pricing-recommendation.md). */
+const SEED_SERVICE_REQUIREMENTS = [
+  ["CBC with platelet count", "Doctor's request"],
+  ["Urinalysis", "Clean-catch midstream sample"],
+  ["Fecalysis", "Stool sample container from the lab"],
+  ["Fasting blood sugar (FBS)", "8–10 hours fasting"],
+  ["Lipid profile", "10–12 hours fasting"],
+  ["HbA1c", "Doctor's request"],
+  ["Thyroid profile (T3, T4, TSH)", "Doctor's request"],
+  ["Chest X-ray (PA)", "Remove metal items"],
+  ["Chest X-ray (PA + lateral)", "Remove metal items"],
+  ["Whole abdomen ultrasound", "6–8 hours fasting"],
+  ["Pelvic ultrasound", "Full bladder"],
+  ["2D echocardiogram", "Doctor's request"],
+  ["CT scan, single region, plain", "Doctor's request"],
+  ["Basic Health Check package", "8–10 hours fasting"],
+].map(([serviceName, title]) => {
+  const service = SEED_SERVICES.find((entry) => entry.name === serviceName);
+  return {
+    id: `00000000-0000-4000-8000-00000000e${service.id.slice(-2)}0`,
+    title,
+    description: null,
+    service_id: service.id,
+    is_mandatory: true,
+    effective_from: "2026-01-01",
+    effective_to: null,
+    status: "published",
+  };
+});
 
 /** PAY-01 sample HMOs (decision D7): synthetic, not the hospital's accredited list. */
 const SEED_HMO_PROVIDERS = ["Maxicare", "Intellicare", "MediCard", "PhilCare"].map(
@@ -421,6 +498,20 @@ async function main() {
     .upsert(SEED_SERVICES, { onConflict: "id" });
   if (serviceError) {
     throw new Error(`Unable to upsert services: ${serviceError.message}`);
+  }
+
+  const { error: serviceHoursError } = await supabase
+    .from("service_schedules")
+    .upsert(SEED_SERVICE_SCHEDULES, { onConflict: "id" });
+  if (serviceHoursError) {
+    throw new Error(`Unable to upsert service hours: ${serviceHoursError.message}`);
+  }
+
+  const { error: requirementError } = await supabase
+    .from("service_requirements")
+    .upsert(SEED_SERVICE_REQUIREMENTS, { onConflict: "id" });
+  if (requirementError) {
+    throw new Error(`Unable to upsert service requirements: ${requirementError.message}`);
   }
 
   const { error: hmoError } = await supabase

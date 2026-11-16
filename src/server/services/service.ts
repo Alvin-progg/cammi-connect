@@ -1,8 +1,12 @@
 import "server-only";
 
 import { SERVICE_REFUSAL_MESSAGES, serviceRefusalFromCode } from "@/lib/services/refusals";
-import type { ServiceFormInput } from "@/lib/services/schemas";
-import type { HospitalService, ServiceStatusFilter } from "@/lib/services/types";
+import type { ServiceFormInput, ServiceScheduleInput } from "@/lib/services/schemas";
+import type {
+  HospitalService,
+  ServiceSchedulePeriod,
+  ServiceStatusFilter,
+} from "@/lib/services/types";
 
 type DatabaseOutcome = { ok: true } | { ok: false; code: string | undefined };
 
@@ -23,6 +27,11 @@ export type ServiceAdminStore = {
     serviceId: string;
     isActive: boolean;
   }): Promise<DatabaseOutcome>;
+  /** PAY-07: the service's weekly periods, read live (not cached). */
+  listSchedules(serviceId: string): Promise<ServiceSchedulePeriod[]>;
+  saveSchedule(
+    input: { actorId: string; serviceId: string; scheduleId: string | null } & ServiceScheduleInput,
+  ): Promise<DatabaseOutcome>;
 };
 
 const GENERIC_FAILURE = "Something went wrong. Try again.";
@@ -71,4 +80,28 @@ export async function setServiceActive(
     return { ok: false, message: refusalMessage(outcome.code) };
   }
   return { ok: true, message: input.isActive ? "Service activated." : "Service deactivated." };
+}
+
+export function listServiceSchedules(
+  serviceId: string,
+  store: ServiceAdminStore,
+): Promise<ServiceSchedulePeriod[]> {
+  return store.listSchedules(serviceId);
+}
+
+/** PAY-07: creates, updates, or deactivates a service period (audited in SQL). */
+export async function saveServiceSchedule(
+  {
+    actorId,
+    serviceId,
+    scheduleId,
+    input,
+  }: { actorId: string; serviceId: string; scheduleId: string | null; input: ServiceScheduleInput },
+  store: ServiceAdminStore,
+): Promise<{ ok: true; message: string } | { ok: false; message: string }> {
+  const outcome = await store.saveSchedule({ actorId, serviceId, scheduleId, ...input });
+  if (!outcome.ok) {
+    return { ok: false, message: refusalMessage(outcome.code) };
+  }
+  return { ok: true, message: input.isActive ? "Hours saved." : "Hours removed." };
 }

@@ -12,6 +12,15 @@
   `ADR-0009` (evaluation set), `spec-admin.md` ADM-03 (specialties)
 - Requirements: `FR-001`, `FR-004`, `UI-001`
 
+## Progress
+
+- 2026-11-17 — `serviceCandidates` wired in PAY-07: the extraction prompt lists the
+  bookable service names (never prices), and the server keeps a candidate only when it
+  names exactly one active, priced walk-in or scheduled service. "Need ko magpa-CBC, may
+  request na ako" goes straight to the CBC dates; an invented name falls back to the
+  routing above; urgency still wins. With payments off, Cami points the patient to the
+  front desk instead.
+
 ## Objective
 
 Patients should not have to know which specialty they need. They describe their concern in

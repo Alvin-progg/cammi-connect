@@ -86,8 +86,8 @@ export type RequestAuditEntry = {
  * 2026-11-03).
  */
 export type RequestDetails = RequestQueueItem & {
-  /** Used server-side for the schedule check; not displayed. */
-  doctorId: string;
+  /** Used server-side for the schedule check; not displayed. Null for a service visit (PAY-07). */
+  doctorId: string | null;
   bookingSource: BookingSource;
   reason: string | null;
   rejectionReason: string | null;

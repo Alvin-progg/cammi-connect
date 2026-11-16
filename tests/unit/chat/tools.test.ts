@@ -11,6 +11,7 @@ import type { AvailabilitySource } from "@/server/availability/service";
 import { createChatTools, type ChatToolDeps } from "@/server/chat/tools";
 import type { DirectoryStore } from "@/server/directory/service";
 import type { ChargeStore } from "@/server/payments/service";
+import type { ServiceBookingStore } from "@/server/service-booking/service";
 
 vi.mock("server-only", () => ({}));
 
@@ -111,8 +112,48 @@ function toolDeps(
     booker: fakeBooker(),
     patientAppointments,
     charges: fakeCharges(),
+    services: fakeServices(),
     now: () => NOW,
     minLeadHours: async () => 0,
+  };
+}
+
+const CBC_ID = "00000000-0000-4000-8000-0000000c0001";
+
+function fakeServices(): ServiceBookingStore {
+  return {
+    listBookableServices: vi.fn(async () => [
+      {
+        id: CBC_ID,
+        name: "CBC with platelet count",
+        category: "laboratory" as const,
+        bookingMode: "walk_in" as const,
+        priceCentavos: 25000,
+        vatable: false,
+        philhealthBenefitCentavos: 0,
+        hmoCoverable: true,
+        requiresDoctorRequest: true,
+        dailyCapacity: null,
+      },
+    ]),
+    // Saturday hours, 09:00–12:00 Manila.
+    listPeriods: vi.fn(async () => [
+      {
+        serviceId: CBC_ID,
+        dayOfWeek: 6,
+        startTime: "09:00",
+        endTime: "12:00",
+        slotMinutes: 60,
+        capacityPerSlot: 1,
+        effectiveFrom: "2026-01-01",
+        effectiveUntil: null,
+        isActive: true,
+      },
+    ]),
+    listHolidays: vi.fn(async () => []),
+    getLoad: vi.fn(async () => []),
+    listRequirements: vi.fn(async () => []),
+    bookService: vi.fn(),
   };
 }
 
@@ -500,5 +541,38 @@ describe("chat patient appointment tools", () => {
     await expect(tools.getPatientAppointments({ patientId: "nope" })).rejects.toThrow();
     expect(store.cancelForPatient).not.toHaveBeenCalled();
     expect(store.listForPatient).not.toHaveBeenCalled();
+  });
+
+  it("offers service times only for bookable services, after the minimum lead time (PAY-07)", async () => {
+    const deps = toolDeps();
+    // 09:00 Manila now; the lab opens at 09:00 today and next Saturday.
+    const tools = createChatTools({ ...deps, minLeadHours: async () => 1 });
+
+    const times = await tools.getServiceTimes({ serviceIds: [CBC_ID], fromDate: "2026-10-31", days: 8 });
+    expect(times).toEqual({
+      walkIn: true,
+      slots: [{ start: "2026-11-07T01:00:00.000Z", end: "2026-11-07T04:00:00.000Z" }],
+    });
+    await expect(
+      tools.getServiceTimes({ serviceIds: [APPOINTMENT_ID], fromDate: "2026-10-31", days: 1 }),
+    ).resolves.toEqual({ walkIn: false, slots: [] });
+  });
+
+  it("refuses a malformed service booking before touching the database (PAY-07)", async () => {
+    const deps = toolDeps();
+    const tools = createChatTools(deps);
+    await expect(
+      tools.createServiceBooking({
+        patientId: PATIENT_ID,
+        serviceIds: [],
+        visitDate: null,
+        start: null,
+        reason: null,
+        privilege: "none",
+        payment: { payer: "self", method: "qr_ph" },
+        expectedAmountDueCentavos: 0,
+      }),
+    ).rejects.toThrow();
+    expect(deps.services.bookService).not.toHaveBeenCalled();
   });
 });

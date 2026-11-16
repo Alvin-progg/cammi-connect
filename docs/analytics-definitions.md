@@ -12,6 +12,7 @@ Change both together, and get sign-off first.
 - A period is `[from, to)` in Manila calendar dates (`Asia/Manila`, UTC+8, no DST). `to` is excluded. The page opens on **this year** (Jan 1 – Dec 31, Manila).
 - Unless stated otherwise, the cohort is every appointment whose `scheduled_at` falls in the period. A creation date is never used as a scheduled date.
 - Doctor and department filters narrow every metric. A department filter selects that department's doctors.
+- Every cohort holds doctor consultations only (`appointments.kind = 'consultation'`). Lab, imaging, and package visits (PAY-07, no doctor) are left out, so no metric changed; how to count them is for PAY-08 and needs the owner's sign-off.
 
 ## Metrics
 

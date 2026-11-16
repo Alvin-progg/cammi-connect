@@ -21,7 +21,7 @@ import type {
 } from "@/lib/chat/schemas";
 import { HMO_MEMBER_NUMBER_MAX_LENGTH, type PaymentChoice } from "@/lib/chat/state";
 
-import type { CardProps } from "./booking-cards";
+import { RequirementList, type CardProps } from "./booking-cards";
 
 /**
  * PAY-03 cards: the discount and payer questions, the summary breakdown, and
@@ -29,7 +29,21 @@ import type { CardProps } from "./booking-cards";
  * payload, which is computed from database prices.
  */
 
-export function PrivilegeOptions({ interactive, busy, onEvent }: CardProps) {
+export function PrivilegeOptions({
+  payload,
+  interactive,
+  busy,
+  onEvent,
+}: CardProps & { payload: Extract<ChatMessagePayload, { kind: "privilege_options" }> }) {
+  return (
+    <>
+      {payload.requirements?.length ? <RequirementList requirements={payload.requirements} /> : null}
+      <PrivilegeButtons interactive={interactive} busy={busy} onEvent={onEvent} />
+    </>
+  );
+}
+
+function PrivilegeButtons({ interactive, busy, onEvent }: CardProps) {
   return (
     <ul aria-label="Discounts" className="mt-3 flex flex-wrap gap-2">
       {privilegeChoiceSchema.options.map((privilege) => (

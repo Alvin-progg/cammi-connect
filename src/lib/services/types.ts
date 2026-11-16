@@ -57,3 +57,16 @@ export type HospitalService = {
   /** Walk-in patients per day; null is no cap. */
   dailyCapacity: number | null;
 };
+
+/** PAY-07: one weekly period of a walk-in or scheduled service (service_schedules). */
+export type ServiceSchedulePeriod = {
+  id: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  slotMinutes: number;
+  capacityPerSlot: number;
+  effectiveFrom: string;
+  effectiveUntil: string | null;
+  isActive: boolean;
+};

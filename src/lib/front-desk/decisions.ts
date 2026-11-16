@@ -169,8 +169,12 @@ export function canFrontDeskCancel(status: AppointmentStatus): boolean {
   return canTransition(status, "cancelled");
 }
 
-export function canFrontDeskReschedule(status: AppointmentStatus): boolean {
-  return status === "requested" || status === "confirmed";
+export function canFrontDeskReschedule(
+  status: AppointmentStatus,
+  /** null for a service visit (PAY-07): it has no doctor slots to move to. */
+  doctorId?: string | null,
+): boolean {
+  return doctorId !== null && (status === "requested" || status === "confirmed");
 }
 
 /**

@@ -156,6 +156,8 @@ const DECISION_REFUSAL_MESSAGES: Record<string, string> = {
     "The requested time is no longer within the doctor's consultation hours.",
   blocked: "The doctor is unavailable at the requested time.",
   inactive_doctor: "This doctor is no longer accepting appointments.",
+  // PAY-07 (0038): a service visit whose service was deactivated.
+  service_unavailable: "This service is no longer offered. Reject the request instead.",
   // PAY-05 confirm gate (0036).
   payment_not_verified: "Payment not verified yet. Verify the payment before confirming.",
   reason_required: "A rejection reason is required.",

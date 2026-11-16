@@ -63,7 +63,10 @@ export default async function FrontDeskRequestPage({
   const isCamiRequest = request.bookingSource === "ai_chatbot";
   const attendanceActions = allowedAttendanceActions(request.status, request.scheduledAt);
   const [slotCheck, pendingQueue] = await Promise.all([
-    isPending ? checkRequestSlot(request, supabaseDoctorSchedulesRepository) : null,
+    // A service visit's hours and capacity were checked when it was booked (PAY-07).
+    isPending && request.doctorId
+      ? checkRequestSlot({ ...request, doctorId: request.doctorId }, supabaseDoctorSchedulesRepository)
+      : null,
     // The pending queue, oldest first, for "N of M" and Next request.
     isPending && isCamiRequest
       ? listRequestQueue(parseRequestQueueFilters({}), supabaseFrontDeskRequestsRepository)
@@ -78,7 +81,7 @@ export default async function FrontDeskRequestPage({
   const requestedVia = isCamiRequest ? "in chat" : "at the front desk";
   const hasActions =
     isPending ||
-    canFrontDeskReschedule(request.status) ||
+    canFrontDeskReschedule(request.status, request.doctorId) ||
     canFrontDeskCancel(request.status) ||
     attendanceActions.length > 0;
   // todayInManila gives the Manila calendar date of any instant.
@@ -148,9 +151,9 @@ export default async function FrontDeskRequestPage({
                 confirmBlockedReason={confirmBlockedReason}
               />
             ) : null}
-            {canFrontDeskReschedule(request.status) || canFrontDeskCancel(request.status) ? (
+            {canFrontDeskReschedule(request.status, request.doctorId) || canFrontDeskCancel(request.status) ? (
               <div className="flex flex-col gap-2">
-                {canFrontDeskReschedule(request.status) ? (
+                {canFrontDeskReschedule(request.status, request.doctorId) ? (
                   <Link
                     href={`/front-desk/requests/${request.id}/reschedule`}
                     className={SECONDARY_BUTTON_CLASS}

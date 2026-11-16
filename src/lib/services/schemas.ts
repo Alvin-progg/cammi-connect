@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { optionalPesoField, pesoFieldOrZero } from "@/lib/billing/money";
 import { optionalDescription } from "@/lib/directory/schemas";
+import { schedulePeriodSchema } from "@/lib/schedules/schemas";
 
 import { SERVICE_BOOKING_MODES, SERVICE_CATEGORIES } from "./types";
 
@@ -60,3 +61,20 @@ export const serviceFormSchema = z.object({
 });
 
 export type ServiceFormInput = z.infer<typeof serviceFormSchema>;
+
+/**
+ * PAY-07: one weekly period of a walk-in or scheduled service. The doctor
+ * period rules plus a capacity per slot (1–100, as in 0038). A walk-in
+ * service uses its periods as opening hours.
+ */
+export const serviceScheduleFormSchema = schedulePeriodSchema.and(
+  z.object({
+    capacityPerSlot: z.coerce
+      .number("Enter a capacity from 1 to 100.")
+      .int("Enter a capacity from 1 to 100.")
+      .min(1, "Enter a capacity from 1 to 100.")
+      .max(100, "Enter a capacity from 1 to 100."),
+  }),
+);
+
+export type ServiceScheduleInput = z.infer<typeof serviceScheduleFormSchema>;

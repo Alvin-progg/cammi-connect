@@ -53,6 +53,8 @@ async function loadPeriodRows(query: {
     let request = getSupabaseAdminClient()
       .from("appointments")
       .select("id, doctor_id, scheduled_at, scheduled_end_at, status, confirmed_at")
+      // PAY-07: analytics are doctor metrics; service visits are left out.
+      .eq("kind", "consultation")
       .gte("scheduled_at", query.start)
       .lt("scheduled_at", query.end);
     if (query.doctorId) request = request.eq("doctor_id", query.doctorId);
@@ -65,7 +67,9 @@ async function loadPeriodRows(query: {
     if (error) {
       throw new Error("Unable to load analytics appointments.");
     }
-    rows.push(...(data ?? []));
+    for (const row of data ?? []) {
+      if (row.doctor_id) rows.push({ ...row, doctor_id: row.doctor_id });
+    }
     if ((data ?? []).length < PAGE_SIZE) {
       return rows;
     }
@@ -142,6 +146,7 @@ async function loadPendingRows(doctorId: string | null, departmentDoctorIds: str
     let request = getSupabaseAdminClient()
       .from("appointments")
       .select("id, doctor_id, created_at")
+      .eq("kind", "consultation")
       .eq("status", "requested");
     if (doctorId) request = request.eq("doctor_id", doctorId);
     if (departmentDoctorIds) request = request.in("doctor_id", departmentDoctorIds);
@@ -153,7 +158,9 @@ async function loadPendingRows(doctorId: string | null, departmentDoctorIds: str
     if (error) {
       throw new Error("Unable to load pending requests.");
     }
-    rows.push(...(data ?? []));
+    for (const row of data ?? []) {
+      if (row.doctor_id) rows.push({ doctor_id: row.doctor_id, created_at: row.created_at });
+    }
     if ((data ?? []).length < PAGE_SIZE) {
       return rows;
     }
@@ -233,6 +240,7 @@ export const supabaseAnalyticsRepository: DashboardReader = {
     let request = getSupabaseAdminClient()
       .from("appointments")
       .select("id", { count: "exact", head: true })
+      .eq("kind", "consultation")
       .eq("status", "requested");
     if (doctorId) request = request.eq("doctor_id", doctorId);
     if (departmentDoctorIds) request = request.in("doctor_id", departmentDoctorIds);
@@ -258,6 +266,7 @@ export const supabaseAnalyticsRepository: DashboardReader = {
         .from("appointments")
         .select("id", { count: "exact", head: true })
         .in("id", ids)
+        .eq("kind", "consultation")
         .eq("status", "cancelled");
       if (doctorId) request = request.eq("doctor_id", doctorId);
       if (departmentDoctorIds) request = request.in("doctor_id", departmentDoctorIds);

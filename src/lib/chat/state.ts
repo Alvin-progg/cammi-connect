@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { privilegeChoiceSchema } from "@/lib/billing/compute";
+import { MAX_SERVICES_PER_VISIT } from "@/lib/services/booking";
 
 /**
  * Steps of the server-owned booking flow (AI-APT-001). The step and draft are
@@ -14,6 +15,9 @@ export const BOOKING_STEPS = [
   "choosing_doctor",
   // Path B: the named doctor has several specialties and the patient picks one.
   "choosing_doctor_specialty",
+  // PAY-07: picking lab tests, an imaging test, or a package; their dates or
+  // times then use choosing_slot.
+  "choosing_services",
   "choosing_slot",
   // PAY-03, only while payment.enabled: senior/PWD discount, then who pays.
   "choosing_privilege",
@@ -70,6 +74,12 @@ export type PaymentChoice = z.infer<typeof paymentChoiceSchema>;
  * names shown to the patient are re-read from the database on every turn.
  */
 export const bookingDraftSchema = z.object({
+  /**
+   * PAY-07: a lab, imaging, or package visit instead of a consultation, in
+   * the patient's order. slotStart is then the walk-in opening time or the
+   * scheduled slot.
+   */
+  serviceIds: z.array(z.uuid()).min(1).max(MAX_SERVICES_PER_VISIT).optional(),
   specialtyId: z.uuid().optional(),
   doctorId: z.uuid().optional(),
   preferredDate: z.iso.date().optional(),
@@ -112,11 +122,19 @@ export type BookingEventType =
   | "update_reason"
   | "accept_booking_offer"
   | "select_privilege"
-  | "select_payer";
+  | "select_payer"
+  | "select_service_kind"
+  | "select_services";
 
 const ACCEPTED_FROM: Record<BookingEventType, readonly BookingStep[]> = {
   // choosing_doctor: the routed doctor list offers an alternative specialty.
-  select_specialty: ["choosing_specialty", "choosing_doctor_specialty", "choosing_doctor"],
+  select_specialty: [
+    "choosing_specialty",
+    "choosing_doctor_specialty",
+    "choosing_doctor",
+    "choosing_services",
+  ],
+  // choosing_services: the patient switched from a service back to a consultation.
   // choosing_slot and failed offer other doctors of the same specialty.
   select_doctor: ["choosing_doctor", "choosing_slot", "failed"],
   more_slots: ["choosing_slot", "failed"],
@@ -127,6 +145,7 @@ const ACCEPTED_FROM: Record<BookingEventType, readonly BookingStep[]> = {
     "choosing_specialty",
     "choosing_doctor",
     "choosing_doctor_specialty",
+    "choosing_services",
     "choosing_slot",
     "choosing_privilege",
     "choosing_payer",
@@ -137,6 +156,8 @@ const ACCEPTED_FROM: Record<BookingEventType, readonly BookingStep[]> = {
   accept_booking_offer: ["offering_booking"],
   select_privilege: ["choosing_privilege"],
   select_payer: ["choosing_payer"],
+  select_service_kind: ["choosing_specialty", "choosing_services"],
+  select_services: ["choosing_services"],
 };
 
 /** Rejects events that would skip a step, such as Confirm before a slot is chosen. */
@@ -160,6 +181,10 @@ export function applyCorrection(
   if (changed("specialtyId")) {
     next.doctorId = changes.doctorId;
     next.slotStart = undefined;
+  }
+  // A consultation and a service visit never share a draft (PAY-07).
+  if ((changed("specialtyId") || changed("doctorId")) && !("serviceIds" in changes)) {
+    next.serviceIds = undefined;
   }
   if (changed("doctorId") || changed("preferredDate") || changed("preferredTime")) {
     next.slotStart = undefined;

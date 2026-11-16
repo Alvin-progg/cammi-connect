@@ -251,3 +251,21 @@ Authorization model note: under ADR-0003, every table has RLS on with no policie
 | Member numbers masked (`••••4417`) everywhere else: the stored number is read only by the booking write and the front desk details, never by the queue | test + test (static) | `tests/unit/billing/hmo.test.ts`, `tests/unit/security/hmo-member-number.test.ts` |
 | PhilHealth offered only when a chosen item has a benefit above ₱0 (`philhealthOffered`; consultations never; the server also refuses a PhilHealth choice without one) | test | `tests/unit/billing/hmo.test.ts`, `tests/unit/chat/booking-payment.test.ts`, `tests/component/chat/payment-cards.test.tsx` |
 | End-to-end approve/deny through the running app | manual | db/README.md (0037 smoke test) |
+
+## PAY-07 Lab, imaging, and package booking
+
+Decisions: one appointment row per visit (`kind = 'service'`, `doctor_id` null, `service_id` = the first service; every service is a charge line, where capacity is counted); analytics (ADM-10/11/12) count consultations only, and service visits are left out until PAY-08 revenue numbers.
+
+| Item | Status | Where |
+|---|---|---|
+| `appointments.kind`/`service_id`; `doctor_id` null only for (and always for) a service visit; a consultation with no doctor is refused | test (static) + local SQL smoke | `tests/unit/billing/service-booking-sql.test.ts`, db/README.md (0038) |
+| `service_schedules` with Manila effective dates, slot minutes, capacity per slot, overlap exclusion, ADR-0003 lockdown; audited `cammi_connect_admin_save_service_schedule` (admin only, walk-in/scheduled services only) | test (static) + local SQL smoke | `tests/unit/billing/service-booking-sql.test.ts`, db/README.md (0038) |
+| `cammi_connect_book_service`: CBC + urinalysis as one visit, one charge, two lines (₱370); PWD CBC + urinalysis + FBS ₱520 → ₱416; walk-in daily cap (`service_full`); ultrasound capacity 1 refuses a second booking of the slot (`slot_full`), also under concurrency (the second call waits on the service lock); off-grid slot, holiday, lab + imaging mix, booking mode `none`, PhilHealth without a benefit all refused | test (static) + local SQL smoke | `tests/unit/billing/service-booking-sql.test.ts`, db/README.md (0038) |
+| Every service visit is born with its charge and payment in the same transaction, so the PAY-05 confirm gate applies: confirm refused (`payment_not_verified`) until verified, then succeeds; no doctor notification | test (static) + local SQL smoke | `tests/unit/billing/service-booking-sql.test.ts`, db/README.md (0038) |
+| Walk-in dates (all services open, first service's hours, not past, no holiday, daily cap) and scheduled slots (grid, capacity per slot) in TS | test | `tests/unit/services/booking.test.ts`, `tests/unit/service-booking/service.test.ts`, `tests/unit/chat/tools.test.ts` |
+| Chat: "What kind?" chips next to the specialties (payment on only); lab multi-select, single imaging/package; dates or slots; requirements shown with the discount question, before payer and payment; PhilHealth only with a benefit, HMO only when a line is coverable; one summary, Confirm books through `cammi_connect_book_service`; templated replies | test | `tests/unit/chat/service-booking.test.ts`, `tests/component/chat/service-cards.test.tsx`, `tests/unit/chat/state.test.ts` |
+| AI-APT-002 `serviceCandidates`: "Need ko magpa-CBC" goes to the CBC dates; invented names fall back to routing; payments off → front desk reply; urgent still first; prompt lists names only, no prices | test | `tests/unit/chat/service-booking.test.ts` |
+| Front desk queue/details/schedule/overview and admin monitoring show the services where the doctor would be; reschedule hidden for service visits; doctor dashboard never sees them (queries scoped by `doctor_id`) | test (reschedule) + typecheck | `tests/unit/front-desk/decisions.test.ts` |
+| Analytics read consultations only | test (static) | `tests/unit/analytics/service-visits.test.ts` |
+| Admin service hours editor (add/remove, audited `service_schedule.*`) | test | `tests/unit/services/schedule-actions.test.ts`, `tests/unit/services/service.test.ts` |
+| Patient books and pays for a CBC + urinalysis and an ultrasound slot through the running app | manual | db/README.md (0038 smoke test) |

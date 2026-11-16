@@ -12,6 +12,7 @@ import { createChatTools } from "@/server/chat/tools";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import { supabaseKnowledgeRepository } from "@/server/knowledge/repository";
 import { searchHospitalInformation } from "@/server/knowledge/service";
+import { supabaseServiceBookingRepository } from "@/server/service-booking/repository";
 import { supabaseChargeRepository } from "@/server/payments/repository";
 import { supabaseSettingsRepository } from "@/server/settings/repository";
 import { getSettings } from "@/server/settings/service";
@@ -42,6 +43,7 @@ export async function POST(request: Request): Promise<Response> {
       booker: supabaseAppointmentBooker,
       patientAppointments: supabasePatientAppointmentsRepository,
       charges: supabaseChargeRepository,
+      services: supabaseServiceBookingRepository,
       now: () => new Date(),
       minLeadHours: async () => (await loadSettings())["appointment.min_lead_hours"],
     }),

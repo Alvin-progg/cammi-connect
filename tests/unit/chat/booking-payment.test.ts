@@ -69,6 +69,10 @@ function fakeTools(feeCentavos: number | null = 70000): ChatTools {
         deadline: "2026-10-31T03:00:00.000Z",
       },
     })),
+    getBookableServices: vi.fn(async () => []),
+    getServiceTimes: vi.fn(async () => ({ walkIn: false, slots: [] })),
+    getServiceRequirements: vi.fn(async () => []),
+    createServiceBooking: vi.fn(),
     getPatientAppointments: vi.fn(async () => []),
     getPatientAppointment: vi.fn(async () => null),
     requestAppointmentCancellation: vi.fn(async () => ({

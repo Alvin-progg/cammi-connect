@@ -1,5 +1,6 @@
 import type { AppointmentAuditAction } from "@/lib/appointments/audit";
 import type {
+  AppointmentKind,
   AppointmentStatus,
   BookingSource,
 } from "@/lib/appointments/status";
@@ -211,10 +212,12 @@ export type Database = {
           id: string;
           charge_id: string;
           line_number: number;
-          kind: "consultation";
+          kind: "consultation" | "service";
           description: string;
           doctor_id: string | null;
           specialty_id: string | null;
+          /** Migration 0038 (PAY-07): set on service lines. */
+          service_id: string | null;
           vatable: boolean;
           philhealth_benefit_centavos: number;
           hmo_coverable: boolean;
@@ -461,7 +464,12 @@ export type Database = {
       appointments: {
         Row: {
           id: string;
-          doctor_id: string;
+          /** Null only for a service visit (PAY-07, kind = 'service'). */
+          doctor_id: string | null;
+          /** PAY-07: 'service' for lab, imaging, and package visits. */
+          kind: AppointmentKind;
+          /** PAY-07: the visit's first service; every service is a charge line. */
+          service_id: string | null;
           patient_id: string;
           scheduled_at: string;
           /** Trigger-maintained end of the appointment interval. */
@@ -483,7 +491,9 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          doctor_id: string;
+          doctor_id?: string | null;
+          kind?: AppointmentKind;
+          service_id?: string | null;
           patient_id: string;
           scheduled_at: string;
           scheduled_end_at?: string;
@@ -601,6 +611,30 @@ export type Database = {
         Update: {
           reason?: string | null;
         };
+        Relationships: [];
+      };
+      /**
+       * Migration 0038 (PAY-07). Weekly hours of a walk-in or scheduled
+       * service, with the same Manila effective-date rules as doctor periods.
+       * Written only by cammi_connect_admin_save_service_schedule.
+       */
+      service_schedules: {
+        Row: {
+          id: string;
+          service_id: string;
+          day_of_week: number;
+          start_time: string;
+          end_time: string;
+          slot_minutes: number;
+          capacity_per_slot: number;
+          effective_from: string;
+          effective_until: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: { [_ in never]: never };
+        Update: { [_ in never]: never };
         Relationships: [];
       };
       doctor_schedules: {
@@ -1282,6 +1316,63 @@ export type Database = {
           amount_due_centavos: number;
           deadline_at: string | null;
         }[];
+      };
+      /**
+       * Migration 0038 (PAY-07). Books a walk-in date or a scheduled slot for
+       * one or more services with its charge, lines, payment, and created
+       * event in one transaction. Raises P0001 invalid_payment_choice,
+       * invalid_member_number, hmo_unavailable, invalid_services,
+       * service_unavailable, price_on_request, invalid_service_combination,
+       * too_many_upcoming, past, outside_hours, blocked, service_full,
+       * slot_full, price_changed, or payment_too_soon.
+       */
+      cammi_connect_book_service: {
+        Args: {
+          p_patient_id: string;
+          p_service_ids: string[];
+          p_visit_date: string | null;
+          p_scheduled_at: string | null;
+          p_reason: string | null;
+          p_privilege: string;
+          p_payer: string;
+          p_payment_method: string | null;
+          p_hmo_provider_id: string | null;
+          p_hmo_member_number: string | null;
+          p_expected_amount_due_centavos: number;
+        };
+        Returns: {
+          appointment_id: string;
+          reference_code: string;
+          payment_status: Database["public"]["Enums"]["payment_status"];
+          amount_due_centavos: number;
+          deadline_at: string | null;
+        }[];
+      };
+      /** Migration 0038 (PAY-07). Holding service visits per service and start time in [p_from, p_to). */
+      cammi_connect_service_load: {
+        Args: { p_service_ids: string[]; p_from: string; p_to: string };
+        Returns: { service_id: string; scheduled_at: string; bookings: number }[];
+      };
+      /**
+       * Migration 0038 (PAY-07). Audited create or update of a service
+       * period. Raises P0001 not_admin, not_found, not_bookable,
+       * invalid_period, or overlap.
+       */
+      cammi_connect_admin_save_service_schedule: {
+        Args: {
+          p_actor_profile_id: string;
+          p_schedule_id: string | null;
+          p_service_id: string;
+          p_day_of_week: number;
+          p_start_time: string;
+          p_end_time: string;
+          p_slot_minutes: number;
+          p_capacity_per_slot: number;
+          p_effective_from: string;
+          p_effective_until: string | null;
+          p_is_active: boolean;
+        };
+        Returns: string;
       };
       /** Migration 0009. Raises P0001 not_found, not_pending, inactive_doctor, past, outside_hours, or blocked. */
       cammi_connect_confirm_appointment: {

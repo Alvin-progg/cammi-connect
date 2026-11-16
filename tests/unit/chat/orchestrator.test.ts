@@ -67,6 +67,10 @@ function fakeTools(): ChatTools {
     getConsultationFee: vi.fn(async () => null),
     getActiveHmoProviders: vi.fn(async () => []),
     createChargedAppointment: vi.fn(async () => ({ ok: false as const, message: "unused" })),
+    getBookableServices: vi.fn(async () => []),
+    getServiceTimes: vi.fn(async () => ({ walkIn: false, slots: [] })),
+    getServiceRequirements: vi.fn(async () => []),
+    createServiceBooking: vi.fn(),
     getPatientAppointments: vi.fn(async () => []),
     getPatientAppointment: vi.fn(async () => null),
     requestAppointmentCancellation: vi.fn(async () => ({

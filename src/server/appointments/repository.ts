@@ -14,6 +14,7 @@ import type {
   PatientAppointment,
 } from "@/lib/appointments/types";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
+import { loadServiceVisitLabels } from "@/server/service-booking/repository";
 
 import type {
   AppointmentBooker,
@@ -314,7 +315,7 @@ export const supabasePatientAppointmentsRepository: PatientAppointmentsStore = {
     const supabase = getSupabaseAdminClient();
     const { data: rows, error } = await supabase
       .from("appointments")
-      .select("id, doctor_id, reason, scheduled_at, duration_minutes, status")
+      .select("id, doctor_id, service_id, reason, scheduled_at, duration_minutes, status")
       .eq("patient_id", patientId)
       .order("scheduled_at", { ascending: false })
       .limit(PATIENT_APPOINTMENT_LIMIT);
@@ -325,10 +326,11 @@ export const supabasePatientAppointmentsRepository: PatientAppointmentsStore = {
       return [];
     }
 
-    const doctorIds = [...new Set(rows.map((row) => row.doctor_id))];
-    const [profilesResult, doctorsResult] = await Promise.all([
+    const doctorIds = [...new Set(rows.flatMap((row) => (row.doctor_id ? [row.doctor_id] : [])))];
+    const [profilesResult, doctorsResult, serviceLabels] = await Promise.all([
       supabase.from("profiles").select("id, full_name").in("id", doctorIds),
       supabase.from("doctors").select("id, department_id").in("id", doctorIds),
+      loadServiceVisitLabels(rows),
     ]);
     if (profilesResult.error || doctorsResult.error) {
       throw new Error("Unable to load appointment doctors.");
@@ -363,10 +365,14 @@ export const supabasePatientAppointmentsRepository: PatientAppointmentsStore = {
     );
 
     return rows.map((row) => {
-      const departmentId = doctorDepartments.get(row.doctor_id);
+      const departmentId = row.doctor_id ? doctorDepartments.get(row.doctor_id) : undefined;
+      // PAY-07: a service visit shows its services where a doctor's name would be.
+      const doctorName = row.doctor_id
+        ? doctorNames.get(row.doctor_id)?.trim() || "Doctor"
+        : (serviceLabels.get(row.id) ?? "Hospital service");
       return {
         id: row.id,
-        doctorName: doctorNames.get(row.doctor_id)?.trim() || "Doctor",
+        doctorName,
         departmentName: departmentId ? (departmentNames.get(departmentId) ?? null) : null,
         reason: row.reason?.trim() || null,
         scheduledAt: row.scheduled_at,
@@ -380,7 +386,7 @@ export const supabasePatientAppointmentsRepository: PatientAppointmentsStore = {
     const supabase = getSupabaseAdminClient();
     const { data: row, error } = await supabase
       .from("appointments")
-      .select("id, doctor_id, scheduled_at, status")
+      .select("id, doctor_id, service_id, scheduled_at, status")
       .eq("id", appointmentId)
       .eq("patient_id", patientId)
       .maybeSingle();
@@ -389,6 +395,15 @@ export const supabasePatientAppointmentsRepository: PatientAppointmentsStore = {
     }
     if (!row) {
       return null;
+    }
+    if (!row.doctor_id) {
+      const labels = await loadServiceVisitLabels([row]);
+      return {
+        id: row.id,
+        doctorName: labels.get(row.id) ?? "Hospital service",
+        scheduledAt: row.scheduled_at,
+        status: row.status,
+      };
     }
 
     const { data: doctor, error: doctorError } = await supabase

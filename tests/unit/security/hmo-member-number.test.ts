@@ -16,6 +16,8 @@ const ALLOWED = new Set([
   "src/lib/chat/state.ts",
   // PAY-03 booking: the RPC argument that stores it.
   "src/server/payments/repository.ts",
+  // PAY-07 service booking: the same RPC argument for cammi_connect_book_service.
+  "src/server/service-booking/repository.ts",
   // PAY-06: the front desk request details (full number).
   "src/server/front-desk/repository.ts",
 ]);

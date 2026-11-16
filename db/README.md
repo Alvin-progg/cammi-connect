@@ -703,6 +703,65 @@ to re-run.
   and **Verify payment**. Send a receipt and verify it as for PAY-05. Cancel the
   smoke-test appointments afterwards.
 
+`0038_service_booking.sql` (PAY-07 lab, imaging, and package booking): adds
+`appointments.kind` (`consultation` default, or `service`) and `appointments.service_id`,
+and lets `doctor_id` be null only for a service visit (`appointments_kind_target`: a
+consultation always has a doctor and no service; a service visit has a service and no
+doctor). `appointments_no_active_overlap` is unchanged and still applies only to doctor
+appointments (a null `doctor_id` never matches). One appointment per visit: a lab
+multi-select is one appointment with one charge and one `appointment_charge_items` line
+per test (`kind = 'service'`, new `service_id`); `appointments.service_id` is the first
+test. Adds `service_schedules` (weekday, Manila start/end, slot minutes 15/30/45/60,
+capacity per slot 1–100, effective dates, overlap exclusion like doctor periods, at most
+8 hours, ADR-0003 lockdown), `cammi_connect_service_load` (holding service visits per
+service and start time, counted through the charge lines), `cammi_connect_book_service`,
+and the audited `cammi_connect_admin_save_service_schedule` (`service_schedule.create`,
+`.update`, `.deactivate`; `not_admin`, `not_found`, `not_bookable`, `invalid_period`,
+`overlap`). Booking locks the services (id order) and the patient, applies the
+per-patient cap, checks the hours (walk-in: every chosen service open that day, the visit
+runs from the first service's opening to its closing, at most 8 hours; scheduled: the
+slot is on the period grid), hospital-wide holidays (`blocked`), `services.daily_capacity`
+per Manila date (`service_full`) and capacity per slot (`slot_full`), recomputes the
+charge like 0034 (`price_changed`, `payment_too_soon`, PhilHealth only with a benefit, an
+HMO only when a line is HMO-coverable), and writes the appointment, its audit row, the
+charge, the lines, the payment, and the `created` event in one transaction. Only active
+`walk_in`/`scheduled` services with a price can be booked (`service_unavailable`,
+`price_on_request`); several services only when all are walk-in lab tests
+(`invalid_service_combination`). Replaces `cammi_connect_confirm_appointment` (same
+payment gate; a service visit skips the doctor checks and needs its service active,
+`service_unavailable`) and `cammi_connect_notify_doctor` (nothing for a service visit).
+Front desk reschedule is hidden for service visits. Safe to re-run.
+- Local SQL check (Docker, `scripts/db-local-apply.sh`, synthetic rows in a rolled-back
+  transaction, as `service_role`): 28 audited `service_schedule.create` rows; an
+  overlapping period → `overlap`, a front desk actor → `not_admin`, hours for the ER →
+  `not_bookable`. CBC + urinalysis, self-pay QR → one appointment (`kind` service, no
+  doctor, service = CBC, 07:00, 300 min), one charge with 2 lines, ₱370 due,
+  `awaiting_payment` with a deadline, one `created` audit row, no doctor notification;
+  confirm → `payment_not_verified`; verify, then confirm → `confirmed`. PWD CBC +
+  urinalysis + FBS → ₱416; a wrong expected amount → `price_changed`. CBC daily capacity
+  2: a third booking that day → `service_full`, the next day works. Ultrasound (capacity
+  1) senior → ₱1,200; a second booking of the same slot → `slot_full`, also from a second
+  session while the first is still open (it waits on the lock, then is refused); an
+  off-grid time → `outside_hours`; PhilHealth with no benefit → `invalid_payment_choice`;
+  urinalysis + ultrasound → `invalid_service_combination`; the ER (`none`) →
+  `service_unavailable`; a hospital holiday → `blocked`. Inserting a consultation without
+  a doctor, or a service visit without a service, fails `appointments_kind_target`.
+  `anon`/`authenticated` have no execute on the three functions and no access to
+  `service_schedules`. The file applies twice without error. The seed's service hours and
+  requirements insert cleanly.
+- Smoke test: run the seed (service hours Mon–Sat for walk-in services, slots for the
+  ultrasounds, 2D echo, and CT; published requirements from
+  `docs/pricing-recommendation.md`), turn payments on, and as a synthetic patient say
+  "I want to book" → **Lab tests** → tick CBC and Urinalysis → pick a day. Cami shows
+  "What to prepare" (Doctor's request, clean-catch sample) with the discount question,
+  then who pays (no PhilHealth), then one summary with both tests; Confirm sends the QR
+  card. Send a receipt and verify it at `/front-desk/requests` (the card shows the tests
+  instead of a doctor; no Reschedule), then Confirm. Book **Imaging and diagnostics** →
+  Whole abdomen ultrasound → a slot; a second patient no longer sees that slot. Also try
+  "Need ko magpa-CBC, may request na ako". `/doctor` shows neither visit; `/admin/analytics`
+  counts neither. As an admin, add and remove hours on a service's detail page and check
+  `/admin/audit-log`. Cancel the smoke-test appointments afterwards.
+
 Audit log (ADM-16, no migration): as an admin, open `/admin/audit-log`, filter by
 "Settings (settings.*)", open an entry and check its previous and new values, then use
 **Export CSV**. A new `audit.export` row appears at the top of the log. A patient

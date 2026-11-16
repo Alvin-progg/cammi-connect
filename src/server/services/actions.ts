@@ -4,12 +4,12 @@ import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { serviceFormSchema } from "@/lib/services/schemas";
+import { serviceFormSchema, serviceScheduleFormSchema } from "@/lib/services/schemas";
 import { getAdminSession } from "@/server/auth/dal";
 import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 
 import { supabaseServiceAdminRepository } from "./repository";
-import { saveService, setServiceActive } from "./service";
+import { saveService, saveServiceSchedule, setServiceActive } from "./service";
 
 export type ServiceActionState =
   | { status: "idle" }
@@ -112,6 +112,47 @@ export async function setServiceActiveAction(
     return { status: "error", message: result.message };
   }
   updateTag(REFERENCE_CACHE_TAG);
+  revalidatePath("/admin", "layout");
+  return { status: "success", message: result.message };
+}
+
+/** PAY-07: saves or deactivates one period of a service's hours. */
+export async function saveServiceScheduleAction(
+  _previous: ServiceActionState,
+  formData: FormData,
+): Promise<ServiceActionState> {
+  const actorId = await requireAdminActor();
+  if (!actorId) {
+    return NOT_AUTHORIZED;
+  }
+  const serviceId = z.uuid().safeParse(text(formData, "serviceId"));
+  const rawScheduleId = text(formData, "scheduleId")?.trim() || null;
+  const scheduleId = rawScheduleId === null ? null : z.uuid().safeParse(rawScheduleId).data;
+  if (!serviceId.success || scheduleId === undefined) {
+    return INVALID_SERVICE;
+  }
+  const parsed = serviceScheduleFormSchema.safeParse({
+    dayOfWeek: text(formData, "dayOfWeek"),
+    isActive: text(formData, "isActive") !== "false",
+    startTime: text(formData, "startTime"),
+    endTime: text(formData, "endTime"),
+    slotDurationMinutes: text(formData, "slotMinutes"),
+    capacityPerSlot: text(formData, "capacityPerSlot"),
+    effectiveFrom: text(formData, "effectiveFrom"),
+    effectiveUntil: text(formData, "effectiveUntil"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: firstIssueMessage(parsed.error) };
+  }
+
+  const result = await saveServiceSchedule(
+    { actorId, serviceId: serviceId.data, scheduleId, input: parsed.data },
+    supabaseServiceAdminRepository,
+  );
+  if (!result.ok) {
+    return { status: "error", message: result.message };
+  }
+  // Hours are read live (no reference cache), so only the pages need refreshing.
   revalidatePath("/admin", "layout");
   return { status: "success", message: result.message };
 }

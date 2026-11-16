@@ -1,8 +1,6 @@
 import "server-only";
 
 import { todayInManila } from "@/lib/appointments/filters";
-import { computeCharge, type PrivilegeChoice } from "@/lib/billing/compute";
-import { maskMemberNumber, philhealthOffered } from "@/lib/billing/hmo";
 import { formatManilaShortDate, formatManilaTime } from "@/lib/appointments/format";
 import {
   BOOKING_COPY,
@@ -17,14 +15,9 @@ import {
   matchSpecialtiesByName,
   resolvePreferredDate,
 } from "@/lib/chat/resolve";
-import {
-  PAYMENT_COPY,
-  PRIVILEGE_LABELS,
-  consultationLine,
-  hmoPendingCopy,
-  paymentChoiceLabel,
-  paymentRequestCopy,
-} from "@/lib/chat/payment";
+import { PAYMENT_COPY, PRIVILEGE_LABELS, consultationLine, paymentChoiceLabel } from "@/lib/chat/payment";
+import { SERVICE_COPY } from "@/lib/chat/services";
+import { SERVICE_KIND_LABELS } from "@/lib/services/booking";
 import { routeToSpecialty, type FirstContactSettings } from "@/lib/chat/routing";
 import {
   BOOKING_OFFER,
@@ -32,7 +25,6 @@ import {
   ROUTING_COPY,
 } from "@/lib/chat/safety";
 import type {
-  BookedPayment,
   BookingEvent,
   ChargeSummary,
   ChatMessagePayload,
@@ -46,10 +38,20 @@ import {
   type BookingDraft,
   type BookingState,
   type CareNeed,
-  type PaymentChoice,
 } from "@/lib/chat/state";
 import type { DoctorSummary, Specialty } from "@/lib/directory/types";
 
+import { bookedPaymentReply, quoteLines, withLead } from "./quote";
+import {
+  bookableServiceKinds,
+  changeServices,
+  chooseServiceKind,
+  chooseServices,
+  confirmServiceBooking,
+  resumeServiceBooking,
+  selectServiceTime,
+  startServiceBookingFromCandidates,
+} from "./service-booking";
 import type { ChatTools, TimeSlot } from "./tools";
 
 /** AI-APT-002: the concern summary kept as the reason for visit. */
@@ -95,6 +97,7 @@ const IN_PROGRESS_STEPS: readonly BookingState["step"][] = [
   "choosing_specialty",
   "choosing_doctor",
   "choosing_doctor_specialty",
+  "choosing_services",
   "choosing_slot",
   "choosing_privilege",
   "choosing_payer",
@@ -114,6 +117,8 @@ const EVENT_LABELS: Record<BookingEvent["type"], string> = {
   accept_booking_offer: "Yes, book",
   select_privilege: "Chose a discount",
   select_payer: "Chose how to pay",
+  select_service_kind: "Chose what to book",
+  select_services: "Chose the tests",
 };
 
 const CHANGE_LABELS = {
@@ -121,11 +126,8 @@ const CHANGE_LABELS = {
   doctor: "Change the doctor",
   slot: "Change the time",
   payment: "Change the discount or payment",
+  service: "Change the tests",
 } as const;
-
-function withLead(lead: string | undefined, reply: string): string {
-  return lead ? `${lead} ${reply}` : reply;
-}
 
 function toDoctorOption(doctor: DoctorSummary): DoctorOption {
   return {
@@ -136,7 +138,9 @@ function toDoctorOption(doctor: DoctorSummary): DoctorOption {
   };
 }
 
-function specialtyOptions(specialties: { id: string; name: string }[]): ChatMessagePayload {
+function specialtyOptions(
+  specialties: { id: string; name: string }[],
+): Extract<ChatMessagePayload, { kind: "specialty_options" }> {
   return {
     kind: "specialty_options",
     specialties: specialties.map(({ id, name }) => ({ id, name })),
@@ -165,12 +169,26 @@ async function askForSpecialty(
   if (specialties.length === 0) {
     return { reply: BOOKING_COPY.noSpecialties, payload: null, state: { step: "idle", draft: {} } };
   }
+  // PAY-07 "What kind?": lab tests, imaging, and packages sit next to the specialties.
+  const serviceKinds = await bookableServiceKinds(ctx);
   return {
-    reply,
-    payload: specialtyOptions(specialties),
+    reply:
+      serviceKinds.length > 0 && reply === ROUTING_COPY.askConcern
+        ? SERVICE_COPY.askConcernOrService
+        : reply,
+    payload:
+      serviceKinds.length > 0
+        ? { ...specialtyOptions(specialties), serviceKinds }
+        : specialtyOptions(specialties),
     state: {
       step: "choosing_specialty",
-      draft: { ...draft, specialtyId: undefined, doctorId: undefined, slotStart: undefined },
+      draft: {
+        ...draft,
+        specialtyId: undefined,
+        doctorId: undefined,
+        slotStart: undefined,
+        serviceIds: undefined,
+      },
     },
   };
 }
@@ -250,6 +268,9 @@ async function advance(
   ctx: BookingContext,
   lead?: string,
 ): Promise<BookingReply> {
+  if (draft.serviceIds) {
+    return resumeServiceBooking(draft, ctx, lead);
+  }
   if (draft.doctorId) {
     const doctor = await ctx.tools.getDoctor({ doctorId: draft.doctorId });
     if (!doctor) {
@@ -437,6 +458,16 @@ export async function startOrCorrectBooking(
   const doctorName = extraction.doctorName?.trim();
   const specialtyName = extraction.specialtyName?.trim();
 
+  // PAY-07: "Need ko magpa-CBC" names a bookable service, not a doctor.
+  if (!doctorName && !specialtyName) {
+    const serviceReply = await startServiceBookingFromCandidates(
+      extraction,
+      applyCorrection(draft, changes),
+      ctx,
+    );
+    if (serviceReply) return serviceReply;
+  }
+
   if (doctorName) {
     const lookup = await tools.getDoctorDetails({ doctorName });
     if (lookup.status === "unknown") {
@@ -513,6 +544,9 @@ async function findAvailableSlot(
 
 async function selectSlot(start: string, ctx: BookingContext): Promise<BookingReply> {
   const { draft } = ctx.state;
+  if (draft.serviceIds) {
+    return selectServiceTime(start, ctx);
+  }
   const doctor = draft.doctorId ? await ctx.tools.getDoctor({ doctorId: draft.doctorId }) : null;
   if (!doctor) {
     return advance(
@@ -552,31 +586,21 @@ async function selectSlot(start: string, ctx: BookingContext): Promise<BookingRe
   };
 }
 
-type Quote =
-  | {
-      ok: true;
-      charge: ChargeSummary;
-      draft: BookingDraft;
-      specialtyId: string;
-      privilege: PrivilegeChoice;
-      payment: PaymentChoice;
-      hmoName: string | undefined;
-    }
+type ConsultationQuote =
+  | (Extract<Awaited<ReturnType<typeof quoteLines>>, { ok: true }> & { specialtyId: string })
   | { ok: false; reply: BookingReply };
 
 /**
  * PAY-03: the consultation's charge, computed from the fee in the database,
  * or the next question while the discount or payer is still missing. A fee
- * of null is "price on request" and cannot be booked in chat. An HMO that is
- * no longer active, or PhilHealth for an item with no PhilHealth benefit,
- * asks the payer question again.
+ * of null is "price on request" and cannot be booked in chat.
  */
 async function quoteConsultation(
   draft: BookingDraft,
   doctorId: string,
   ctx: BookingContext,
-): Promise<Quote> {
-  const { specialtyId, privilege } = draft;
+): Promise<ConsultationQuote> {
+  const { specialtyId } = draft;
   const fee = specialtyId ? await ctx.tools.getConsultationFee({ doctorId, specialtyId }) : null;
   if (!specialtyId || fee === null) {
     return {
@@ -584,67 +608,8 @@ async function quoteConsultation(
       reply: { reply: PAYMENT_COPY.priceOnRequest, payload: null, state: { step: "cancelled", draft: {} } },
     };
   }
-  if (!privilege) {
-    return {
-      ok: false,
-      reply: {
-        reply: PAYMENT_COPY.privilegeQuestion,
-        payload: { kind: "privilege_options" },
-        state: { step: "choosing_privilege", draft },
-      },
-    };
-  }
-
-  const line = consultationLine(fee);
-  const offerPhilhealth = philhealthOffered([line]);
-  const hmoProviders = await ctx.tools.getActiveHmoProviders();
-  let payment = draft.payment;
-  let lead: string | undefined;
-  if (payment?.payer === "philhealth" && !offerPhilhealth) {
-    payment = undefined;
-  }
-  const hmoChoice = payment?.payer === "hmo" ? payment : undefined;
-  const hmo = hmoChoice
-    ? hmoProviders.find((provider) => provider.id === hmoChoice.hmoProviderId)
-    : undefined;
-  if (hmoChoice && !hmo) {
-    payment = undefined;
-    lead = PAYMENT_COPY.hmoUnavailable;
-  }
-  if (!payment) {
-    return {
-      ok: false,
-      reply: {
-        reply: withLead(lead, PAYMENT_COPY.payerQuestion),
-        payload: {
-          kind: "payer_options",
-          philhealth: offerPhilhealth,
-          hmoProviders: hmoProviders.map(({ id, name }) => ({ id, name })),
-        },
-        state: { step: "choosing_payer", draft: { ...draft, payment: undefined } },
-      },
-    };
-  }
-
-  const { totals } = computeCharge({
-    items: [line],
-    privilege,
-    payer: payment.payer,
-    hmoCopayCentavos: hmo?.copayCentavos ?? 0,
-  });
-  const payerLabel =
-    payment.payer === "hmo" && hmo
-      ? `${hmo.name} (member ${maskMemberNumber(payment.memberNumber)})`
-      : paymentChoiceLabel(payment);
-  return {
-    ok: true,
-    charge: { privilege, payerLabel, ...totals },
-    draft: { ...draft, payment },
-    specialtyId,
-    privilege,
-    payment,
-    hmoName: hmo?.name,
-  };
+  const quote = await quoteLines([consultationLine(fee)], draft, ctx);
+  return quote.ok ? { ...quote, specialtyId } : quote;
 }
 
 /** A failed booking shows the reason and fresh slots, never a confirmation. */
@@ -670,6 +635,9 @@ async function confirmBooking(ctx: BookingContext): Promise<BookingReply> {
   const { draft } = ctx.state;
   if (!(await ctx.claimBooking({ step: "booking", draft }))) {
     return { reply: BOOKING_COPY.alreadyProcessing, payload: null, state: ctx.state };
+  }
+  if (draft.serviceIds) {
+    return confirmServiceBooking(draft, ctx);
   }
 
   const doctor = draft.doctorId ? await ctx.tools.getDoctor({ doctorId: draft.doctorId }) : null;
@@ -707,28 +675,6 @@ async function confirmBooking(ctx: BookingContext): Promise<BookingReply> {
     },
     state: { step: "booked", draft },
   };
-}
-
-/** The templated reply for a booking with a charge; amounts come from the payment row. */
-function bookedPaymentReply(
-  payment: BookedPayment,
-  choice: PaymentChoice,
-  hmoName: string | undefined,
-  now: Date,
-): string {
-  if (payment.status === "hmo_pending") {
-    return hmoPendingCopy(hmoName ?? "HMO");
-  }
-  if (payment.status === "awaiting_payment" && payment.deadline) {
-    return paymentRequestCopy({
-      amountDueCentavos: payment.amountDueCentavos,
-      referenceCode: payment.referenceCode,
-      deadline: payment.deadline,
-      method: choice.payer === "self" ? choice.method : "qr_ph",
-      now,
-    });
-  }
-  return BOOKING_COPY.requested;
 }
 
 /**
@@ -845,11 +791,13 @@ async function updateReason(reason: string, ctx: BookingContext): Promise<Bookin
 }
 
 function changeBooking(
-  field: "specialty" | "doctor" | "slot" | "payment",
+  field: "specialty" | "doctor" | "slot" | "payment" | "service",
   ctx: BookingContext,
 ): Promise<BookingReply> {
   const { draft } = ctx.state;
   switch (field) {
+    case "service":
+      return changeServices(ctx);
     case "specialty":
       return askForSpecialty(draft, ctx);
     case "doctor":
@@ -910,6 +858,13 @@ export async function handleBookingEvent(
         ...(await answerPaymentQuestion({ payment: event.payment }, ctx)),
         userContent: paymentChoiceLabel(event.payment),
       };
+    case "select_service_kind":
+      return {
+        ...(await chooseServiceKind(event.serviceKind, ctx)),
+        userContent: SERVICE_KIND_LABELS[event.serviceKind],
+      };
+    case "select_services":
+      return { ...(await chooseServices(event.serviceIds, ctx)), userContent: fallbackLabel };
     case "accept_booking_offer":
       return { ...(await routeBooking(ctx.state.draft, ctx)), userContent: fallbackLabel };
     case "cancel_booking":

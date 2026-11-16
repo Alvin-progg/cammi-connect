@@ -109,6 +109,12 @@ describe("front desk change guards", () => {
     expect(canFrontDeskCancel("completed")).toBe(false);
     expect(canFrontDeskReschedule("completed")).toBe(false);
   });
+
+  it("never reschedules a service visit, which has no doctor slots (PAY-07)", () => {
+    expect(canFrontDeskReschedule("requested", null)).toBe(false);
+    expect(canFrontDeskReschedule("requested", APPOINTMENT_ID)).toBe(true);
+    expect(canFrontDeskCancel("requested")).toBe(true);
+  });
 });
 
 describe("cancelAppointmentSchema", () => {
