@@ -12,6 +12,14 @@
 - Companion docs: [`docs/pricing-recommendation.md`](../../docs/pricing-recommendation.md),
   [`db/knowledge/payments-and-discounts.md`](../../db/knowledge/payments-and-discounts.md)
 
+## Progress
+
+- 2026-11-16 — **PAY-01 built** (migration `0033_price_catalogue.sql`): specialty and
+  doctor consultation fees, service pricing fields and `scheduled` booking mode,
+  `hmo_providers` with an admin page, `payment.*` settings (Payment tab), audited saves,
+  and seed prices. No patient-facing change. PAY-02 onward not started; no acceptance
+  criterion below is ticked yet.
+
 ## Objective
 
 1. **Pay in chat.** After the patient picks everything, Cami shows the price, asks for

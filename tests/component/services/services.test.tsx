@@ -38,6 +38,13 @@ const XRAY: HospitalService = {
   requiresAppointment: true,
   bookingMode: "walk_in",
   isActive: true,
+  category: "imaging",
+  priceCentavos: 40000,
+  vatable: false,
+  philhealthBenefitCentavos: 0,
+  hmoCoverable: true,
+  requiresDoctorRequest: false,
+  dailyCapacity: 60,
 };
 
 describe("ServicesTable", () => {
@@ -55,6 +62,7 @@ describe("ServicesTable", () => {
             requiresAppointment: false,
             bookingMode: "none",
             isActive: false,
+            priceCentavos: null,
           },
         ]}
       />,
@@ -69,10 +77,12 @@ describe("ServicesTable", () => {
     expect(rows[1]).toHaveTextContent("Walk-in");
     expect(rows[1]).toHaveTextContent("Required");
     expect(rows[1]).toHaveTextContent("Active");
+    expect(rows[1]).toHaveTextContent("₱400.00");
     expect(rows[2]).toHaveTextContent("No department");
     expect(rows[2]).toHaveTextContent("Informational only");
     expect(rows[2]).toHaveTextContent("Not required");
     expect(rows[2]).toHaveTextContent("Inactive");
+    expect(rows[2]).toHaveTextContent("On request");
   });
 
   it("shows an empty state", () => {
@@ -91,6 +101,31 @@ describe("ServiceForm", () => {
     expect(screen.getByLabelText("How patients access it")).toHaveValue("walk_in");
     expect(screen.getByRole("checkbox", { name: "Requires an appointment" })).toBeChecked();
     expect(screen.getByRole("button", { name: "Save service" })).toBeInTheDocument();
+  });
+
+  it("edits the PAY-01 pricing fields, with money shown in pesos", () => {
+    render(
+      <ServiceForm
+        service={{ ...XRAY, vatable: true, philhealthBenefitCentavos: 15050, requiresDoctorRequest: true }}
+        departments={[RADIOLOGY]}
+      />,
+    );
+
+    expect(screen.getByLabelText("Category")).toHaveValue("imaging");
+    expect(screen.getByLabelText("Price (₱)")).toHaveValue("400.00");
+    expect(screen.getByLabelText("PhilHealth benefit (₱)")).toHaveValue("150.50");
+    expect(screen.getByLabelText("Daily capacity")).toHaveValue(60);
+    expect(screen.getByRole("checkbox", { name: "VAT-able" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "HMO can cover it" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Needs a doctor's request" })).toBeChecked();
+    expect(screen.getByRole("option", { name: "Scheduled (time slots)" })).toBeInTheDocument();
+  });
+
+  it("starts a new service as price on request, HMO-coverable, not VAT-able", () => {
+    render(<ServiceForm departments={[RADIOLOGY]} />);
+    expect(screen.getByLabelText("Price (₱)")).toHaveValue("");
+    expect(screen.getByRole("checkbox", { name: "HMO can cover it" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "VAT-able" })).not.toBeChecked();
   });
 
   it("offers only active departments, plus the service's own inactive one", () => {

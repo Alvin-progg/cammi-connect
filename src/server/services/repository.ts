@@ -12,8 +12,9 @@ import type { ServiceAdminStore } from "./service";
 
 type ServiceRow = Database["public"]["Tables"]["services"]["Row"];
 
+// One literal, so supabase-js can type the selected row.
 const SERVICE_COLUMNS =
-  "id, name, description, department_id, requires_appointment, booking_mode, is_active";
+  "id, name, description, department_id, requires_appointment, booking_mode, is_active, category, price_centavos, vatable, philhealth_benefit_centavos, hmo_coverable, requires_doctor_request, daily_capacity";
 
 /** P0001 refusals carry their code as the message; anything else is unexpected. */
 function refusalCode(error: { code?: string; message: string }): string | undefined {
@@ -40,6 +41,13 @@ async function toServices(
     requiresAppointment: row.requires_appointment,
     bookingMode: row.booking_mode,
     isActive: row.is_active,
+    category: row.category,
+    priceCentavos: row.price_centavos,
+    vatable: row.vatable,
+    philhealthBenefitCentavos: row.philhealth_benefit_centavos,
+    hmoCoverable: row.hmo_coverable,
+    requiresDoctorRequest: row.requires_doctor_request,
+    dailyCapacity: row.daily_capacity,
   }));
 }
 
@@ -109,6 +117,13 @@ export const supabaseServiceAdminRepository: ServiceAdminStore = {
         p_department_id: input.departmentId,
         p_requires_appointment: input.requiresAppointment,
         p_booking_mode: input.bookingMode,
+        p_category: input.category,
+        p_price_centavos: input.priceCentavos,
+        p_vatable: input.vatable,
+        p_philhealth_benefit_centavos: input.philhealthBenefitCentavos,
+        p_hmo_coverable: input.hmoCoverable,
+        p_requires_doctor_request: input.requiresDoctorRequest,
+        p_daily_capacity: input.dailyCapacity,
       },
     );
     if (error || !data) {

@@ -95,7 +95,8 @@ then `db/migrations/0021_admin_services.sql` once, then
 `db/migrations/0029_doctor_notification_trigger.sql` once, then
 `db/migrations/0030_query_indexes.sql` once, then
 `db/migrations/0031_patient_booking_cap.sql` once, then
-`db/migrations/0032_specialty_routing_hints.sql` once.
+`db/migrations/0032_specialty_routing_hints.sql` once, then
+`db/migrations/0033_price_catalogue.sql` once.
 After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
@@ -509,6 +510,26 @@ routing hints for the four seed specialties.
   Cami replies "A Cardiology doctor can check this for you" with doctor cards and
   **Change specialty**. "Masakit dibdib ko ngayon, hirap huminga" gets the emergency
   notice and no cards.
+
+`0033_price_catalogue.sql` (PAY-01 price catalogue): adds integer-centavo fees
+(`specialties.default_consultation_fee_centavos`, `doctors.consultation_fee_centavos`),
+the service pricing columns (`category`, `price_centavos`, `vatable`,
+`philhealth_benefit_centavos`, `hmo_coverable`, `requires_doctor_request`,
+`daily_capacity`) with booking mode `scheduled`, and the `hmo_providers` table. The
+specialty, doctor, and service save functions are replaced with versions that take the
+prices and audit them (old signatures dropped); new audited HMO save and
+activate/deactivate functions; and the `payment.*` keys on the settings allow-list
+(`billing.privilege_discount_bps` stays off it, the 20% is fixed by law). Any negative
+amount is refused with `invalid_price`. Nothing patient-facing reads these yet. Safe to
+re-run. Re-run `npm run db:seed` for the synthetic prices from
+`docs/pricing-recommendation.md` and the four sample HMOs (PhilHealth benefit ₱0
+everywhere); the hospital's billing office replaces them before go-live.
+- Smoke test: as an admin, set a specialty's default fee at `/admin/specialties/[id]`, a
+  doctor's fee at `/admin/doctors/[id]`, and a service's price at `/admin/services/[id]`;
+  `/admin/audit-log` shows each update with previous and new centavos. Entering `-1`
+  shows a validation error. Create, edit, and deactivate an HMO at `/admin/hmo-providers`.
+  The **Payment** tab at `/admin/settings` saves the deadline and shows the 20% discount
+  read-only. As a patient, Cami shows no prices.
 
 Audit log (ADM-16, no migration): as an admin, open `/admin/audit-log`, filter by
 "Settings (settings.*)", open an entry and check its previous and new values, then use

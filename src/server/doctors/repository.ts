@@ -111,7 +111,9 @@ async function cachedGetDoctor(
 
   const { data, error } = await getSupabaseAdminClient()
     .from("doctors")
-    .select("id, full_name, department_id, is_active, contact_email, contact_phone, bio")
+    .select(
+      "id, full_name, department_id, is_active, contact_email, contact_phone, bio, consultation_fee_centavos",
+    )
     .eq("id", doctorId)
     .maybeSingle();
   if (error) {
@@ -126,6 +128,7 @@ async function cachedGetDoctor(
     contactEmail: data.contact_email,
     contactPhone: data.contact_phone,
     bio: data.bio,
+    consultationFeeCentavos: data.consultation_fee_centavos,
   };
 }
 
@@ -228,6 +231,7 @@ export const supabaseDoctorAdminRepository: DoctorAdminStore = {
     contactPhone,
     bio,
     specialtyIds,
+    consultationFeeCentavos,
   }) {
     const { data, error } = await getSupabaseAdminClient().rpc("cammi_connect_admin_save_doctor", {
       p_actor_profile_id: actorId,
@@ -239,6 +243,7 @@ export const supabaseDoctorAdminRepository: DoctorAdminStore = {
       p_contact_phone: contactPhone,
       p_bio: bio,
       p_specialty_ids: specialtyIds,
+      p_consultation_fee_centavos: consultationFeeCentavos,
     });
     if (error || !data) {
       return { ok: false, code: error ? refusalCode(error) : undefined };

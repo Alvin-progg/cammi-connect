@@ -25,6 +25,13 @@ const XRAY: HospitalService = {
   requiresAppointment: false,
   bookingMode: "walk_in",
   isActive: true,
+  category: "other",
+  priceCentavos: null,
+  vatable: false,
+  philhealthBenefitCentavos: 0,
+  hmoCoverable: true,
+  requiresDoctorRequest: false,
+  dailyCapacity: null,
 };
 
 function fakeStore() {
@@ -66,6 +73,13 @@ describe("saveService", () => {
     departmentId: RADIOLOGY_ID,
     requiresAppointment: false,
     bookingMode: "walk_in" as const,
+    category: "imaging" as const,
+    priceCentavos: 40000,
+    vatable: false,
+    philhealthBenefitCentavos: 0,
+    hmoCoverable: true,
+    requiresDoctorRequest: false,
+    dailyCapacity: null,
   };
 
   it("saves as the acting admin and returns the service id", async () => {

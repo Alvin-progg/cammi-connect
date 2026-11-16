@@ -63,6 +63,13 @@ export async function saveServiceAction(
     departmentId: text(formData, "departmentId"),
     requiresAppointment: text(formData, "requiresAppointment"),
     bookingMode: text(formData, "bookingMode") ?? undefined,
+    category: text(formData, "category") ?? undefined,
+    priceCentavos: text(formData, "price"),
+    vatable: text(formData, "vatable"),
+    philhealthBenefitCentavos: text(formData, "philhealthBenefit"),
+    hmoCoverable: text(formData, "hmoCoverable"),
+    requiresDoctorRequest: text(formData, "requiresDoctorRequest"),
+    dailyCapacity: text(formData, "dailyCapacity"),
   });
   if (!parsed.success) {
     return { status: "error", message: firstIssueMessage(parsed.error) };

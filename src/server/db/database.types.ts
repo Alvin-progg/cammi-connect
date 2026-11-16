@@ -13,7 +13,7 @@ import type {
 import type { NotificationType } from "@/lib/notifications/types";
 import type { RequirementStatus } from "@/lib/requirements/types";
 import type { ScheduleExceptionType } from "@/lib/schedules/types";
-import type { ServiceBookingMode } from "@/lib/services/types";
+import type { ServiceBookingMode, ServiceCategory } from "@/lib/services/types";
 
 export type Json =
   | string
@@ -69,6 +69,8 @@ export type Database = {
           description: string | null;
           /** Migration 0032 (AI-APT-002): routing context for Cami, at most 1,000 characters. */
           routing_hints: string | null;
+          /** Migration 0033 (PAY-01): integer centavos, null when not set. */
+          default_consultation_fee_centavos: number | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -78,6 +80,7 @@ export type Database = {
           name: string;
           description?: string | null;
           routing_hints?: string | null;
+          default_consultation_fee_centavos?: number | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -86,12 +89,13 @@ export type Database = {
           name?: string;
           description?: string | null;
           routing_hints?: string | null;
+          default_consultation_fee_centavos?: number | null;
           is_active?: boolean;
           updated_at?: string;
         };
         Relationships: [];
       };
-      /** Migration 0021 (admin services). Informational only; never scheduled. */
+      /** Migration 0021 (admin services), priced in 0033 (PAY-01). */
       services: {
         Row: {
           id: string;
@@ -101,6 +105,14 @@ export type Database = {
           requires_appointment: boolean;
           booking_mode: ServiceBookingMode;
           is_active: boolean;
+          /** Migration 0033 (PAY-01) pricing; money is integer centavos. */
+          category: ServiceCategory;
+          price_centavos: number | null;
+          vatable: boolean;
+          philhealth_benefit_centavos: number;
+          hmo_coverable: boolean;
+          requires_doctor_request: boolean;
+          daily_capacity: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -112,6 +124,13 @@ export type Database = {
           requires_appointment?: boolean;
           booking_mode?: ServiceBookingMode;
           is_active?: boolean;
+          category?: ServiceCategory;
+          price_centavos?: number | null;
+          vatable?: boolean;
+          philhealth_benefit_centavos?: number;
+          hmo_coverable?: boolean;
+          requires_doctor_request?: boolean;
+          daily_capacity?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -121,6 +140,42 @@ export type Database = {
           department_id?: string | null;
           requires_appointment?: boolean;
           booking_mode?: ServiceBookingMode;
+          is_active?: boolean;
+          category?: ServiceCategory;
+          price_centavos?: number | null;
+          vatable?: boolean;
+          philhealth_benefit_centavos?: number;
+          hmo_coverable?: boolean;
+          requires_doctor_request?: boolean;
+          daily_capacity?: number | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      /** Migration 0033 (PAY-01). Admin-managed accredited HMOs. */
+      hmo_providers: {
+        Row: {
+          id: string;
+          name: string;
+          copay_centavos: number;
+          notes: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          copay_centavos?: number;
+          notes?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          copay_centavos?: number;
+          notes?: string | null;
           is_active?: boolean;
           updated_at?: string;
         };
@@ -199,6 +254,8 @@ export type Database = {
           contact_email: string | null;
           contact_phone: string | null;
           bio: string | null;
+          /** Migration 0033 (PAY-01): integer centavos; null uses the specialty default. */
+          consultation_fee_centavos: number | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -210,6 +267,7 @@ export type Database = {
           contact_email?: string | null;
           contact_phone?: string | null;
           bio?: string | null;
+          consultation_fee_centavos?: number | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -220,6 +278,7 @@ export type Database = {
           contact_email?: string | null;
           contact_phone?: string | null;
           bio?: string | null;
+          consultation_fee_centavos?: number | null;
           is_active?: boolean;
           updated_at?: string;
         };
@@ -776,6 +835,8 @@ export type Database = {
           p_description: string | null;
           /** Migration 0032 (AI-APT-002). */
           p_routing_hints: string | null;
+          /** Migration 0033 (PAY-01). */
+          p_default_consultation_fee_centavos: number | null;
         };
         Returns: string;
       };
@@ -805,6 +866,14 @@ export type Database = {
           p_department_id: string | null;
           p_requires_appointment: boolean;
           p_booking_mode: ServiceBookingMode;
+          /** Migration 0033 (PAY-01). */
+          p_category: ServiceCategory;
+          p_price_centavos: number | null;
+          p_vatable: boolean;
+          p_philhealth_benefit_centavos: number;
+          p_hmo_coverable: boolean;
+          p_requires_doctor_request: boolean;
+          p_daily_capacity: number | null;
         };
         Returns: string;
       };
@@ -812,6 +881,25 @@ export type Database = {
         Args: {
           p_actor_profile_id: string;
           p_service_id: string;
+          p_is_active: boolean;
+        };
+        Returns: undefined;
+      };
+      /** Migration 0033 (PAY-01). Each raises P0001 with an HmoProviderRefusal code. */
+      cammi_connect_admin_save_hmo_provider: {
+        Args: {
+          p_actor_profile_id: string;
+          p_hmo_provider_id: string | null;
+          p_name: string;
+          p_copay_centavos: number;
+          p_notes: string | null;
+        };
+        Returns: string;
+      };
+      cammi_connect_admin_set_hmo_provider_active: {
+        Args: {
+          p_actor_profile_id: string;
+          p_hmo_provider_id: string;
           p_is_active: boolean;
         };
         Returns: undefined;
@@ -855,6 +943,8 @@ export type Database = {
           p_contact_phone: string | null;
           p_bio: string | null;
           p_specialty_ids: string[];
+          /** Migration 0033 (PAY-01). */
+          p_consultation_fee_centavos: number | null;
         };
         Returns: string;
       };

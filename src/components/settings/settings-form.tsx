@@ -11,6 +11,7 @@ import { KNOWLEDGE_CATEGORIES, KNOWLEDGE_CATEGORY_LABELS } from "@/lib/knowledge
 import { formatSettingValue, SETTING_LABELS } from "@/lib/settings/display";
 import {
   HOSPITAL_TIMEZONE,
+  PRIVILEGE_DISCOUNT_BPS,
   SLOT_MINUTE_OPTIONS,
   WEEKDAY_LABELS,
   diffSettings,
@@ -82,6 +83,7 @@ export function SettingsForm({
         {group === "appointment" ? <AppointmentFields settings={settings} /> : null}
         {group === "hospital" ? <HospitalFields settings={settings} /> : null}
         {group === "chatbot" ? <ChatbotFields settings={settings} /> : null}
+        {group === "payment" ? <PaymentFields settings={settings} /> : null}
 
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="primary" onClick={review} disabled={pending} aria-busy={pending}>
@@ -416,6 +418,67 @@ function ChatbotFields({ settings }: { settings: SystemSettings }) {
         Where Cami sends a patient whose concern is unclear. Use an active specialty name; if
         it has no active doctors, adults go to Family Medicine, then Internal Medicine.
       </p>
+    </>
+  );
+}
+
+function PaymentFields({ settings }: { settings: SystemSettings }) {
+  return (
+    <>
+      <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-ink">
+        <input
+          type="checkbox"
+          name="payment.enabled"
+          defaultChecked={settings["payment.enabled"]}
+          className="size-4"
+        />
+        Online payment in chat is on
+      </label>
+      <p className={`${HINT_CLASS} -mt-4`}>
+        Saved for the payment rollout; Cami does not ask for payment yet.
+      </p>
+      <TextField
+        name="payment.qr_image_path"
+        label="QR Ph image path"
+        defaultValue={settings["payment.qr_image_path"]}
+        maxLength={300}
+      />
+      <TextField
+        name="payment.account_name"
+        label="Account name shown with the QR"
+        defaultValue={settings["payment.account_name"]}
+        maxLength={200}
+      />
+      <div className="grid gap-5 sm:grid-cols-2">
+        <NumberField
+          name="payment.deadline_minutes"
+          label="Payment deadline (minutes)"
+          defaultValue={settings["payment.deadline_minutes"]}
+          min={15}
+          max={1440}
+          hint="How long a patient has to pay after confirming a booking."
+        />
+        <NumberField
+          name="payment.max_receipts"
+          label="Receipts allowed per payment"
+          defaultValue={settings["payment.max_receipts"]}
+          min={1}
+          max={10}
+        />
+      </div>
+      <NumberField
+        name="payment.refund_cutoff_hours"
+        label="Full refund cutoff (hours before the visit)"
+        defaultValue={settings["payment.refund_cutoff_hours"]}
+        min={0}
+        max={168}
+        hint="Cancelling at least this long before the visit gets a full refund."
+      />
+      <div className="flex flex-col gap-1.5">
+        <span className={LABEL_CLASS}>Senior citizen and PWD discount</span>
+        <p className="text-sm text-ink">{`${PRIVILEGE_DISCOUNT_BPS / 100}%`}</p>
+        <p className={HINT_CLASS}>Fixed by law (RA 9994 and RA 10754). It can&apos;t be changed.</p>
+      </div>
     </>
   );
 }

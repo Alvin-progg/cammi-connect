@@ -22,6 +22,7 @@ const REFERENCE_WRITERS = [
   "users/actions.ts",
   "profiles/actions.ts",
   "services/actions.ts",
+  "hmo-providers/actions.ts",
   "requirements/actions.ts",
   "schedules/actions.ts",
   "knowledge/actions.ts",

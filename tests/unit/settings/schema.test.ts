@@ -278,3 +278,74 @@ describe("parseSettingsTab", () => {
     expect(parseSettingsTab(undefined)).toBe("appointment");
   });
 });
+
+describe("payment settings (PAY-01)", () => {
+  const paymentValues = {
+    "payment.enabled": false,
+    "payment.qr_image_path": "",
+    "payment.account_name": "",
+    "payment.deadline_minutes": 120,
+    "payment.max_receipts": 3,
+    "payment.refund_cutoff_hours": 24,
+  };
+
+  it("defaults to payments off, a 120-minute deadline, 3 receipts, a 24-hour refund cutoff, and 20%", () => {
+    expect(DEFAULT_SETTINGS).toMatchObject({
+      ...paymentValues,
+      "billing.privilege_discount_bps": 2000,
+    });
+  });
+
+  it("reads the payment tab, with an unchecked box meaning off", () => {
+    const values = settingsGroupSchemas.payment.parse(
+      settingsFromFormData(
+        "payment",
+        form([
+          ["payment.qr_image_path", " qr/hospital-qr-ph.png "],
+          ["payment.account_name", " Synthetic Hospital Inc. "],
+          ["payment.deadline_minutes", "90"],
+          ["payment.max_receipts", "2"],
+          ["payment.refund_cutoff_hours", "48"],
+        ]),
+      ),
+    );
+    expect(values).toEqual({
+      "payment.enabled": false,
+      "payment.qr_image_path": "qr/hospital-qr-ph.png",
+      "payment.account_name": "Synthetic Hospital Inc.",
+      "payment.deadline_minutes": 90,
+      "payment.max_receipts": 2,
+      "payment.refund_cutoff_hours": 48,
+    });
+  });
+
+  it("bounds the deadline, receipt limit, and refund cutoff", () => {
+    const parse = (patch: Record<string, unknown>) =>
+      settingsGroupSchemas.payment.safeParse({ ...paymentValues, ...patch }).success;
+
+    expect(parse({ "payment.deadline_minutes": 14 })).toBe(false);
+    expect(parse({ "payment.deadline_minutes": 1441 })).toBe(false);
+    expect(parse({ "payment.max_receipts": 0 })).toBe(false);
+    expect(parse({ "payment.max_receipts": 11 })).toBe(false);
+    expect(parse({ "payment.refund_cutoff_hours": -1 })).toBe(false);
+    expect(parse({ "payment.refund_cutoff_hours": 169 })).toBe(false);
+  });
+
+  it("never lets the payment tab change the legal 20% privilege discount", () => {
+    expect(
+      settingsGroupSchemas.payment.safeParse({
+        ...paymentValues,
+        "billing.privilege_discount_bps": 1000,
+      }).success,
+    ).toBe(false);
+    expect(
+      resolveSettings([{ key: "billing.privilege_discount_bps", value: 1000 }])[
+        "billing.privilege_discount_bps"
+      ],
+    ).toBe(2000);
+  });
+
+  it("opens the payment tab from ?tab=payment", () => {
+    expect(parseSettingsTab("payment")).toBe("payment");
+  });
+});

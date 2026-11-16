@@ -5,7 +5,7 @@ import { SpecialtyDoctors } from "@/components/specialties/specialty-doctors";
 import { SpecialtyForm } from "@/components/specialties/specialty-form";
 import { SpecialtyStatusForm } from "@/components/specialties/specialty-status";
 import { SpecialtiesTable } from "@/components/specialties/specialties-table";
-import type { Specialty } from "@/lib/directory/types";
+import type { SpecialtyDetail } from "@/lib/specialties/types";
 
 vi.mock("@/server/specialties/actions", () => ({
   saveSpecialtyAction: vi.fn(),
@@ -13,12 +13,13 @@ vi.mock("@/server/specialties/actions", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 
-const CARDIOLOGY: Specialty = {
+const CARDIOLOGY: SpecialtyDetail = {
   id: "00000000-0000-4000-8000-000000000701",
   name: "Cardiology",
   description: "Heart conditions",
   routingHints: "Heart concerns: palpitations",
   isActive: true,
+  defaultConsultationFeeCentavos: 70000,
 };
 
 describe("SpecialtiesTable", () => {
@@ -56,6 +57,7 @@ describe("SpecialtyForm", () => {
     expect(screen.getByLabelText("Description")).toHaveValue("Heart conditions");
     expect(screen.getByLabelText("Routing hints")).toHaveValue("Heart concerns: palpitations");
     expect(screen.getByLabelText("Routing hints")).toHaveAttribute("maxLength", "1000");
+    expect(screen.getByLabelText("Default consultation fee (₱)")).toHaveValue("700.00");
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save specialty" })).toBeInTheDocument();
   });

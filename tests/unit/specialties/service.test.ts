@@ -62,7 +62,12 @@ describe("getSpecialtyDetail", () => {
 });
 
 describe("saveSpecialty", () => {
-  const INPUT = { name: "Cardiology", description: null, routingHints: "Heart concerns" };
+  const INPUT = {
+    name: "Cardiology",
+    description: null,
+    routingHints: "Heart concerns",
+    defaultConsultationFeeCentavos: 70000,
+  };
 
   it("saves as the acting admin and returns the specialty id", async () => {
     await expect(
@@ -75,7 +80,7 @@ describe("saveSpecialty", () => {
     store.save.mockResolvedValue({ ok: false, code: "duplicate" });
 
     await expect(
-      saveSpecialty({ actorId: ADMIN_ID, specialtyId: null, input: { name: "cardiology", description: null, routingHints: null } }, store),
+      saveSpecialty({ actorId: ADMIN_ID, specialtyId: null, input: { name: "cardiology", description: null, routingHints: null, defaultConsultationFeeCentavos: null } }, store),
     ).resolves.toEqual({ ok: false, message: "A specialty with that name already exists." });
   });
 

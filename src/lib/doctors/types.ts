@@ -19,6 +19,8 @@ export type AdminDoctorDetail = AdminDoctorListItem & {
   contactEmail: string | null;
   contactPhone: string | null;
   bio: string | null;
+  /** PAY-01 fee override in integer centavos; null uses the specialty default. */
+  consultationFeeCentavos: number | null;
 };
 
 /** A `doctor` account with a login and no doctor record yet. */

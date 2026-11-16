@@ -41,7 +41,12 @@ describe("specialty routing hints (0032)", () => {
   });
 
   it("lets admins save every allow-listed setting, including the first-contact specialties", () => {
-    for (const key of Object.keys(DEFAULT_SETTINGS)) {
+    // Keys from later migrations (PAY-01 payment.*/billing.*, 0033) are checked
+    // against the newest save function in tests/unit/billing/price-catalogue-sql.test.ts.
+    const keysAt0032 = Object.keys(DEFAULT_SETTINGS).filter(
+      (key) => !key.startsWith("payment.") && !key.startsWith("billing."),
+    );
+    for (const key of keysAt0032) {
       expect(settingsBody).toContain(`'${key}'`);
     }
   });

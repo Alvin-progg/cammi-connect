@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { optionalPesoField } from "@/lib/billing/money";
+
 /** Trims a form value and treats a blank one as "not provided". */
 const trimmedOrNull = (value: unknown) => {
   if (typeof value !== "string") {
@@ -42,6 +44,10 @@ export const doctorFormSchema = z.object({
   accountProfileId: z.preprocess(
     trimmedOrNull,
     z.uuid("Choose a valid account.").nullable().default(null),
+  ),
+  // PAY-01: the doctor's own professional fee; blank uses the specialty default.
+  consultationFeeCentavos: optionalPesoField(
+    "Enter the fee in pesos, like 500 or 500.50, or leave it blank to use the specialty fee.",
   ),
 });
 

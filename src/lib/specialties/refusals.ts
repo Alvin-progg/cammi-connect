@@ -1,5 +1,11 @@
 /** Codes raised by the 0016 specialty functions, with their messages. */
-export const SPECIALTY_REFUSALS = ["not_admin", "duplicate", "not_found", "unchanged"] as const;
+export const SPECIALTY_REFUSALS = [
+  "not_admin",
+  "duplicate",
+  "not_found",
+  "unchanged",
+  "invalid_price",
+] as const;
 
 export type SpecialtyRefusal = (typeof SPECIALTY_REFUSALS)[number];
 
@@ -8,6 +14,7 @@ export const SPECIALTY_REFUSAL_MESSAGES: Record<SpecialtyRefusal, string> = {
   duplicate: "A specialty with that name already exists.",
   not_found: "That specialty no longer exists.",
   unchanged: "Nothing to change.",
+  invalid_price: "Amounts can't be negative.",
 };
 
 export function specialtyRefusalFromCode(

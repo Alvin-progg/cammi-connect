@@ -14,7 +14,18 @@ describe("specialtyFormSchema", () => {
       name: "Pediatric Cardiology",
       description: null,
       routingHints: null,
+      defaultConsultationFeeCentavos: null,
     });
+  });
+
+  it("reads the default consultation fee in pesos as integer centavos (PAY-01)", () => {
+    expect(
+      specialtyFormSchema.parse({ name: "Cardiology", defaultConsultationFeeCentavos: "700" })
+        .defaultConsultationFeeCentavos,
+    ).toBe(70000);
+    expect(
+      firstMessage(specialtyFormSchema.safeParse({ name: "Cardiology", defaultConsultationFeeCentavos: "-700" })),
+    ).toBe("Enter the fee in pesos, like 500 or 500.50.");
   });
 
   it("keeps routing hints of at most 1,000 characters (AI-APT-002)", () => {

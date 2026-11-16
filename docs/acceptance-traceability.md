@@ -154,3 +154,17 @@ Authorization model note: under ADR-0003, every table has RLS on with no policie
 | Admins edit routing hints; saves are audited with the hints | test + static + manual | `tests/unit/specialties/*.test.ts`, `tests/component/specialties/specialties.test.tsx`, `tests/unit/specialties/routing-hints-sql.test.ts`; `0032` smoke-tested on the local Supabase (`scripts/db-local-apply.sh`) |
 | Concern is never logged | static (by construction) | the chat log entry type carries IDs and outcomes only (`src/server/chat/handler.ts`); no new log calls |
 | Routing eval reaches ≥ 90% correct or safe with zero urgent misroutes | test (scoring) + gap (run) | scoring in `tests/unit/chat/routing-eval.test.ts`; `npm run eval:routing` needs real keys and has not been run |
+
+## PAY-01 Price catalogue
+
+| Item | Status | Where |
+|---|---|---|
+| Admin sets the specialty default fee and a doctor fee override (pesos in, integer centavos stored) | test | `tests/unit/specialties/*.test.ts`, `tests/unit/doctors/*.test.ts`, `tests/component/specialties/specialties.test.tsx`, `tests/component/doctors/doctors.test.tsx` |
+| Admin sets service category, price (blank = on request), VAT-able, PhilHealth benefit, HMO-coverable, doctor's request, daily capacity; `scheduled` booking mode | test | `tests/unit/services/*.test.ts`, `tests/component/services/services.test.tsx` |
+| Peso parsing and formatting use integer math only | test | `tests/unit/billing/money.test.ts` |
+| HMO providers: list, create, edit, activate/deactivate; admin only | test | `tests/unit/hmo-providers/*.test.ts`, `tests/component/hmo-providers/hmo-providers.test.tsx`, `tests/component/admin/admin-shell.test.tsx` |
+| Payment settings stored with bounds; the 20% privilege discount is read-only | test + static | `tests/unit/settings/schema.test.ts`, `tests/component/settings/settings-form.test.tsx`, `tests/unit/billing/price-catalogue-sql.test.ts` |
+| Every price save is audited; negative amounts refused (`invalid_price`); non-admin refused; RLS on, anon/authenticated revoked, functions for service_role only | static + manual | `tests/unit/billing/price-catalogue-sql.test.ts`; `0033` smoke-tested on the local Supabase (`scripts/db-local-apply.sh`) |
+| HMO writes clear the reference cache | static | `tests/unit/security/reference-cache.test.ts` |
+| Seed loads the synthetic prices and sample HMOs (PhilHealth ₱0) | manual | `scripts/seed.mjs`, run against the local Supabase only |
+| No patient-facing change | by construction | no patient or chat module reads the new columns or settings |

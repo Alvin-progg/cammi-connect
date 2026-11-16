@@ -28,6 +28,13 @@ const XRAY: HospitalService = {
   requiresAppointment: false,
   bookingMode: "walk_in",
   isActive: true,
+  category: "other",
+  priceCentavos: null,
+  vatable: false,
+  philhealthBenefitCentavos: 0,
+  hmoCoverable: true,
+  requiresDoctorRequest: false,
+  dailyCapacity: null,
 };
 const RETIRED_SERVICE: HospitalService = {
   ...XRAY,

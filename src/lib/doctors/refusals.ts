@@ -13,12 +13,14 @@ export const DOCTOR_REFUSALS = [
   "already_linked",
   "account_has_history",
   "has_future_appointments",
+  "invalid_price",
 ] as const;
 
 export type DoctorRefusal = (typeof DOCTOR_REFUSALS)[number];
 
 export const DOCTOR_REFUSAL_MESSAGES: Record<DoctorRefusal, string> = {
   not_admin: "Only an active administrator can manage doctors.",
+  invalid_price: "Amounts can't be negative.",
   not_found: "That doctor no longer exists.",
   unchanged: "Nothing to change.",
   full_name_required: "Enter the doctor's full name.",

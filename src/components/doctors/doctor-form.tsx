@@ -2,6 +2,7 @@
 
 import { FIELD_CLASS, Field, FormFooter, LABEL_CLASS } from "@/components/admin/form-parts";
 import { useAdminForm } from "@/components/admin/use-admin-form";
+import { centavosToPesoInput } from "@/lib/billing/money";
 import type { Department, Specialty } from "@/lib/directory/types";
 import type { AdminDoctorDetail, LinkableDoctorAccount } from "@/lib/doctors/types";
 import { saveDoctorAction, type DoctorActionState } from "@/server/doctors/actions";
@@ -112,6 +113,19 @@ export function DoctorForm({
           defaultValue={doctor?.bio ?? ""}
           className={`${FIELD_CLASS} py-2`}
         />
+      </Field>
+      <Field id="doctor-consultation-fee" label="Consultation fee (₱)">
+        <input
+          id="doctor-consultation-fee"
+          name="consultationFee"
+          inputMode="decimal"
+          aria-describedby="doctor-consultation-fee-help"
+          defaultValue={centavosToPesoInput(doctor?.consultationFeeCentavos ?? null)}
+          className={FIELD_CLASS}
+        />
+        <p id="doctor-consultation-fee-help" className="text-xs text-ink-muted">
+          The doctor&apos;s own professional fee. Leave blank to use the specialty&apos;s default fee.
+        </p>
       </Field>
       {doctor ? null : (
         <Field id="doctor-account" label="Linked account">

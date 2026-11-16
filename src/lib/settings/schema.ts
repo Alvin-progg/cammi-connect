@@ -5,10 +5,10 @@ import { KNOWLEDGE_CATEGORIES } from "@/lib/knowledge/types";
 /**
  * Admin system settings (ADM-15, spec §15). This allow-list is the only set of
  * keys an admin can change; model, prompt, temperature, and API keys are
- * deliberately absent. The save function in 0027 repeats the key list.
+ * deliberately absent. The save function (latest in 0033) repeats the key list.
  */
 
-export const SETTING_GROUPS = ["appointment", "hospital", "chatbot"] as const;
+export const SETTING_GROUPS = ["appointment", "hospital", "chatbot", "payment"] as const;
 
 export type SettingGroup = (typeof SETTING_GROUPS)[number];
 
@@ -16,7 +16,15 @@ export const SETTING_GROUP_LABELS: Record<SettingGroup, string> = {
   appointment: "Appointment",
   hospital: "Hospital",
   chatbot: "Chatbot",
+  payment: "Payment",
 };
+
+/**
+ * PAY-001: the senior citizen/PWD discount is fixed by law (RA 9994, RA
+ * 10754), so it is shown but never edited: no tab saves it and 0033 leaves it
+ * off the SQL allow-list.
+ */
+export const PRIVILEGE_DISCOUNT_BPS = 2000;
 
 /** Shown read-only; every date and time in the app is Manila time. */
 export const HOSPITAL_TIMEZONE = "Asia/Manila";
@@ -131,6 +139,26 @@ const settingSchemas = {
     }),
   "chatbot.first_contact_specialty_adult": specialtyName("adult first-contact specialty"),
   "chatbot.first_contact_specialty_child": specialtyName("child first-contact specialty"),
+  // PAY-01: stored only; nothing patient-facing reads these until PAY-03/04.
+  "payment.enabled": z.boolean(),
+  "payment.qr_image_path": z.string().trim().max(300, "Keep the QR image path under 300 characters."),
+  "payment.account_name": shortText("account name"),
+  "payment.deadline_minutes": z
+    .number()
+    .int("Enter a whole number of minutes.")
+    .min(15, "Allow at least 15 minutes to pay.")
+    .max(1440, "Enter at most 1,440 minutes (24 hours)."),
+  "payment.max_receipts": z
+    .number()
+    .int("Enter a whole number.")
+    .min(1, "Allow at least 1 receipt.")
+    .max(10, "Allow at most 10 receipts."),
+  "payment.refund_cutoff_hours": z
+    .number()
+    .int("Enter a whole number of hours.")
+    .min(0, "Enter 0 or more hours.")
+    .max(168, "Enter at most 168 hours (7 days)."),
+  "billing.privilege_discount_bps": z.literal(PRIVILEGE_DISCOUNT_BPS),
 };
 
 export type SettingKey = keyof typeof settingSchemas;
@@ -161,12 +189,20 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   // R3: Family Medicine, falling back to Internal Medicine in src/lib/chat/routing.ts.
   "chatbot.first_contact_specialty_adult": "Family Medicine",
   "chatbot.first_contact_specialty_child": "Pediatrics",
+  "payment.enabled": false,
+  "payment.qr_image_path": "",
+  "payment.account_name": "",
+  "payment.deadline_minutes": 120,
+  "payment.max_receipts": 3,
+  "payment.refund_cutoff_hours": 24,
+  "billing.privilege_discount_bps": PRIVILEGE_DISCOUNT_BPS,
 };
 
 const SETTING_KEYS = Object.keys(settingSchemas) as SettingKey[];
 
-function groupOf(key: SettingKey): SettingGroup {
-  return key.slice(0, key.indexOf(".")) as SettingGroup;
+/** The key's prefix; `billing.*` belongs to no tab, so no form can change it. */
+function groupOf(key: SettingKey): string {
+  return key.slice(0, key.indexOf("."));
 }
 
 function groupSchema<Group extends SettingGroup>(group: Group) {
@@ -184,6 +220,7 @@ export const settingsGroupSchemas = {
   appointment: groupSchema("appointment"),
   hospital: groupSchema("hospital"),
   chatbot: groupSchema("chatbot"),
+  payment: groupSchema("payment"),
 };
 
 export type SettingsGroupValues<Group extends SettingGroup> = z.infer<
@@ -269,6 +306,15 @@ export function settingsFromFormData(group: SettingGroup, formData: FormData): R
           .filter((value): value is string => typeof value === "string"),
         "chatbot.first_contact_specialty_adult": text(formData, "chatbot.first_contact_specialty_adult"),
         "chatbot.first_contact_specialty_child": text(formData, "chatbot.first_contact_specialty_child"),
+      };
+    case "payment":
+      return {
+        "payment.enabled": formData.get("payment.enabled") !== null,
+        "payment.qr_image_path": text(formData, "payment.qr_image_path"),
+        "payment.account_name": text(formData, "payment.account_name"),
+        "payment.deadline_minutes": numberOrNull(formData, "payment.deadline_minutes"),
+        "payment.max_receipts": numberOrNull(formData, "payment.max_receipts"),
+        "payment.refund_cutoff_hours": numberOrNull(formData, "payment.refund_cutoff_hours"),
       };
   }
 }

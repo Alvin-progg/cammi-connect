@@ -67,6 +67,7 @@ export async function saveSpecialtyAction(
     name: text(formData, "name") ?? "",
     description: text(formData, "description"),
     routingHints: text(formData, "routingHints"),
+    defaultConsultationFeeCentavos: text(formData, "defaultConsultationFee"),
   });
   if (!parsed.success) {
     return { status: "error", message: firstIssueMessage(parsed.error) };

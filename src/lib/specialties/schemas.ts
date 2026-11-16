@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { optionalPesoField } from "@/lib/billing/money";
 import { blankToNull, optionalDescription } from "@/lib/directory/schemas";
 
 /** Matches the specialties.routing_hints check in 0032. */
@@ -25,6 +26,8 @@ export const specialtyFormSchema = z.object({
       .nullable()
       .default(null),
   ),
+  // PAY-01: used when a doctor has no fee of their own; blank means not set.
+  defaultConsultationFeeCentavos: optionalPesoField("Enter the fee in pesos, like 500 or 500.50."),
 });
 
 export type SpecialtyFormInput = z.infer<typeof specialtyFormSchema>;
