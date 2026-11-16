@@ -9,8 +9,9 @@ import {
   ClipboardCheck,
   Sparkles,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
+import Image from "next/image";
 import Link from "next/link";
 
 import { BlurText, FadeIn, HeroParallax, RevealDelayed, RevealGroup, RevealItem, RevealListItem, ScrollHeader, ScrollProgressLine, SpotlightCard } from "@/components/landing/landing-motion";
@@ -60,6 +61,7 @@ function Header() {
           {[
             ["How it works", "#how"],
             ["Services", "#services"],
+            ["Doctors", "#doctors"],
             ["FAQ", "#faq"],
           ].map(([label, to]) => (
             <LinkButton key={to} variant="ghost" size="sm" href={to}>
@@ -406,6 +408,71 @@ function Services() {
   );
 }
 
+const DOCTORS = [
+  { slug: "alolod-mauhay", name: "Dra. Marife Alolod-Mauhay" },
+  { slug: "encarnacion", name: "Dr. Raymond Encarnacion", wide: true },
+  { slug: "arguelles", name: "Dra. Katrina Grace Arguelles" },
+  { slug: "manalo", name: "Dr. Darren Jansen Manalo" },
+  { slug: "bacay", name: "Dra. Charmaine Lynette Bacay" },
+  { slug: "ramos", name: "Dr. Nerk Ramos", wide: true },
+];
+
+// Fades each cut-out's bottom and side edges so the overlapping photos blend.
+const PORTRAIT_FADE =
+  "linear-gradient(180deg,#000 85%,transparent 100%),linear-gradient(90deg,transparent 0,#000 10%,#000 90%,transparent 100%)";
+const portraitFadeStyle: CSSProperties = {
+  WebkitMaskImage: PORTRAIT_FADE,
+  WebkitMaskComposite: "source-in",
+  maskImage: PORTRAIT_FADE,
+  maskComposite: "intersect",
+};
+
+function Doctors() {
+  return (
+    <section id="doctors" aria-labelledby="doctors-title" className="mx-auto max-w-[1200px] px-4 pt-8 text-center sm:px-8">
+      <Eyebrow>Our doctors</Eyebrow>
+      <h2 id="doctors-title" className={cn(H2, "mt-2")}>
+        Trusted doctors, right here in Mabini
+      </h2>
+      <p className="mx-auto mt-3 max-w-[520px] text-ink-secondary">Internists and pediatricians of United Doctors of St. Camillus De Lellis Hospital.</p>
+
+      {/* Desktop: one overlapping row over a soft panel and a divider line at caption height. Mobile: 3 per row. */}
+      <div
+        className="relative mx-auto mt-11 flex max-w-[1100px] flex-wrap items-end justify-center gap-y-2 md:flex-nowrap
+                   md:before:absolute md:before:inset-x-[3%] md:before:bottom-[72px] md:before:h-[60%] md:before:rounded-t-[32px]
+                   md:before:bg-linear-to-b md:before:from-primary-soft md:before:to-surface md:before:content-['']
+                   md:after:absolute md:after:inset-x-0 md:after:bottom-[72px] md:after:h-0.5 md:after:content-['']
+                   md:after:bg-[linear-gradient(90deg,transparent,color-mix(in_oklab,var(--primary)_40%,transparent),transparent)]"
+      >
+        {DOCTORS.map((doctor, index) => (
+          <figure
+            key={doctor.slug}
+            className={cn(
+              "group relative flex basis-1/3 flex-col items-center hover:z-30! md:mx-[-12px] md:min-w-0 md:flex-1 md:basis-0",
+              doctor.wide ? "z-0" : index % 2 ? "z-20" : "z-10",
+            )}
+          >
+            <Image
+              src={`/doctors/${doctor.slug}.webp`}
+              alt={doctor.name}
+              width={700}
+              height={900}
+              style={portraitFadeStyle}
+              className={cn(
+                "block w-auto max-w-none object-contain object-bottom drop-shadow-[0_14px_18px_rgb(15_35_66/0.13)] transition duration-300 group-hover:-translate-y-1.5 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:transform-none",
+                doctor.wide ? "h-[197px] md:h-[312px]" : "h-[190px] md:h-[300px]",
+              )}
+            />
+            <figcaption className="max-w-[150px] pt-3 leading-tight md:h-[72px]">
+              <b className="block text-[13.5px] font-semibold text-ink">{doctor.name}</b>
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function Faq() {
   const items = [
     [
@@ -452,6 +519,7 @@ export default function Home() {
       <CalmCare />
       <HowItWorks />
       <Services />
+      <Doctors />
       <Faq />
       <section className="mx-auto max-w-[1200px] px-4 pb-24 sm:px-8">
         <div className="flex flex-wrap items-center justify-between gap-6 rounded-2xl bg-ink px-8 py-14 text-white sm:px-12">
