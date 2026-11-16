@@ -48,6 +48,10 @@ export async function POST(request: Request): Promise<Response> {
       return {
         enabled: current["chatbot.enabled"],
         bookingHorizonDays: current["appointment.max_advance_days"],
+        firstContact: {
+          adult: current["chatbot.first_contact_specialty_adult"],
+          child: current["chatbot.first_contact_specialty_child"],
+        },
       };
     },
     now: () => new Date(),

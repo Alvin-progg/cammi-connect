@@ -7,6 +7,7 @@ import {
   type ChatRole,
   type ConversationSummary,
 } from "@/lib/chat/schemas";
+import type { FirstContactSettings } from "@/lib/chat/routing";
 import { IDLE_STATE, type BookingState, type BookingStep } from "@/lib/chat/state";
 import { ProviderError } from "@/server/ai/http";
 import type { PatientApiAccess } from "@/server/auth/dal";
@@ -70,6 +71,8 @@ export type ChatTurnSettings = {
   enabled: boolean;
   /** `appointment.max_advance_days`. */
   bookingHorizonDays: number;
+  /** `chatbot.first_contact_specialty_adult` and `_child` (AI-APT-002). */
+  firstContact: FirstContactSettings;
 };
 
 /** Log entries hold IDs and outcomes only, never message text (SPEC §7.3). */
@@ -196,6 +199,7 @@ export async function handleChatRequest(
         state: bookingState,
         now,
         bookingHorizonDays: settings.bookingHorizonDays,
+        firstContact: settings.firstContact,
       },
       {
         generate: deps.generate,

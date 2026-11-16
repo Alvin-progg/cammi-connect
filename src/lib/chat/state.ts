@@ -6,6 +6,8 @@ import { z } from "zod";
  */
 export const BOOKING_STEPS = [
   "idle",
+  // AI-APT-002: medical advice was declined and a booking offered ([Yes, book]).
+  "offering_booking",
   "choosing_specialty",
   "choosing_doctor",
   // Path B: the named doctor has several specialties and the patient picks one.
@@ -24,6 +26,21 @@ export type BookingStep = (typeof BOOKING_STEPS)[number];
 export const BOOKING_REASON_MAX_LENGTH = 500;
 
 /**
+ * AI-APT-002: the routing details the LLM extracted from the patient's
+ * concern, kept so the server can route on [Yes, book] or after the age
+ * question without another model call. Candidates are only names; they are
+ * matched against active specialties every time they are used.
+ */
+const careNeedSchema = z.object({
+  specialtyCandidates: z.array(z.string().max(100)).max(2).optional(),
+  routingConfidence: z.enum(["high", "low"]).optional(),
+  age: z.number().int().min(0).max(130).optional(),
+  forSomeoneElse: z.boolean().optional(),
+});
+
+export type CareNeed = z.infer<typeof careNeedSchema>;
+
+/**
  * What the patient has chosen so far. Only database IDs and times are kept;
  * names shown to the patient are re-read from the database on every turn.
  */
@@ -34,6 +51,9 @@ export const bookingDraftSchema = z.object({
   preferredTime: z.string().max(50).optional(),
   slotStart: z.iso.datetime({ offset: true }).optional(),
   reason: z.string().max(BOOKING_REASON_MAX_LENGTH).optional(),
+  careNeed: careNeedSchema.optional(),
+  /** R5: the age question was already asked once in this booking. */
+  ageAsked: z.boolean().optional(),
 });
 
 export type BookingDraft = z.infer<typeof bookingDraftSchema>;
@@ -61,10 +81,13 @@ export type BookingEventType =
   | "select_slot"
   | "confirm_booking"
   | "change_booking"
-  | "cancel_booking";
+  | "cancel_booking"
+  | "update_reason"
+  | "accept_booking_offer";
 
 const ACCEPTED_FROM: Record<BookingEventType, readonly BookingStep[]> = {
-  select_specialty: ["choosing_specialty", "choosing_doctor_specialty"],
+  // choosing_doctor: the routed doctor list offers an alternative specialty.
+  select_specialty: ["choosing_specialty", "choosing_doctor_specialty", "choosing_doctor"],
   // choosing_slot and failed offer other doctors of the same specialty.
   select_doctor: ["choosing_doctor", "choosing_slot", "failed"],
   more_slots: ["choosing_slot", "failed"],
@@ -79,6 +102,8 @@ const ACCEPTED_FROM: Record<BookingEventType, readonly BookingStep[]> = {
     "awaiting_confirmation",
     "failed",
   ],
+  update_reason: ["awaiting_confirmation"],
+  accept_booking_offer: ["offering_booking"],
 };
 
 /** Rejects events that would skip a step, such as Confirm before a slot is chosen. */

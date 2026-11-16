@@ -39,6 +39,7 @@ const CARDIOLOGY: Specialty = {
   id: "00000000-0000-4000-8000-000000000201",
   name: "Cardiology",
   description: null,
+  routingHints: null,
   isActive: true,
 };
 

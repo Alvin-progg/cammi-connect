@@ -25,6 +25,7 @@ export type SpecialtyAdminStore = {
     specialtyId: string | null;
     name: string;
     description: string | null;
+    routingHints: string | null;
   }): Promise<{ ok: true; specialtyId: string } | { ok: false; code: string | undefined }>;
   setActive(input: {
     actorId: string;

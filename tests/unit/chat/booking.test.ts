@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { formatManilaShortDate, formatManilaTime } from "@/lib/appointments/format";
 import { BOOKING_COPY, beyondHorizonCopy } from "@/lib/chat/booking";
 import { matchDoctorsByName } from "@/lib/chat/resolve";
+import { DEFAULT_FIRST_CONTACT } from "@/lib/chat/routing";
 import type { ChatEvent } from "@/lib/chat/schemas";
 import { IDLE_STATE, type BookingState } from "@/lib/chat/state";
 import type { DoctorSummary, Specialty } from "@/lib/directory/types";
@@ -22,12 +23,14 @@ const CARDIOLOGY: Specialty = {
   id: "00000000-0000-4000-8000-0000000005a1",
   name: "Cardiology",
   description: null,
+  routingHints: null,
   isActive: true,
 };
 const PEDIATRICS: Specialty = {
   id: "00000000-0000-4000-8000-0000000005a2",
   name: "General Pediatrics",
   description: null,
+  routingHints: null,
   isActive: true,
 };
 
@@ -72,6 +75,9 @@ function fakeTools(slots: Record<string, TimeSlot[]> = { [MAYA.id]: MAYA_SLOTS }
   return {
     getDepartments: vi.fn(async () => []),
     getSpecialties: vi.fn(async () => [CARDIOLOGY, PEDIATRICS]),
+    getRoutableSpecialties: vi.fn(async () =>
+      [CARDIOLOGY, PEDIATRICS].map((entry) => ({ ...entry, hasActiveDoctors: true })),
+    ),
     getDoctorDetails: vi.fn(async ({ doctorName }: { doctorName: string }) => {
       const matches = matchDoctorsByName(doctorName, DOCTORS);
       if (matches.length === 0) return { status: "unknown" as const };
@@ -120,6 +126,7 @@ function turnWith(event: ChatEvent, state: BookingState = IDLE_STATE): TurnInput
     state,
     now: NOW,
     bookingHorizonDays: 60,
+    firstContact: DEFAULT_FIRST_CONTACT,
   };
 }
 

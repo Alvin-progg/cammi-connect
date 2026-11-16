@@ -4,8 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { PatientAppointment } from "@/lib/appointments/types";
 import { APPOINTMENTS_COPY } from "@/lib/chat/appointments";
 import { CAMI_INTRO, SMALL_TALK_SYSTEM_PROMPT } from "@/lib/chat/persona";
+import { DEFAULT_FIRST_CONTACT } from "@/lib/chat/routing";
 import { ASSISTANT_REPLY_MAX_LENGTH, type ChatEvent } from "@/lib/chat/schemas";
 import {
+  BOOKING_OFFER,
   EMERGENCY_NOTICE,
   MEDICAL_ADVICE_DECLINE,
   NOT_VERIFIED,
@@ -40,6 +42,7 @@ const PEDIATRICS_SPECIALTY: Specialty = {
   id: "sp1",
   name: "General Pediatrics",
   description: null,
+  routingHints: null,
   isActive: true,
 };
 const MAYA: DoctorSummary = {
@@ -55,6 +58,7 @@ function fakeTools(): ChatTools {
   return {
     getDepartments: vi.fn(async () => [CARDIOLOGY]),
     getSpecialties: vi.fn(async () => [PEDIATRICS_SPECIALTY]),
+    getRoutableSpecialties: vi.fn(async () => [{ ...PEDIATRICS_SPECIALTY, hasActiveDoctors: false }]),
     getDoctorDetails: vi.fn(async (): Promise<DoctorLookup> => ({ status: "unknown" })),
     getDoctor: vi.fn(async () => null),
     getDoctorsBySpecialty: vi.fn(async () => []),
@@ -92,16 +96,18 @@ function turn(text: string, history: { role: "user" | "assistant"; content: stri
     state: IDLE_STATE,
     now: NOW,
     bookingHorizonDays: 60,
+    firstContact: DEFAULT_FIRST_CONTACT,
   };
 }
 
 describe("handleTurn", () => {
-  it("declines a medical-advice request without an emergency notice", async () => {
+  it("declines a medical-advice request without an emergency notice and offers to book (AI-APT-002)", async () => {
     const generate = generateReturning(JSON.stringify({ intent: "medical_advice" }));
 
     const result = await handleTurn(turn("I have a mild cough, what should I take?"), turnDeps(generate));
 
-    expect(result.reply).toBe(MEDICAL_ADVICE_DECLINE);
+    expect(result.reply).toBe(`${MEDICAL_ADVICE_DECLINE} ${BOOKING_OFFER}`);
+    expect(result.payload).toEqual({ kind: "book_offer" });
     expect(result.reply).not.toContain(EMERGENCY_NOTICE);
   });
 

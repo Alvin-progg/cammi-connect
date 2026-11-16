@@ -44,6 +44,8 @@ const chatbotForm: [string, string][] = [
   ["chatbot.enabled", "on"],
   ["chatbot.welcome_message", " Welcome! "],
   ["chatbot.enabled_categories", "services"],
+  ["chatbot.first_contact_specialty_adult", "Family Medicine"],
+  ["chatbot.first_contact_specialty_child", "Pediatrics"],
 ];
 
 beforeEach(() => {
@@ -98,6 +100,8 @@ describe("saveSettingsAction", () => {
           "chatbot.enabled": true,
           "chatbot.welcome_message": "Welcome!",
           "chatbot.enabled_categories": ["services"],
+          "chatbot.first_contact_specialty_adult": "Family Medicine",
+          "chatbot.first_contact_specialty_child": "Pediatrics",
         },
       },
       {},

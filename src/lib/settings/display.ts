@@ -18,6 +18,8 @@ export const SETTING_LABELS: Record<SettingKey, string> = {
   "chatbot.enabled": "Cami chatbot",
   "chatbot.welcome_message": "Welcome message",
   "chatbot.enabled_categories": "Knowledge categories Cami answers from",
+  "chatbot.first_contact_specialty_adult": "First-contact specialty for adults",
+  "chatbot.first_contact_specialty_child": "First-contact specialty for children",
 };
 
 const UNITS: Partial<Record<SettingKey, string>> = {

@@ -57,6 +57,9 @@ export type DoctorLookup =
 
 export type TimeSlot = { start: string; end: string };
 
+/** An active specialty and whether any active doctor sees patients for it (AI-APT-002). */
+export type RoutingSpecialty = Specialty & { hasActiveDoctors: boolean };
+
 export type BookingOutcome = { ok: true; appointmentId: string } | { ok: false; message: string };
 
 /**
@@ -69,6 +72,7 @@ export type BookingOutcome = { ok: true; appointmentId: string } | { ok: false; 
 export type ChatTools = {
   getDepartments(): Promise<Department[]>;
   getSpecialties(): Promise<Specialty[]>;
+  getRoutableSpecialties(): Promise<RoutingSpecialty[]>;
   getDoctorDetails(input: { doctorName: string }): Promise<DoctorLookup>;
   getDoctor(input: { doctorId: string }): Promise<DoctorSummary | null>;
   getDoctorsBySpecialty(input: { specialtyId: string }): Promise<DoctorSummary[]>;
@@ -128,6 +132,19 @@ export function createChatTools({
 
     async getSpecialties() {
       return (await directory.listSpecialties()).filter((specialty) => specialty.isActive);
+    },
+
+    async getRoutableSpecialties() {
+      const [specialties, doctors] = await Promise.all([
+        directory.listSpecialties(),
+        listBookableDoctors({}, directory),
+      ]);
+      const staffed = new Set(
+        doctors.flatMap((doctor) => doctor.specialties.map((specialty) => specialty.id)),
+      );
+      return specialties
+        .filter((specialty) => specialty.isActive)
+        .map((specialty) => ({ ...specialty, hasActiveDoctors: staffed.has(specialty.id) }));
     },
 
     async getDoctorDetails(input) {

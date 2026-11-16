@@ -22,9 +22,11 @@ const FULL_DRAFT: BookingDraft = {
 };
 
 describe("booking steps", () => {
-  it("has the ten states of the booking flow", () => {
+  it("has the eleven states of the booking flow", () => {
     expect(BOOKING_STEPS).toEqual([
       "idle",
+      // AI-APT-002: medical advice declined, booking offered.
+      "offering_booking",
       "choosing_specialty",
       "choosing_doctor",
       "choosing_doctor_specialty",
@@ -41,6 +43,19 @@ describe("booking steps", () => {
 describe("parseBookingState", () => {
   it("returns a stored state that matches the schema", () => {
     const stored = { step: "awaiting_confirmation", draft: FULL_DRAFT };
+
+    expect(parseBookingState(stored)).toEqual(stored);
+  });
+
+  it("keeps the routing details of a care need", () => {
+    const stored = {
+      step: "offering_booking",
+      draft: {
+        reason: "Cough",
+        careNeed: { specialtyCandidates: ["Pediatrics"], routingConfidence: "high", age: 4 },
+        ageAsked: true,
+      },
+    };
 
     expect(parseBookingState(stored)).toEqual(stored);
   });
@@ -74,10 +89,24 @@ describe("acceptsEvent", () => {
     expect(acceptsEvent("failed", "select_doctor")).toBe(true);
   });
 
-  it("accepts a specialty choice only while one is being asked for", () => {
+  it("accepts a specialty choice only while one is being asked for or offered", () => {
     expect(acceptsEvent("choosing_specialty", "select_specialty")).toBe(true);
     expect(acceptsEvent("choosing_doctor_specialty", "select_specialty")).toBe(true);
+    // AI-APT-002: the routed doctor list offers a one-tap alternative specialty.
+    expect(acceptsEvent("choosing_doctor", "select_specialty")).toBe(true);
     expect(acceptsEvent("choosing_slot", "select_specialty")).toBe(false);
+  });
+
+  it("accepts a reason edit only on the summary", () => {
+    for (const step of BOOKING_STEPS) {
+      expect(acceptsEvent(step, "update_reason")).toBe(step === "awaiting_confirmation");
+    }
+  });
+
+  it("accepts the booking offer only while it is offered", () => {
+    for (const step of BOOKING_STEPS) {
+      expect(acceptsEvent(step, "accept_booking_offer")).toBe(step === "offering_booking");
+    }
   });
 
   it("does not let a finished or in-flight booking be changed or cancelled", () => {

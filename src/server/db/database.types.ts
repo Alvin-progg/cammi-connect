@@ -67,6 +67,8 @@ export type Database = {
           id: string;
           name: string;
           description: string | null;
+          /** Migration 0032 (AI-APT-002): routing context for Cami, at most 1,000 characters. */
+          routing_hints: string | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -75,6 +77,7 @@ export type Database = {
           id?: string;
           name: string;
           description?: string | null;
+          routing_hints?: string | null;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -82,6 +85,7 @@ export type Database = {
         Update: {
           name?: string;
           description?: string | null;
+          routing_hints?: string | null;
           is_active?: boolean;
           updated_at?: string;
         };
@@ -770,6 +774,8 @@ export type Database = {
           p_specialty_id: string | null;
           p_name: string;
           p_description: string | null;
+          /** Migration 0032 (AI-APT-002). */
+          p_routing_hints: string | null;
         };
         Returns: string;
       };

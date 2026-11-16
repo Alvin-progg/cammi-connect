@@ -1,6 +1,6 @@
 # Administrator module: acceptance traceability
 
-Maps each "Tests first" item in `pr-admin.md` (ADM-00 to ADM-16), and ADM-17 from `specs/tasks/ADM-17-analytics-interpretation.md`, to the place it is verified. The full specification's §20 checklist is not in the repository, so this table follows the slices instead.
+Maps each "Tests first" item in `pr-admin.md` (ADM-00 to ADM-16), ADM-17 from `specs/tasks/ADM-17-analytics-interpretation.md`, and the acceptance criteria of `specs/tasks/AI-APT-002-need-based-specialty-routing.md`, to the place it is verified. The full specification's §20 checklist is not in the repository, so this table follows the slices instead.
 
 Status values:
 
@@ -137,3 +137,20 @@ Authorization model note: under ADR-0003, every table has RLS on with no policie
 | RLS matrix (role × table × operation) | gap | needs a database; see the ADR-0003 note above |
 | PostgREST privilege escalation as each role | gap | needs a database; the anon/authenticated revokes are in every migration |
 | E2E critical paths 1–5 | gap | Playwright not installed |
+
+## AI-APT-002 Need-based specialty routing
+
+| Item | Status | Where |
+|---|---|---|
+| A described concern gets doctor cards without choosing a specialty | test | `tests/unit/chat/orchestrator-routing.test.ts` |
+| Only active specialties with active doctors are suggested; invented names dropped | test | `tests/unit/chat/routing.test.ts`, `tests/unit/chat/tools.test.ts` |
+| Under 18 goes to Pediatrics unless another specialty is named | test | `tests/unit/chat/routing.test.ts`, `orchestrator-routing.test.ts` |
+| Unclear or low-confidence concerns go to the first-contact specialty (settings, R3 fallback) | test | `tests/unit/chat/routing.test.ts`, `tests/unit/settings/schema.test.ts` |
+| At most one age question (R5) | test | `tests/unit/chat/orchestrator-routing.test.ts` |
+| Urgent keyword or model flag wins: emergency notice, no doctor cards | test | `tests/unit/chat/orchestrator-routing.test.ts`, `orchestrator.test.ts` |
+| Routed replies are templates with no model text, no banned phrases, and [Change specialty] | test | `tests/unit/chat/safety.test.ts`, `orchestrator-routing.test.ts`, `tests/component/chat/booking-cards.test.tsx` |
+| Concern is the reason for visit and can be edited before Confirm | test | `tests/unit/chat/orchestrator-routing.test.ts`, `tests/component/chat/booking-cards.test.tsx` |
+| Medical-advice decline offers [Yes, book], which routes without another model call | test | `tests/unit/chat/orchestrator-routing.test.ts` |
+| Admins edit routing hints; saves are audited with the hints | test + static + manual | `tests/unit/specialties/*.test.ts`, `tests/component/specialties/specialties.test.tsx`, `tests/unit/specialties/routing-hints-sql.test.ts`; `0032` smoke-tested on the local Supabase (`scripts/db-local-apply.sh`) |
+| Concern is never logged | static (by construction) | the chat log entry type carries IDs and outcomes only (`src/server/chat/handler.ts`); no new log calls |
+| Routing eval reaches ≥ 90% correct or safe with zero urgent misroutes | test (scoring) + gap (run) | scoring in `tests/unit/chat/routing-eval.test.ts`; `npm run eval:routing` needs real keys and has not been run |

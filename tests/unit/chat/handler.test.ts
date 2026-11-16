@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BOOKING_COPY } from "@/lib/chat/booking";
+import { DEFAULT_FIRST_CONTACT } from "@/lib/chat/routing";
 import type { ChatMessage } from "@/lib/chat/schemas";
 import { NOT_VERIFIED } from "@/lib/chat/safety";
 import { IDLE_STATE, type BookingState } from "@/lib/chat/state";
@@ -82,6 +83,7 @@ beforeEach(() => {
     tools: {
       getDepartments: vi.fn(async () => []),
       getSpecialties: vi.fn(async () => []),
+      getRoutableSpecialties: vi.fn(async () => []),
       getDoctorDetails: vi.fn(async () => ({ status: "unknown" as const })),
       getDoctor: vi.fn(async () => null),
       getDoctorsBySpecialty: vi.fn(async () => []),
@@ -95,7 +97,7 @@ beforeEach(() => {
         message: "unused",
       })),
     },
-    loadChatSettings: vi.fn(async () => ({ enabled: true, bookingHorizonDays: 60 })),
+    loadChatSettings: vi.fn(async () => ({ enabled: true, bookingHorizonDays: 60, firstContact: DEFAULT_FIRST_CONTACT })),
     now: () => NOW,
     newId: () => (nextId++ === 0 ? REQUEST_ID : NEW_CONVERSATION_ID),
     log: (entry) => logged.push(entry),
@@ -135,7 +137,7 @@ describe("handleChatRequest", () => {
   });
 
   it("refuses with 503 while an admin has turned the chatbot off (chatbot.enabled)", async () => {
-    vi.mocked(deps.loadChatSettings).mockResolvedValue({ enabled: false, bookingHorizonDays: 60 });
+    vi.mocked(deps.loadChatSettings).mockResolvedValue({ enabled: false, bookingHorizonDays: 60, firstContact: DEFAULT_FIRST_CONTACT });
 
     const response = await handleChatRequest(chatRequest(messageBody("Hi")), deps);
 
@@ -159,7 +161,7 @@ describe("handleChatRequest", () => {
   });
 
   it("passes the admin's booking horizon to the turn", async () => {
-    vi.mocked(deps.loadChatSettings).mockResolvedValue({ enabled: true, bookingHorizonDays: 7 });
+    vi.mocked(deps.loadChatSettings).mockResolvedValue({ enabled: true, bookingHorizonDays: 7, firstContact: DEFAULT_FIRST_CONTACT });
     vi.mocked(deps.generate).mockResolvedValue(
       JSON.stringify({ intent: "book", specialty: "Pediatrics", preferredDate: "2026-12-31" }),
     );

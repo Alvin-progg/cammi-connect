@@ -95,7 +95,7 @@ async function listCachedSpecialties(): Promise<Specialty[]> {
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from("specialties")
-    .select("id, name, description, is_active")
+    .select("id, name, description, routing_hints, is_active")
     .order("name", { ascending: true });
 
   if (error) {
@@ -106,6 +106,7 @@ async function listCachedSpecialties(): Promise<Specialty[]> {
       id: row.id,
       name: row.name,
       description: row.description,
+      routingHints: row.routing_hints,
       isActive: row.is_active,
     }),
   );

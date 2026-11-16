@@ -94,7 +94,8 @@ then `db/migrations/0021_admin_services.sql` once, then
 `db/migrations/0028_doctor_notification_confirmed.sql` on its own, then
 `db/migrations/0029_doctor_notification_trigger.sql` once, then
 `db/migrations/0030_query_indexes.sql` once, then
-`db/migrations/0031_patient_booking_cap.sql` once.
+`db/migrations/0031_patient_booking_cap.sql` once, then
+`db/migrations/0032_specialty_routing_hints.sql` once.
 After 0014, re-run
 `npm run db:seed`: the seed now sets staff roles through
 `cammi_connect_bootstrap_staff_role`. 0015 fails to build its index if two
@@ -494,6 +495,20 @@ settings allow-list. The front desk booking function is unchanged. Safe to re-ru
   admin, set the cap to 5 at `/admin/settings`; the patient can book again, and
   `/admin/audit-log` shows a `settings.update` row. Cancel the smoke-test appointments
   afterwards.
+
+`0032_specialty_routing_hints.sql` (AI-APT-002 specialty routing hints): adds
+`specialties.routing_hints` (at most 1,000 characters), replaces the audited specialty
+save function with a five-argument version that stores the hints and records them in
+the audit payload (the old four-argument function is dropped), and adds
+`chatbot.first_contact_specialty_adult` and `chatbot.first_contact_specialty_child` to
+the settings allow-list. Safe to re-run. Re-run `npm run db:seed` to load the synthetic
+routing hints for the four seed specialties.
+- Smoke test: as an admin, add routing hints to a specialty at `/admin/specialties/[id]`;
+  `/admin/audit-log` shows a `specialty.update` row with the previous and new
+  `routing_hints`. As a patient, tell Cami "Kumakabog dibdib ko minsan kahit nakaupo":
+  Cami replies "A Cardiology doctor can check this for you" with doctor cards and
+  **Change specialty**. "Masakit dibdib ko ngayon, hirap huminga" gets the emergency
+  notice and no cards.
 
 Audit log (ADM-16, no migration): as an admin, open `/admin/audit-log`, filter by
 "Settings (settings.*)", open an entry and check its previous and new values, then use

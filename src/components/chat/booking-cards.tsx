@@ -8,15 +8,25 @@ import { StatusBadge } from "@/components/ui/badge";
 import { formatManilaDate, formatManilaTime } from "@/lib/appointments/format";
 import { manilaDateOf } from "@/lib/chat/booking";
 import type { CardEvent, ChatMessagePayload, DoctorOption } from "@/lib/chat/schemas";
+import { BOOKING_REASON_MAX_LENGTH } from "@/lib/chat/state";
 
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
 export type BookingPayload = Extract<
   ChatMessagePayload,
-  { kind: "specialty_options" | "doctor_options" | "slot_picker" | "booking_summary" | "booking_result" }
+  {
+    kind:
+      | "book_offer"
+      | "specialty_options"
+      | "doctor_options"
+      | "slot_picker"
+      | "booking_summary"
+      | "booking_result";
+  }
 >;
 
 const BOOKING_KINDS = new Set<ChatMessagePayload["kind"]>([
+  "book_offer",
   "specialty_options",
   "doctor_options",
   "slot_picker",
@@ -43,10 +53,28 @@ export type CardProps = {
  */
 export function BookingCard({ payload, ...props }: CardProps & { payload: BookingPayload }) {
   switch (payload.kind) {
+    case "book_offer":
+      return (
+        <div className="mt-3">
+          <button
+            type="button"
+            disabled={!props.interactive || props.busy}
+            onClick={() => props.onEvent({ type: "accept_booking_offer" })}
+            className={buttonVariants({ variant: "primary" })}
+          >
+            Yes, book
+          </button>
+        </div>
+      );
     case "specialty_options":
       return <SpecialtyOptions specialties={payload.specialties} {...props} />;
     case "doctor_options":
-      return <DoctorOptions doctors={payload.doctors} label="Doctors" {...props} />;
+      return (
+        <>
+          <DoctorOptions doctors={payload.doctors} label="Doctors" {...props} />
+          {payload.changeSpecialty ? <RoutedSpecialtyActions payload={payload} {...props} /> : null}
+        </>
+      );
     case "slot_picker":
       return <SlotPicker payload={payload} {...props} />;
     case "booking_summary":
@@ -77,6 +105,39 @@ function SpecialtyOptions({
         </li>
       ))}
     </ul>
+  );
+}
+
+/** AI-APT-002: Cami picked the specialty, so it stays one tap away from changing. */
+function RoutedSpecialtyActions({
+  payload,
+  interactive,
+  busy,
+  onEvent,
+}: CardProps & { payload: Extract<BookingPayload, { kind: "doctor_options" }> }) {
+  const disabled = !interactive || busy;
+  const { alternative } = payload;
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {alternative ? (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onEvent({ type: "select_specialty", specialtyId: alternative.id })}
+          className={buttonVariants({ variant: "secondary" })}
+        >
+          See {alternative.name} doctors
+        </button>
+      ) : null}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onEvent({ type: "change_booking", field: "specialty" })}
+        className={buttonVariants({ variant: "ghost" })}
+      >
+        Change specialty
+      </button>
+    </div>
   );
 }
 
@@ -211,6 +272,8 @@ function BookingSummary({
   onEvent,
 }: CardProps & { payload: Extract<BookingPayload, { kind: "booking_summary" }> }) {
   const [confirming, setConfirming] = useState(false);
+  const [editingReason, setEditingReason] = useState(false);
+  const [reasonDraft, setReasonDraft] = useState(payload.reason ?? "");
   const disabled = !interactive || busy;
   const pendingConfirm = busy && confirming;
 
@@ -225,8 +288,48 @@ function BookingSummary({
         <SummaryRow term="Time">
           {formatManilaTime(payload.start)} – {formatManilaTime(payload.end)} (Asia/Manila)
         </SummaryRow>
-        {payload.reason ? <SummaryRow term="Reason">{payload.reason}</SummaryRow> : null}
+        {payload.reason ? <SummaryRow term="Reason for visit">{payload.reason}</SummaryRow> : null}
       </dl>
+      {editingReason ? (
+        <form
+          className="mt-3 flex flex-col gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const reason = reasonDraft.trim();
+            if (!reason) return;
+            setEditingReason(false);
+            onEvent({ type: "update_reason", reason });
+          }}
+        >
+          <label htmlFor="booking-reason" className="text-sm font-medium text-ink">
+            Reason for visit
+          </label>
+          <textarea
+            id="booking-reason"
+            value={reasonDraft}
+            maxLength={BOOKING_REASON_MAX_LENGTH}
+            rows={2}
+            onChange={(event) => setReasonDraft(event.target.value)}
+            className="focus-ring rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="submit"
+              disabled={disabled || !reasonDraft.trim()}
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              Save reason
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingReason(false)}
+              className={buttonVariants({ variant: "ghost" })}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
         <button
           type="button"
@@ -247,6 +350,14 @@ function BookingSummary({
           className={buttonVariants({ variant: "secondary" })}
         >
           Change time
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setEditingReason(true)}
+          className={buttonVariants({ variant: "ghost" })}
+        >
+          Edit reason
         </button>
         <button
           type="button"

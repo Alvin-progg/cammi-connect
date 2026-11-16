@@ -1,6 +1,6 @@
 # AI-APT-002 — Need-Based Specialty Routing (Cami picks the specialty)
 
-- Status: **Approved** 2026-11-16 by the project owner (R1–R5 at their recommended defaults); not yet built
+- Status: **Built** 2026-11-16 (approved 2026-11-16 by the project owner, R1–R5 at their recommended defaults); the routing eval (`npm run eval:routing`) has not been run yet
 - Date: 2026-11-16
 - Type: Feature / policy amendment
 - Priority: High
@@ -173,14 +173,14 @@ Example eval rows:
 
 ## Acceptance criteria
 
-- [ ] A patient can describe a concern and get doctor cards without choosing a specialty.
-- [ ] Only active specialties with active doctors are ever suggested.
-- [ ] Patients under 18 are routed to Pediatrics unless another specialty is named.
-- [ ] Unclear concerns go to the first-contact specialty, never to a guess.
-- [ ] Urgent messages get the emergency notice and no doctor cards.
-- [ ] Every routed reply is templated, names no condition, and has [Change specialty].
-- [ ] The concern is shown as the reason for visit and can be edited before Confirm.
-- [ ] Admins can edit routing hints; saves are audited.
+- [x] A patient can describe a concern and get doctor cards without choosing a specialty.
+- [x] Only active specialties with active doctors are ever suggested.
+- [x] Patients under 18 are routed to Pediatrics unless another specialty is named.
+- [x] Unclear concerns go to the first-contact specialty, never to a guess.
+- [x] Urgent messages get the emergency notice and no doctor cards.
+- [x] Every routed reply is templated, names no condition, and has [Change specialty].
+- [x] The concern is shown as the reason for visit and can be edited before Confirm.
+- [x] Admins can edit routing hints; saves are audited.
 - [ ] The routing eval reaches the target with zero urgent misroutes.
 
 ## Decisions (approved 2026-11-16)

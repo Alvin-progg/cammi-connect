@@ -66,6 +66,7 @@ export async function saveSpecialtyAction(
   const parsed = specialtyFormSchema.safeParse({
     name: text(formData, "name") ?? "",
     description: text(formData, "description"),
+    routingHints: text(formData, "routingHints"),
   });
   if (!parsed.success) {
     return { status: "error", message: firstIssueMessage(parsed.error) };

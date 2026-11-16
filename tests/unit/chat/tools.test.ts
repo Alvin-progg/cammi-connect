@@ -18,8 +18,8 @@ const DEPARTMENTS: Department[] = [
   { id: "dep2", name: "Closed Wing", code: "CLSD", description: null, isActive: false },
 ];
 const SPECIALTIES: Specialty[] = [
-  { id: "sp1", name: "Interventional Cardiology", description: null, isActive: true },
-  { id: "sp2", name: "Retired Specialty", description: null, isActive: false },
+  { id: "sp1", name: "Interventional Cardiology", description: null, routingHints: null, isActive: true },
+  { id: "sp2", name: "Retired Specialty", description: null, routingHints: null, isActive: false },
 ];
 const MAYA: DoctorSummary = {
   id: "d1",
@@ -125,6 +125,25 @@ describe("chat directory tools", () => {
     const tools = createChatTools(toolDeps());
 
     expect(await tools.getSpecialties()).toEqual([SPECIALTIES[0]]);
+  });
+
+  it("marks which active specialties have an active doctor, for routing (AI-APT-002)", async () => {
+    const store = fakeStore();
+    const lonely: Specialty = {
+      id: "sp3",
+      name: "No Doctors Yet",
+      description: null,
+      routingHints: "Hints",
+      isActive: true,
+    };
+    vi.mocked(store.listSpecialties).mockResolvedValue([...SPECIALTIES, lonely]);
+    const tools = createChatTools(toolDeps(store));
+
+    expect(await tools.getRoutableSpecialties()).toEqual([
+      { ...SPECIALTIES[0], hasActiveDoctors: true },
+      { ...lonely, hasActiveDoctors: false },
+    ]);
+    expect(store.listDoctors).toHaveBeenCalledWith(expect.objectContaining({ activeOnly: true }));
   });
 
   it("looks doctors up among active doctors only", async () => {

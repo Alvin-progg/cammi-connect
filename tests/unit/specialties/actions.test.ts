@@ -59,10 +59,17 @@ describe("specialty actions", () => {
   });
 
   it("creates a specialty as the session admin and opens it", async () => {
-    await saveSpecialtyAction(IDLE, formData({ name: " Neurology ", description: "", actorId: "forged" }));
+    await saveSpecialtyAction(
+      IDLE,
+      formData({ name: " Neurology ", description: "", routingHints: " Headaches ", actorId: "forged" }),
+    );
 
     expect(saveSpecialty).toHaveBeenCalledWith(
-      { actorId: ADMIN_ID, specialtyId: null, input: { name: "Neurology", description: null } },
+      {
+        actorId: ADMIN_ID,
+        specialtyId: null,
+        input: { name: "Neurology", description: null, routingHints: "Headaches" },
+      },
       expect.anything(),
     );
     expect(revalidatePath).toHaveBeenCalledWith("/admin", "layout");

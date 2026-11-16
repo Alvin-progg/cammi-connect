@@ -17,6 +17,7 @@ const CARDIOLOGY: Specialty = {
   id: "00000000-0000-4000-8000-000000000701",
   name: "Cardiology",
   description: "Heart conditions",
+  routingHints: "Heart concerns: palpitations",
   isActive: true,
 };
 
@@ -53,6 +54,8 @@ describe("SpecialtyForm", () => {
 
     expect(screen.getByLabelText("Name")).toHaveValue("Cardiology");
     expect(screen.getByLabelText("Description")).toHaveValue("Heart conditions");
+    expect(screen.getByLabelText("Routing hints")).toHaveValue("Heart concerns: palpitations");
+    expect(screen.getByLabelText("Routing hints")).toHaveAttribute("maxLength", "1000");
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save specialty" })).toBeInTheDocument();
   });

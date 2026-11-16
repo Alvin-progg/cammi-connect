@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { APPOINTMENT_STATUSES } from "@/lib/appointments/status";
+import { BOOKING_REASON_MAX_LENGTH } from "@/lib/chat/state";
 
 export const MESSAGE_MAX_LENGTH = 1000;
 /** Matches the chat_messages.content check in 0004_chat.sql. */
@@ -26,6 +27,12 @@ export const chatEventSchema = z.discriminatedUnion("type", [
     field: z.enum(["specialty", "doctor", "slot"]),
   }),
   z.object({ type: z.literal("cancel_booking") }),
+  // AI-APT-002: edit the reason for visit on the summary, and accept the booking offer.
+  z.object({
+    type: z.literal("update_reason"),
+    reason: z.string().trim().min(1).max(BOOKING_REASON_MAX_LENGTH),
+  }),
+  z.object({ type: z.literal("accept_booking_offer") }),
   z.object({ type: z.literal("request_cancellation"), appointmentId: z.uuid() }),
   z.object({ type: z.literal("confirm_cancellation"), appointmentId: z.uuid() }),
 ]);
@@ -64,10 +71,19 @@ export const CHAT_INTENTS = [
 
 export type ChatIntent = (typeof CHAT_INTENTS)[number];
 
+/** Up to `max` names, highest ranked first; a malformed list counts as none. */
+const rankedNames = (max: number) =>
+  z
+    .array(z.string().max(100))
+    .nullish()
+    .catch(null)
+    .transform((names) => names?.slice(0, max) ?? null);
+
 /**
  * What the LLM may return when it classifies a message. Details are optional
  * and may come back as null; they are hints that are always resolved against
- * database rows before use.
+ * database rows before use. The AI-APT-002 care-need fields fall back to null
+ * when malformed, so a bad routing hint never fails the whole turn.
  */
 export const intentExtractionSchema = z.object({
   intent: z.enum(CHAT_INTENTS),
@@ -78,6 +94,15 @@ export const intentExtractionSchema = z.object({
   preferredTime: z.string().nullish(),
   reason: z.string().nullish(),
   urgent: z.boolean().nullish(),
+  /** The patient's concern in their own words; becomes the editable reason for visit. */
+  concern: z.string().nullish().catch(null),
+  age: z.number().int().min(0).max(130).nullish().catch(null),
+  forSomeoneElse: z.boolean().nullish().catch(null),
+  /** Names from the active specialty list in the prompt; the server drops anything else. */
+  specialtyCandidates: rankedNames(2),
+  /** PAY-001: parsed but not routed yet. */
+  serviceCandidates: rankedNames(3),
+  routingConfidence: z.enum(["high", "low"]).nullish().catch(null),
 });
 
 export type IntentExtraction = z.infer<typeof intentExtractionSchema>;
@@ -122,7 +147,11 @@ export const chatMessagePayloadSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("doctor_options"),
     doctors: z.array(doctorOptionSchema).min(1),
+    /** AI-APT-002: Cami picked the specialty, so the patient can change it in one tap. */
+    changeSpecialty: z.boolean().optional(),
+    alternative: z.object({ id: z.string(), name: z.string() }).optional(),
   }),
+  z.object({ kind: z.literal("book_offer") }),
   z.object({
     kind: z.literal("slot_picker"),
     doctorName: z.string(),

@@ -50,6 +50,22 @@ const SPECIALTY_NAMES = [
   "Family Medicine",
 ];
 
+/**
+ * Synthetic routing hints (AI-APT-002, migration 0032). The hospital's
+ * medical staff write the real ones at /admin/specialties. Kept in step with
+ * evals/routing-cases.ts.
+ */
+const ROUTING_HINTS = {
+  "Family Medicine":
+    "General check-ups, common illnesses like colds, fever, cough, minor injuries, health certificates, unsure where to start",
+  "Internal Medicine":
+    "Adults with long-term conditions like diabetes or high blood pressure, follow-ups, lab result review, ongoing body aches, stomach problems",
+  Pediatrics:
+    "Patients under 18: check-ups, vaccinations, fever, cough, growth and development",
+  Cardiology:
+    "Heart concerns: palpitations, high blood pressure that's hard to control, follow-up after a heart test, referred by another doctor for the heart",
+};
+
 function requireEnv(name, value) {
   if (!value) {
     throw new Error(`Missing ${name}. Add it to .env.local and rerun the seed.`);
@@ -267,7 +283,11 @@ async function main() {
   const { data: specialtyRows, error: specialtyError } = await supabase
     .from("specialties")
     .upsert(
-      SPECIALTY_NAMES.map((name) => ({ name, is_active: true })),
+      SPECIALTY_NAMES.map((name) => ({
+        name,
+        routing_hints: ROUTING_HINTS[name],
+        is_active: true,
+      })),
       { onConflict: "name" },
     )
     .select("id, name");

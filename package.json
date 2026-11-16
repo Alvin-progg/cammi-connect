@@ -12,6 +12,7 @@
     "db:seed": "node --env-file=.env.local scripts/seed.mjs",
     "kb:ingest": "node --env-file=.env.local scripts/ingest-knowledge.mts",
     "smoke:providers": "node --env-file=.env.local scripts/smoke-providers.mjs",
+    "eval:routing": "node --env-file=.env.local node_modules/vitest/vitest.mjs run --config vitest.eval.config.mts",
     "check:bundle": "node --env-file-if-exists=.env.local scripts/check-bundle-secrets.mjs",
     "typecheck": "tsc --noEmit"
   },

@@ -394,6 +394,28 @@ function ChatbotFields({ settings }: { settings: SystemSettings }) {
           ))}
         </div>
       </fieldset>
+      <Field id="chatbot.first_contact_specialty_adult" label="First-contact specialty for adults">
+        <input
+          id="chatbot.first_contact_specialty_adult"
+          name="chatbot.first_contact_specialty_adult"
+          maxLength={100}
+          defaultValue={settings["chatbot.first_contact_specialty_adult"]}
+          className={FIELD_CLASS}
+        />
+      </Field>
+      <Field id="chatbot.first_contact_specialty_child" label="First-contact specialty for children">
+        <input
+          id="chatbot.first_contact_specialty_child"
+          name="chatbot.first_contact_specialty_child"
+          maxLength={100}
+          defaultValue={settings["chatbot.first_contact_specialty_child"]}
+          className={FIELD_CLASS}
+        />
+      </Field>
+      <p className={`${HINT_CLASS} -mt-4`}>
+        Where Cami sends a patient whose concern is unclear. Use an active specialty name; if
+        it has no active doctors, adults go to Family Medicine, then Internal Medicine.
+      </p>
     </>
   );
 }

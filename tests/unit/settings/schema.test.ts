@@ -97,11 +97,16 @@ describe("settings group schemas", () => {
       "chatbot.enabled": true,
       "chatbot.welcome_message": "Hello",
       "chatbot.enabled_categories": ["services"],
+      "chatbot.first_contact_specialty_adult": "Family Medicine",
+      "chatbot.first_contact_specialty_child": "Pediatrics",
     };
     const parse = (patch: Record<string, unknown>) =>
       settingsGroupSchemas.chatbot.safeParse({ ...base, ...patch }).success;
 
     expect(parse({})).toBe(true);
+    // AI-APT-002: first-contact specialty names, 1-100 characters.
+    expect(parse({ "chatbot.first_contact_specialty_adult": " " })).toBe(false);
+    expect(parse({ "chatbot.first_contact_specialty_child": "x".repeat(101) })).toBe(false);
     expect(parse({ "chatbot.welcome_message": "  " })).toBe(false);
     expect(parse({ "chatbot.welcome_message": "a".repeat(501) })).toBe(false);
     expect(parse({ "chatbot.enabled_categories": [] })).toBe(false);
@@ -154,6 +159,11 @@ describe("resolveSettings", () => {
     expect(settings["appointment.min_lead_hours"]).toBe(6);
     expect(settings["appointment.max_advance_days"]).toBe(60);
     expect(settings).not.toHaveProperty("llm.model");
+  });
+
+  it("defaults the first-contact specialties to Family Medicine and Pediatrics (AI-APT-002 R3)", () => {
+    expect(DEFAULT_SETTINGS["chatbot.first_contact_specialty_adult"]).toBe("Family Medicine");
+    expect(DEFAULT_SETTINGS["chatbot.first_contact_specialty_child"]).toBe("Pediatrics");
   });
 
   it("enables every knowledge category by default", () => {
@@ -244,6 +254,8 @@ describe("settingsFromFormData", () => {
           ["chatbot.welcome_message", "Hello!"],
           ["chatbot.enabled_categories", "services"],
           ["chatbot.enabled_categories", "departments"],
+          ["chatbot.first_contact_specialty_adult", " Internal Medicine "],
+          ["chatbot.first_contact_specialty_child", "Pediatrics"],
         ]),
       ),
     );
@@ -251,6 +263,8 @@ describe("settingsFromFormData", () => {
       "chatbot.enabled": false,
       "chatbot.welcome_message": "Hello!",
       "chatbot.enabled_categories": ["services", "departments"],
+      "chatbot.first_contact_specialty_adult": "Internal Medicine",
+      "chatbot.first_contact_specialty_child": "Pediatrics",
     });
   });
 });

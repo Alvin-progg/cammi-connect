@@ -7,11 +7,23 @@ function firstMessage(result: { error?: { issues: { message: string }[] } }) {
 }
 
 describe("specialtyFormSchema", () => {
-  it("trims the name and nulls a blank description", () => {
-    expect(specialtyFormSchema.parse({ name: "  Pediatric Cardiology ", description: " " })).toEqual({
+  it("trims the name and nulls a blank description and routing hints", () => {
+    expect(
+      specialtyFormSchema.parse({ name: "  Pediatric Cardiology ", description: " ", routingHints: " " }),
+    ).toEqual({
       name: "Pediatric Cardiology",
       description: null,
+      routingHints: null,
     });
+  });
+
+  it("keeps routing hints of at most 1,000 characters (AI-APT-002)", () => {
+    expect(
+      specialtyFormSchema.parse({ name: "Cardiology", routingHints: " Heart concerns " }).routingHints,
+    ).toBe("Heart concerns");
+    expect(
+      firstMessage(specialtyFormSchema.safeParse({ name: "Cardiology", routingHints: "x".repeat(1001) })),
+    ).toBe("Keep the routing hints under 1,000 characters.");
   });
 
   it("requires a name of at most 100 characters", () => {

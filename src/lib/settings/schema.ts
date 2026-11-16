@@ -48,6 +48,14 @@ const policyText = z
 const shortText = (label: string) =>
   z.string().trim().max(200, `Keep the ${label} under 200 characters.`);
 
+// AI-APT-002: a specialty name, matched against active specialties when Cami routes.
+const specialtyName = (label: string) =>
+  z
+    .string()
+    .trim()
+    .min(1, `Enter the ${label}.`)
+    .max(100, `Keep the ${label} under 100 characters.`);
+
 const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Enter a time as HH:MM.");
 
 const operatingDaySchema = z
@@ -121,6 +129,8 @@ const settingSchemas = {
     .refine((categories) => new Set(categories).size === categories.length, {
       message: "Each category can be enabled once.",
     }),
+  "chatbot.first_contact_specialty_adult": specialtyName("adult first-contact specialty"),
+  "chatbot.first_contact_specialty_child": specialtyName("child first-contact specialty"),
 };
 
 export type SettingKey = keyof typeof settingSchemas;
@@ -148,6 +158,9 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   "chatbot.enabled": true,
   "chatbot.welcome_message": "Hi, I'm Cami! How can I help with your hospital visit today?",
   "chatbot.enabled_categories": [...KNOWLEDGE_CATEGORIES],
+  // R3: Family Medicine, falling back to Internal Medicine in src/lib/chat/routing.ts.
+  "chatbot.first_contact_specialty_adult": "Family Medicine",
+  "chatbot.first_contact_specialty_child": "Pediatrics",
 };
 
 const SETTING_KEYS = Object.keys(settingSchemas) as SettingKey[];
@@ -254,6 +267,8 @@ export function settingsFromFormData(group: SettingGroup, formData: FormData): R
         "chatbot.enabled_categories": formData
           .getAll("chatbot.enabled_categories")
           .filter((value): value is string => typeof value === "string"),
+        "chatbot.first_contact_specialty_adult": text(formData, "chatbot.first_contact_specialty_adult"),
+        "chatbot.first_contact_specialty_child": text(formData, "chatbot.first_contact_specialty_child"),
       };
   }
 }

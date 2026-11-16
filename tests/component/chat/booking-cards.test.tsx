@@ -28,6 +28,59 @@ function renderCard(
 }
 
 describe("BookingCard", () => {
+  it("offers Change specialty and the alternative specialty on routed doctor cards (AI-APT-002)", () => {
+    const onEvent = renderCard({
+      kind: "doctor_options",
+      doctors: [{ id: MAYA_ID, name: "Dr. Maya Santos", departmentName: null, specialties: [] }],
+      changeSpecialty: true,
+      alternative: { id: CARDIOLOGY_ID, name: "Cardiology" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "See Cardiology doctors" }));
+    expect(onEvent).toHaveBeenCalledWith({ type: "select_specialty", specialtyId: CARDIOLOGY_ID });
+
+    fireEvent.click(screen.getByRole("button", { name: "Change specialty" }));
+    expect(onEvent).toHaveBeenCalledWith({ type: "change_booking", field: "specialty" });
+  });
+
+  it("has no Change specialty on doctor cards the patient chose by specialty", () => {
+    renderCard({
+      kind: "doctor_options",
+      doctors: [{ id: MAYA_ID, name: "Dr. Maya Santos", departmentName: null, specialties: [] }],
+    });
+
+    expect(screen.queryByRole("button", { name: "Change specialty" })).not.toBeInTheDocument();
+  });
+
+  it("sends Yes, book from the booking offer", () => {
+    const onEvent = renderCard({ kind: "book_offer" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Yes, book" }));
+
+    expect(onEvent).toHaveBeenCalledWith({ type: "accept_booking_offer" });
+  });
+
+  it("lets the patient edit the reason for visit on the summary", () => {
+    const onEvent = renderCard({
+      kind: "booking_summary",
+      doctorName: "Dr. Maya Santos",
+      specialtyName: "Cardiology",
+      start: SLOT_ONE.start,
+      end: SLOT_ONE.end,
+      reason: "Heart pounding",
+    });
+
+    expect(screen.getByText("Reason for visit")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit reason" }));
+    const field = screen.getByLabelText("Reason for visit");
+    expect(field).toHaveValue("Heart pounding");
+    expect(field).toHaveAttribute("maxLength", "500");
+    fireEvent.change(field, { target: { value: "Follow-up" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save reason" }));
+
+    expect(onEvent).toHaveBeenCalledWith({ type: "update_reason", reason: "Follow-up" });
+  });
+
   it("sends the chosen specialty", () => {
     const onEvent = renderCard({
       kind: "specialty_options",

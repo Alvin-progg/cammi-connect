@@ -16,7 +16,7 @@ const ADMIN_ID = "00000000-0000-4000-8000-000000000001";
 const CARDIOLOGY_ID = "00000000-0000-4000-8000-000000000701";
 const PEDIATRICS_ID = "00000000-0000-4000-8000-000000000702";
 
-const CARDIOLOGY: Specialty = { id: CARDIOLOGY_ID, name: "Cardiology", description: null, isActive: true };
+const CARDIOLOGY: Specialty = { id: CARDIOLOGY_ID, name: "Cardiology", description: null, routingHints: null, isActive: true };
 const PEDIATRICS: Specialty = { ...CARDIOLOGY, id: PEDIATRICS_ID, name: "Pediatrics" };
 
 function fakeStore() {
@@ -62,7 +62,7 @@ describe("getSpecialtyDetail", () => {
 });
 
 describe("saveSpecialty", () => {
-  const INPUT = { name: "Cardiology", description: null };
+  const INPUT = { name: "Cardiology", description: null, routingHints: "Heart concerns" };
 
   it("saves as the acting admin and returns the specialty id", async () => {
     await expect(
@@ -75,7 +75,7 @@ describe("saveSpecialty", () => {
     store.save.mockResolvedValue({ ok: false, code: "duplicate" });
 
     await expect(
-      saveSpecialty({ actorId: ADMIN_ID, specialtyId: null, input: { name: "cardiology", description: null } }, store),
+      saveSpecialty({ actorId: ADMIN_ID, specialtyId: null, input: { name: "cardiology", description: null, routingHints: null } }, store),
     ).resolves.toEqual({ ok: false, message: "A specialty with that name already exists." });
   });
 

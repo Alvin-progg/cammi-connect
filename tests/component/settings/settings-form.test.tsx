@@ -72,6 +72,13 @@ describe("SettingsForm", () => {
     expect(field).toHaveAttribute("max", "20");
   });
 
+  it("lets the admin set the first-contact specialties (AI-APT-002)", () => {
+    render(<SettingsForm group="chatbot" settings={DEFAULT_SETTINGS} />);
+
+    expect(screen.getByLabelText("First-contact specialty for adults")).toHaveValue("Family Medicine");
+    expect(screen.getByLabelText("First-contact specialty for children")).toHaveValue("Pediatrics");
+  });
+
   it("says when nothing changed instead of opening the preview", () => {
     render(<SettingsForm group="chatbot" settings={DEFAULT_SETTINGS} />);
 
