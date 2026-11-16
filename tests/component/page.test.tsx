@@ -26,3 +26,20 @@ test("landing FAQ answers every question and opens the first", () => {
     expect(item.querySelector("p")?.textContent?.trim()).toBeTruthy();
   });
 });
+
+test("landing shows the doctors lineup and links to it from the header", () => {
+  render(<Home />);
+
+  expect(screen.getByRole("heading", { level: 2, name: "Trusted doctors, right here in Mabini" })).toBeInTheDocument();
+  for (const name of [
+    "Dra. Marife Alolod-Mauhay",
+    "Dr. Raymond Encarnacion",
+    "Dra. Katrina Grace Arguelles",
+    "Dr. Darren Jansen Manalo",
+    "Dra. Charmaine Lynette Bacay",
+    "Dr. Nerk Ramos",
+  ]) {
+    expect(screen.getByRole("img", { name })).toBeInTheDocument();
+  }
+  expect(screen.getByRole("link", { name: "Doctors" })).toHaveAttribute("href", "#doctors");
+});
