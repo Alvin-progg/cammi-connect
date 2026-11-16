@@ -168,3 +168,14 @@ Authorization model note: under ADR-0003, every table has RLS on with no policie
 | HMO writes clear the reference cache | static | `tests/unit/security/reference-cache.test.ts` |
 | Seed loads the synthetic prices and sample HMOs (PhilHealth ₱0) | manual | `scripts/seed.mjs`, run against the local Supabase only |
 | No patient-facing change | by construction | no patient or chat module reads the new columns or settings |
+
+## PAY-02 Billing math
+
+| Item | Status | Where |
+|---|---|---|
+| Breakdown order VAT exemption → 20% senior/PWD → PhilHealth → HMO, matching every worked example in the spec and the pricing doc (PWD CBC + urinalysis + FBS as three line items) | test (math only; chat in PAY-03) | `tests/unit/billing/compute.test.ts` |
+| Senior and PWD can't both be applied: one `privilege` choice of `none`/`senior`/`pwd` | test (type and schema; chat in PAY-03) | `tests/unit/billing/compute.test.ts` |
+| Integer centavos only, half-up rounding, no float leaks, line items always sum to base | test | `tests/unit/billing/compute.test.ts` |
+| PhilHealth clamped to what is left; HMO skips non-coverable items; co-pay once per booking, never negative | test | `tests/unit/billing/compute.test.ts` |
+| Peso formatting (`₱560.00`, thousands separators) | test | `tests/unit/billing/money.test.ts` |
+| No UI | by construction | nothing imports `src/lib/billing/compute.ts` yet |

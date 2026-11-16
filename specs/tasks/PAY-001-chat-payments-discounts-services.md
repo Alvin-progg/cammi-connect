@@ -1,6 +1,6 @@
 # PAY-001 — Chat Payments, Discounts and Coverage, and Non-Consultation Services
 
-- Status: **Approved** 2026-11-16 by the project owner (all decisions D1–D10 at their recommended defaults); not yet built
+- Status: **Approved** 2026-11-16 by the project owner (all decisions D1–D10 at their recommended defaults); in progress (PAY-01, PAY-02 built)
 - Date: 2026-11-16
 - Type: Feature
 - Priority: High
@@ -17,8 +17,12 @@
 - 2026-11-16 — **PAY-01 built** (migration `0033_price_catalogue.sql`): specialty and
   doctor consultation fees, service pricing fields and `scheduled` booking mode,
   `hmo_providers` with an admin page, `payment.*` settings (Payment tab), audited saves,
-  and seed prices. No patient-facing change. PAY-02 onward not started; no acceptance
-  criterion below is ticked yet.
+  and seed prices. No patient-facing change.
+- 2026-11-16 — **PAY-02 built**: `src/lib/billing/compute.ts` (pure TS, integer centavos,
+  half-up rounding) with every worked example and pricing-doc example as test vectors. The
+  HMO co-pay is charged once per booking, on the first HMO-coverable items. The two
+  criteria ticked below are verified at the math level only; chat-level verification comes
+  in PAY-03. PAY-03 onward not started.
 
 ## Objective
 
@@ -302,9 +306,10 @@ Order: 01 → 02 → 03 → 04 → 05 → 06. PAY-07 can start after 03, in para
 ## Acceptance criteria
 
 - [ ] Every price Cami shows comes from the database; the LLM never states a price.
-- [ ] The breakdown follows VAT exemption → 20% senior/PWD → PhilHealth → HMO, and matches
-      the worked examples.
-- [ ] Senior and PWD can't both be applied to one booking.
+- [x] The breakdown follows VAT exemption → 20% senior/PWD → PhilHealth → HMO, and matches
+      the worked examples. *(PAY-02, math level; chat in PAY-03)*
+- [x] Senior and PWD can't both be applied to one booking. *(PAY-02, one `privilege`
+      choice; chat in PAY-03)*
 - [ ] PhilHealth is offered only for services with a benefit above ₱0.
 - [ ] Confirm creates the appointment, charge, and payment together or not at all.
 - [ ] Cami sends the QR card with exact amount, reference code, and deadline.

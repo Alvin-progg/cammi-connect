@@ -32,6 +32,8 @@ describe("formatPesos", () => {
   it("formats centavos as pesos with grouping", () => {
     expect(formatPesos(150000)).toBe("₱1,500.00");
     expect(formatPesos(0)).toBe("₱0.00");
+    expect(formatPesos(56000)).toBe("₱560.00");
+    expect(formatPesos(1)).toBe("₱0.01");
     expect(formatPesos(99999999)).toBe("₱999,999.99");
   });
 });
