@@ -2,9 +2,12 @@ import type { ReactNode } from "react";
 
 import { formatManilaDateTime } from "@/lib/appointments/format";
 import { formatPesos } from "@/lib/billing/money";
+import type { FrontDeskHmo } from "@/lib/billing/hmo";
 import type { FrontDeskPayment } from "@/lib/billing/verification";
 
 import {
+  ApproveHmoDialog,
+  DenyHmoDialog,
   MarkRefundedDialog,
   ReceiptViewer,
   RejectReceiptDialog,
@@ -107,10 +110,12 @@ export function PaymentPanel({
           </Row>
         ) : null}
       </dl>
-      {payment.status === "hmo_pending" ? (
-        <p className="mt-4 text-sm text-ink-muted">
-          Check the patient&apos;s HMO coverage (LOA) before confirming. HMO approval in CamiConnect comes next.
-        </p>
+      {payment.hmo ? (
+        <HmoCoverage
+          hmo={payment.hmo}
+          copayCentavos={payment.payer === "hmo" ? payment.amountDueCentavos : null}
+          decision={decidable && payment.status === "hmo_pending" ? ref : null}
+        />
       ) : null}
       {payment.hasReceipt || canVerify || canReject || payment.status === "refund_due" ? (
         <div className="mt-5 flex flex-col gap-2">
@@ -119,6 +124,54 @@ export function PaymentPanel({
           {canReject ? <RejectReceiptDialog {...ref} /> : null}
           {payment.status === "refund_due" ? <MarkRefundedDialog {...ref} /> : null}
         </div>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * PAY-06 HMO section. The member number is shown in full only here; the
+ * queue, admin, and chat never load or show it unmasked.
+ */
+function HmoCoverage({
+  hmo,
+  copayCentavos,
+  decision,
+}: {
+  hmo: FrontDeskHmo;
+  /** Null once a denial made the visit self-pay. */
+  copayCentavos: number | null;
+  /** Set while the coverage is still to be checked on a pending request. */
+  decision: { paymentId: string; appointmentId: string } | null;
+}) {
+  return (
+    <section aria-labelledby="hmo-heading" className="mt-5 border-t border-line pt-4">
+      <h3 id="hmo-heading" className="text-base font-semibold text-ink">
+        HMO coverage
+      </h3>
+      <dl className={`mt-3 ${DETAIL_LIST}`}>
+        <Row label="Provider">{hmo.providerName}</Row>
+        <Row label="Member number">
+          <span className="font-mono">{hmo.memberNumber}</span>
+        </Row>
+        {copayCentavos !== null ? <Row label="Co-pay">{formatPesos(copayCentavos)}</Row> : null}
+        {hmo.loaNumber ? (
+          <Row label="LOA number">
+            <span className="font-mono">{hmo.loaNumber}</span>
+          </Row>
+        ) : null}
+        {hmo.deniedReason ? <Row label="Coverage denied">{hmo.deniedReason}</Row> : null}
+      </dl>
+      {decision ? (
+        <>
+          <p className="mt-3 text-sm text-ink-muted">
+            Check the patient&apos;s LOA or eligibility with the HMO before confirming.
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            <ApproveHmoDialog {...decision} />
+            <DenyHmoDialog {...decision} />
+          </div>
+        </>
       ) : null}
     </section>
   );

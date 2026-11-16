@@ -252,6 +252,11 @@ export type Database = {
           refund_reference: string | null;
           refunded_by: string | null;
           refunded_at: string | null;
+          /** Migration 0037 (PAY-06): the HMO decision. */
+          hmo_loa_number: string | null;
+          hmo_denied_reason: string | null;
+          hmo_decided_by: string | null;
+          hmo_decided_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -290,7 +295,7 @@ export type Database = {
           reason: string | null;
           created_at: string;
         };
-        // Written only by the 0034–0036 payment functions and the 0036 refund trigger.
+        // Written only by the 0034–0037 payment functions and the 0036 refund trigger.
         Insert: { [_ in never]: never };
         Update: { [_ in never]: never };
         Relationships: [];
@@ -859,6 +864,24 @@ export type Database = {
       cammi_connect_mark_refunded: {
         Args: { p_payment_id: string; p_staff_id: string; p_refund_reference: string };
         Returns: { patient_id: string; amount_due_centavos: number }[];
+      };
+      cammi_connect_decide_hmo: {
+        Args: {
+          p_payment_id: string;
+          p_staff_id: string;
+          p_decision: "approve" | "deny";
+          p_loa_number: string | null;
+          p_reason: string | null;
+        };
+        Returns: {
+          patient_id: string;
+          new_status: Database["public"]["Enums"]["payment_status"];
+          method: "qr_ph" | "counter" | null;
+          amount_due_centavos: number;
+          deadline_at: string | null;
+          reference_code: string;
+          hmo_name: string;
+        }[];
       };
       /** Migration 0036. Audits the view; returns the latest receipt's storage path. */
       cammi_connect_record_receipt_view: {

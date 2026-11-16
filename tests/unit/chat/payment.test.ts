@@ -4,8 +4,9 @@ import { formatManilaTime } from "@/lib/appointments/format";
 import {
   PAYMENT_COPY,
   formatPaymentDeadline,
+  hmoApprovedCopy,
+  hmoDeniedCopy,
   hmoPendingCopy,
-  maskMemberNumber,
   modelHistory,
   receiptRejectedCopy,
   refundSentCopy,
@@ -92,10 +93,6 @@ describe("payment copy (PAY-03)", () => {
     );
   });
 
-  it("masks an HMO member number to its last 4 characters", () => {
-    expect(maskMemberNumber("1234-5678-4417")).toBe("••••4417");
-    expect(maskMemberNumber("417")).toBe("••••417");
-  });
 });
 
 function assistant(content: string, payload: ChatMessage["payload"]): ChatMessage {
@@ -129,6 +126,68 @@ describe("modelHistory", () => {
       { role: "assistant", content: PAYMENT_COPY.hiddenFromModel },
       { role: "assistant", content: "Hello!" },
     ]);
+  });
+});
+
+describe("HMO decisions (PAY-06)", () => {
+  it("tells the patient their HMO approved the visit", () => {
+    expect(hmoApprovedCopy("Maxicare")).toBe(
+      "Your Maxicare coverage is approved ✔. Your appointment is now waiting for front desk confirmation. Please bring your HMO card and a valid ID.",
+    );
+  });
+
+  it("uses the spec's denied text with the new amount, reference, and deadline for a QR payment", () => {
+    expect(
+      hmoDeniedCopy({
+        status: "awaiting_payment",
+        amountDueCentavos: 70000,
+        referenceCode: "CC-7F3K2",
+        deadline: "2026-10-31T08:30:00Z",
+        now: NOW,
+      }),
+    ).toBe(
+      "Your HMO couldn't cover this visit. You can still pay ₱700.00 here to keep the slot. Please pay by 4:30 PM today: scan the QR with GCash, Maya, or your bank app, put CC-7F3K2 in the message/notes, and send me a photo of your receipt.",
+    );
+  });
+
+  it("asks to pay at the cashier when the visit is too soon for a QR payment", () => {
+    expect(
+      hmoDeniedCopy({
+        status: "collect_at_counter",
+        amountDueCentavos: 56000,
+        referenceCode: "CC-7F3K2",
+        deadline: null,
+        now: NOW,
+      }),
+    ).toBe(
+      "Your HMO couldn't cover this visit. Please pay ₱560.00 at the hospital cashier when you arrive and give the reference code CC-7F3K2.",
+    );
+  });
+
+  it("says there is nothing to pay when the visit costs ₱0", () => {
+    expect(
+      hmoDeniedCopy({ status: "not_required", amountDueCentavos: 0, referenceCode: "CC-7F3K2", deadline: null, now: NOW }),
+    ).toBe(
+      "Your HMO couldn't cover this visit, but there's nothing to pay for it. Your appointment is now waiting for front desk confirmation.",
+    );
+  });
+
+  it("hides an HMO denial with its payment card from the model", () => {
+    const history = modelHistory([
+      assistant("Your HMO couldn't cover this visit. You can still pay ₱700.00 …", {
+        kind: "payment_update",
+        payment: {
+          id: "p1",
+          method: "qr_ph",
+          status: "awaiting_payment",
+          amountDueCentavos: 70000,
+          referenceCode: "CC-7F3K2",
+          deadline: "2026-10-31T08:30:00Z",
+        },
+      }),
+    ]);
+    expect(JSON.stringify(history)).not.toContain("₱");
+    expect(history).toEqual([{ role: "assistant", content: PAYMENT_COPY.hiddenFromModel }]);
   });
 });
 

@@ -236,3 +236,18 @@ Authorization model note: under ADR-0003, every table has RLS on with no policie
 | Cancelling a paid appointment creates a refund to track (D4 trigger on any cancel or reject path); a patient's own cancellation under `payment.refund_cutoff_hours` keeps the payment verified with a `no_refund` event; "Refund due" list and Mark refunded with a reference | test (static) + local SQL smoke | `tests/unit/billing/payment-verification-sql.test.ts`, `tests/component/front-desk/payment-panel.test.tsx`, db/README.md (0036) |
 | Doctors never see payment data (doctor routes, components, and server reads never touch payment tables or billing modules) | test (static) | `tests/unit/security/doctor-payment-privacy.test.ts` |
 | End-to-end verify/reject/refund through the running app, and the receipt image loading from Supabase Storage | manual | db/README.md (0036 smoke test) |
+
+## PAY-06 HMO and PhilHealth paths
+
+| Item | Status | Where |
+|---|---|---|
+| `cammi_connect_decide_hmo` (0037): only active front desk/admin staff (`not_allowed`, also a doctor or patient), only from `hmo_pending` (`not_open`) on a still-pending request (`not_pending`); approve needs an LOA number (`loa_required`), deny a reason (`reason_required`); both write `payment_events` (`hmo_approved`/`hmo_denied`); execute for `service_role` only | test (static) + local SQL smoke | `tests/unit/billing/hmo-decision-sql.test.ts`, db/README.md (0037) |
+| Approve → `hmo_approved` with the LOA number, and Confirm then succeeds | local SQL smoke | db/README.md (0037) |
+| HMO denial switches to self-pay: HMO deduction removed from the items and charge, payer `self`, recomputed amount (Cardiology ₱700 → ₱700; senior → ₱560; ₱100 co-pay HMO → ₱700), `awaiting_payment` by QR with a new deadline (`payment.deadline_minutes`, clamped to 2 h before the visit); a receipt is then accepted, verified, and the request confirmed | test (static) + local SQL smoke | `tests/unit/billing/hmo-decision-sql.test.ts`, db/README.md (0037) |
+| A denial for a visit starting within 2 hours becomes `collect_at_counter` (cashier at the visit, no deadline) and can be confirmed | local SQL smoke | db/README.md (0037) |
+| Cami's templated HMO approved and HMO denied messages (new amount, reference, deadline; cashier variant; ₱0 variant), the QR card (PAY-04) under a QR denial, the deny reason never repeated; hidden from the LLM | test | `tests/unit/payments/hmo-decision.test.ts`, `tests/unit/chat/payment.test.ts`, `tests/component/chat/pay-in-chat.test.tsx` |
+| HMO pending message after booking (spec text) | test (PAY-03) | `tests/unit/chat/booking-payment.test.ts`, `tests/unit/chat/payment.test.ts` |
+| Front desk HMO panel: provider, full member number, co-pay, LOA number once approved, denial reason once denied; Approve coverage (LOA no.) and Deny coverage (reason) only while pending | test | `tests/component/front-desk/payment-panel.test.tsx`, `tests/unit/billing/hmo.test.ts` |
+| Member numbers masked (`••••4417`) everywhere else: the stored number is read only by the booking write and the front desk details, never by the queue | test + test (static) | `tests/unit/billing/hmo.test.ts`, `tests/unit/security/hmo-member-number.test.ts` |
+| PhilHealth offered only when a chosen item has a benefit above ₱0 (`philhealthOffered`; consultations never; the server also refuses a PhilHealth choice without one) | test | `tests/unit/billing/hmo.test.ts`, `tests/unit/chat/booking-payment.test.ts`, `tests/component/chat/payment-cards.test.tsx` |
+| End-to-end approve/deny through the running app | manual | db/README.md (0037 smoke test) |

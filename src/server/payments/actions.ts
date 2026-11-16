@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { hmoDecisionSchema } from "@/lib/billing/hmo";
 import {
   markRefundedSchema,
   rejectReceiptSchema,
@@ -12,7 +13,8 @@ import { supabaseChatRepository } from "@/server/chat/repository";
 import type { RequestDecisionState } from "@/server/front-desk/actions";
 import type { DecisionResult } from "@/server/front-desk/service";
 
-import { supabasePaymentDecisionRepository } from "./repository";
+import { decideHmo } from "./hmo";
+import { supabaseHmoDecisionRepository, supabasePaymentDecisionRepository } from "./repository";
 import { markRefunded, rejectReceipt, verifyPayment, viewReceipt } from "./verification";
 
 const QUEUE_PATH = "/front-desk/requests";
@@ -105,6 +107,31 @@ export async function markRefundedAction(
     (staffId) =>
       markRefunded({ ...input, staffId }, supabasePaymentDecisionRepository, supabaseChatRepository),
     "Refund recorded.",
+  );
+}
+
+/** PAY-06: Approve coverage (LOA number) or Deny coverage (reason). */
+export async function decideHmoAction(
+  _previous: RequestDecisionState,
+  formData: FormData,
+): Promise<RequestDecisionState> {
+  const parsed = hmoDecisionSchema.safeParse({
+    decision: formData.get("decision"),
+    paymentId: formData.get("paymentId"),
+    appointmentId: formData.get("appointmentId"),
+    loaNumber: formData.get("loaNumber"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) return firstIssue(parsed.error, "Check the HMO decision.");
+  const { appointmentId, ...decision } = parsed.data;
+
+  return runPaymentDecision(
+    appointmentId,
+    (staffId) =>
+      decideHmo({ ...decision, staffId }, supabaseHmoDecisionRepository, supabaseChatRepository),
+    decision.decision === "approve"
+      ? "HMO coverage approved."
+      : "HMO coverage denied. The patient can now pay.",
   );
 }
 

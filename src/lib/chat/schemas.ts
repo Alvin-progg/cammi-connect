@@ -252,7 +252,11 @@ export const chatMessagePayloadSchema = z.discriminatedUnion("kind", [
   }),
   // PAY-05: a front desk payment decision (D9); the text is templated and
   // hidden from the model because it can name an amount.
-  z.object({ kind: z.literal("payment_update") }),
+  z.object({
+    kind: z.literal("payment_update"),
+    /** PAY-06: after an HMO denial, the QR card for the new self-pay amount. */
+    payment: bookedPaymentSchema.optional(),
+  }),
   z.object({
     kind: z.literal("cancel_result"),
     doctorName: z.string(),

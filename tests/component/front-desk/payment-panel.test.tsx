@@ -6,6 +6,7 @@ import { PaymentPanel } from "@/components/front-desk/payment-panel";
 import { RefundDueList } from "@/components/front-desk/refund-due-list";
 import type { FrontDeskPayment } from "@/lib/billing/verification";
 import {
+  decideHmoAction,
   markRefundedAction,
   rejectReceiptAction,
   verifyPaymentAction,
@@ -13,6 +14,7 @@ import {
 } from "@/server/payments/actions";
 
 vi.mock("@/server/payments/actions", () => ({
+  decideHmoAction: vi.fn(),
   markRefundedAction: vi.fn(),
   rejectReceiptAction: vi.fn(),
   verifyPaymentAction: vi.fn(),
@@ -44,6 +46,24 @@ const SUBMITTED: FrontDeskPayment = {
   rejectedReason: null,
   refundReference: null,
   hasReceipt: true,
+  hmo: null,
+};
+
+const HMO_DETAILS = { providerName: "Maxicare", memberNumber: "MAXI-0099-4417", loaNumber: null, deniedReason: null };
+
+const HMO_PENDING: FrontDeskPayment = {
+  ...SUBMITTED,
+  status: "hmo_pending",
+  method: null,
+  deadline: null,
+  attempts: 0,
+  privilege: "none",
+  payer: "hmo",
+  privilegeDiscountCentavos: 0,
+  hmoCentavos: 60000,
+  amountDueCentavos: 10000,
+  hasReceipt: false,
+  hmo: HMO_DETAILS,
 };
 
 beforeEach(() => {
@@ -51,6 +71,7 @@ beforeEach(() => {
   vi.mocked(rejectReceiptAction).mockReset();
   vi.mocked(markRefundedAction).mockReset();
   vi.mocked(viewReceiptAction).mockReset();
+  vi.mocked(decideHmoAction).mockReset();
 });
 
 afterEach(() => {
@@ -169,6 +190,93 @@ describe("PaymentPanel", () => {
 
     await waitFor(() => expect(markRefundedAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(markRefundedAction).mock.calls[0][1].get("refundReference")).toBe("R-77");
+  });
+});
+
+describe("PaymentPanel HMO coverage (PAY-06)", () => {
+  it("shows the provider, the full member number, and the co-pay to the front desk", () => {
+    render(<PaymentPanel appointmentId={APPOINTMENT_ID} payment={HMO_PENDING} now={NOW} />);
+
+    const hmo = screen.getByRole("region", { name: "HMO coverage" });
+    expect(within(hmo).getByText("Maxicare")).toBeInTheDocument();
+    expect(within(hmo).getByText("MAXI-0099-4417")).toBeInTheDocument();
+    expect(within(hmo).getByText("₱100.00")).toBeInTheDocument();
+    expect(within(hmo).getByRole("button", { name: "Approve coverage" })).toBeInTheDocument();
+    expect(within(hmo).getByRole("button", { name: "Deny coverage" })).toBeInTheDocument();
+  });
+
+  it("approves coverage with the LOA number", async () => {
+    vi.mocked(decideHmoAction).mockResolvedValue({ status: "success", message: "HMO coverage approved." });
+    const user = userEvent.setup();
+    render(<PaymentPanel appointmentId={APPOINTMENT_ID} payment={HMO_PENDING} now={NOW} />);
+
+    await user.click(screen.getByRole("button", { name: "Approve coverage" }));
+    const dialog = screen.getByRole("dialog", { name: "Approve HMO coverage?" });
+    await user.type(within(dialog).getByLabelText("LOA number"), "LOA-2026-118");
+    await user.click(within(dialog).getByRole("button", { name: "Approve coverage" }));
+
+    await waitFor(() => expect(decideHmoAction).toHaveBeenCalledTimes(1));
+    const form = vi.mocked(decideHmoAction).mock.calls[0][1];
+    expect(form.get("decision")).toBe("approve");
+    expect(form.get("paymentId")).toBe(HMO_PENDING.id);
+    expect(form.get("appointmentId")).toBe(APPOINTMENT_ID);
+    expect(form.get("loaNumber")).toBe("LOA-2026-118");
+  });
+
+  it("denies coverage with a reason", async () => {
+    vi.mocked(decideHmoAction).mockResolvedValue({ status: "success", message: "HMO coverage denied." });
+    const user = userEvent.setup();
+    render(<PaymentPanel appointmentId={APPOINTMENT_ID} payment={HMO_PENDING} now={NOW} />);
+
+    await user.click(screen.getByRole("button", { name: "Deny coverage" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Deny HMO coverage?" });
+    await user.type(within(dialog).getByLabelText("Reason"), "Member not eligible");
+    await user.click(within(dialog).getByRole("button", { name: "Deny coverage" }));
+
+    await waitFor(() => expect(decideHmoAction).toHaveBeenCalledTimes(1));
+    const form = vi.mocked(decideHmoAction).mock.calls[0][1];
+    expect(form.get("decision")).toBe("deny");
+    expect(form.get("reason")).toBe("Member not eligible");
+  });
+
+  it("shows the LOA number once approved, with no actions", () => {
+    render(
+      <PaymentPanel
+        appointmentId={APPOINTMENT_ID}
+        payment={{ ...HMO_PENDING, status: "hmo_approved", hmo: { ...HMO_DETAILS, loaNumber: "LOA-2026-118" } }}
+        now={NOW}
+      />,
+    );
+    const hmo = screen.getByRole("region", { name: "HMO coverage" });
+    expect(within(hmo).getByText("LOA-2026-118")).toBeInTheDocument();
+    expect(within(hmo).queryByRole("button")).toBeNull();
+  });
+
+  it("shows the denial reason once denied, and the payment is self-pay", () => {
+    render(
+      <PaymentPanel
+        appointmentId={APPOINTMENT_ID}
+        payment={{
+          ...HMO_PENDING,
+          status: "awaiting_payment",
+          method: "qr_ph",
+          payer: "self",
+          hmoCentavos: 0,
+          amountDueCentavos: 70000,
+          hmo: { ...HMO_DETAILS, deniedReason: "Member not eligible" },
+        }}
+        now={NOW}
+      />,
+    );
+    const hmo = screen.getByRole("region", { name: "HMO coverage" });
+    expect(within(hmo).getByText("Member not eligible")).toBeInTheDocument();
+    expect(within(hmo).queryByText("Co-pay")).toBeNull();
+    expect(screen.getByRole("button", { name: "Verify payment" })).toBeInTheDocument();
+  });
+
+  it("hides the decisions once the request is no longer pending", () => {
+    render(<PaymentPanel appointmentId={APPOINTMENT_ID} payment={HMO_PENDING} now={NOW} decidable={false} />);
+    expect(screen.queryByRole("button", { name: "Approve coverage" })).toBeNull();
   });
 });
 

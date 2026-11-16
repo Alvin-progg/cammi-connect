@@ -185,7 +185,7 @@ async function loadPaymentDetails(appointmentId: string): Promise<FrontDeskPayme
   const { data: payment, error } = await supabase
     .from("payments")
     .select(
-      "id, charge_id, status, method, amount_due_centavos, deadline_at, attempts, transaction_reference, amount_received_centavos, received_at, rejected_reason, refund_reference",
+      "id, charge_id, status, method, amount_due_centavos, deadline_at, attempts, transaction_reference, amount_received_centavos, received_at, rejected_reason, refund_reference, hmo_loa_number, hmo_denied_reason",
     )
     .eq("appointment_id", appointmentId)
     .maybeSingle();
@@ -198,7 +198,7 @@ async function loadPaymentDetails(appointmentId: string): Promise<FrontDeskPayme
     supabase
       .from("appointment_charges")
       .select(
-        "reference_code, privilege, payer, base_centavos, vat_exemption_centavos, privilege_discount_centavos, philhealth_centavos, hmo_centavos",
+        "reference_code, privilege, payer, hmo_provider_id, hmo_member_number, base_centavos, vat_exemption_centavos, privilege_discount_centavos, philhealth_centavos, hmo_centavos",
       )
       .eq("id", payment.charge_id)
       .single(),
@@ -209,6 +209,22 @@ async function loadPaymentDetails(appointmentId: string): Promise<FrontDeskPayme
   ]);
   if (charge.error || receipts.error) {
     throw new Error("Unable to load the payment.");
+  }
+
+  // PAY-06: the one place the member number is shown in full.
+  const { hmo_provider_id: providerId, hmo_member_number: memberNumber } = charge.data;
+  let hmo: FrontDeskPayment["hmo"] = null;
+  if (providerId && memberNumber) {
+    const provider = await supabase.from("hmo_providers").select("name").eq("id", providerId).single();
+    if (provider.error) {
+      throw new Error("Unable to load the payment.");
+    }
+    hmo = {
+      providerName: provider.data.name,
+      memberNumber,
+      loaNumber: payment.hmo_loa_number,
+      deniedReason: payment.hmo_denied_reason,
+    };
   }
 
   return {
@@ -232,6 +248,7 @@ async function loadPaymentDetails(appointmentId: string): Promise<FrontDeskPayme
     rejectedReason: payment.rejected_reason,
     refundReference: payment.refund_reference,
     hasReceipt: (receipts.count ?? 0) > 0,
+    hmo,
   };
 }
 

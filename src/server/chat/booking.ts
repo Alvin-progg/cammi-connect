@@ -2,6 +2,7 @@ import "server-only";
 
 import { todayInManila } from "@/lib/appointments/filters";
 import { computeCharge, type PrivilegeChoice } from "@/lib/billing/compute";
+import { maskMemberNumber, philhealthOffered } from "@/lib/billing/hmo";
 import { formatManilaShortDate, formatManilaTime } from "@/lib/appointments/format";
 import {
   BOOKING_COPY,
@@ -21,7 +22,6 @@ import {
   PRIVILEGE_LABELS,
   consultationLine,
   hmoPendingCopy,
-  maskMemberNumber,
   paymentChoiceLabel,
   paymentRequestCopy,
 } from "@/lib/chat/payment";
@@ -596,11 +596,11 @@ async function quoteConsultation(
   }
 
   const line = consultationLine(fee);
-  const philhealthOffered = line.philhealthBenefitCentavos > 0;
+  const offerPhilhealth = philhealthOffered([line]);
   const hmoProviders = await ctx.tools.getActiveHmoProviders();
   let payment = draft.payment;
   let lead: string | undefined;
-  if (payment?.payer === "philhealth" && !philhealthOffered) {
+  if (payment?.payer === "philhealth" && !offerPhilhealth) {
     payment = undefined;
   }
   const hmoChoice = payment?.payer === "hmo" ? payment : undefined;
@@ -618,7 +618,7 @@ async function quoteConsultation(
         reply: withLead(lead, PAYMENT_COPY.payerQuestion),
         payload: {
           kind: "payer_options",
-          philhealth: philhealthOffered,
+          philhealth: offerPhilhealth,
           hmoProviders: hmoProviders.map(({ id, name }) => ({ id, name })),
         },
         state: { step: "choosing_payer", draft: { ...draft, payment: undefined } },

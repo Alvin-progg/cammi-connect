@@ -25,6 +25,7 @@ import {
 } from "@/lib/billing/verification";
 import type { RequestDecisionState } from "@/server/front-desk/actions";
 import {
+  decideHmoAction,
   markRefundedAction,
   rejectReceiptAction,
   verifyPaymentAction,
@@ -224,6 +225,89 @@ function RefundForm({ close, safeActionRef, ...payment }: FormProps) {
         safeActionRef={safeActionRef}
       />
     </form>
+  );
+}
+
+function ApproveHmoForm({ close, safeActionRef, ...payment }: FormProps) {
+  const [state, formAction, pending] = useActionState(decideHmoAction, IDLE_STATE);
+  useSuccess(state, close);
+
+  return (
+    <form action={formAction}>
+      <Hidden {...payment} />
+      <input type="hidden" name="decision" value="approve" />
+      <TextField
+        id={`hmo-approve-${payment.paymentId}-loa`}
+        name="loaNumber"
+        label="LOA number"
+        maxLength={100}
+        autoComplete="off"
+      />
+      <FormFooter
+        state={state}
+        pending={pending}
+        submitLabel="Approve coverage"
+        pendingLabel="Approving…"
+        close={close}
+        safeActionRef={safeActionRef}
+      />
+    </form>
+  );
+}
+
+function DenyHmoForm({ close, safeActionRef, ...payment }: FormProps) {
+  const [state, formAction, pending] = useActionState(decideHmoAction, IDLE_STATE);
+  useSuccess(state, close);
+  const id = `hmo-deny-${payment.paymentId}-reason`;
+
+  return (
+    <form action={formAction}>
+      <Hidden {...payment} />
+      <input type="hidden" name="decision" value="deny" />
+      <div className="mt-4 flex flex-col gap-1.5">
+        <label htmlFor={id} className="text-sm font-medium text-ink">
+          Reason
+        </label>
+        <textarea id={id} name="reason" required maxLength={500} rows={3} className={CONTROL_CLASS} />
+      </div>
+      <p className="mt-3 text-xs text-ink-muted">
+        The reason stays with the front desk. Cami tells the patient the new amount and sends the QR.
+      </p>
+      <FormFooter
+        state={state}
+        pending={pending}
+        submitLabel="Deny coverage"
+        pendingLabel="Denying…"
+        danger
+        close={close}
+        safeActionRef={safeActionRef}
+      />
+    </form>
+  );
+}
+
+export function ApproveHmoDialog(payment: PaymentRef) {
+  return (
+    <PaymentDialog
+      payment={payment}
+      title="Approve HMO coverage?"
+      description="Check the LOA or eligibility with the HMO first. The patient pays only the co-pay, if any."
+      triggerLabel="Approve coverage"
+      Form={ApproveHmoForm}
+    />
+  );
+}
+
+export function DenyHmoDialog(payment: PaymentRef) {
+  return (
+    <PaymentDialog
+      payment={payment}
+      title="Deny HMO coverage?"
+      description="The visit becomes self-pay at the regular price, with a new payment deadline."
+      triggerLabel="Deny coverage"
+      destructive
+      Form={DenyHmoForm}
+    />
   );
 }
 

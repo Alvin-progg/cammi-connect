@@ -4,6 +4,7 @@ import type { PaymentStatus } from "@/lib/billing/payments";
 import type { BookedPayment } from "@/lib/chat/schemas";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
+import type { HmoDecisionStore } from "./hmo";
 import type { ReceiptStore } from "./receipts";
 import type { ChargeStore } from "./service";
 import type { PaymentDecisionStore } from "./verification";
@@ -289,5 +290,31 @@ export const supabasePaymentDecisionRepository: PaymentDecisionStore = {
       throw new Error("Unable to open the receipt.");
     }
     return data.signedUrl;
+  },
+};
+
+/** PAY-06 HMO decisions (0037); the function re-checks the staff role. */
+export const supabaseHmoDecisionRepository: HmoDecisionStore = {
+  async decideHmo(input) {
+    const { data, error } = await getSupabaseAdminClient().rpc("cammi_connect_decide_hmo", {
+      p_payment_id: input.paymentId,
+      p_staff_id: input.staffId,
+      p_decision: input.decision,
+      p_loa_number: input.decision === "approve" ? input.loaNumber : null,
+      p_reason: input.decision === "deny" ? input.reason : null,
+    });
+    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    const [row] = data ?? [];
+    if (!row) throw new Error("Unable to update the payment.");
+    return {
+      ok: true,
+      patientId: row.patient_id,
+      status: row.new_status,
+      method: row.method,
+      amountDueCentavos: row.amount_due_centavos,
+      deadline: row.deadline_at,
+      referenceCode: row.reference_code,
+      hmoName: row.hmo_name,
+    };
   },
 };

@@ -5,11 +5,12 @@ import {
   type ReceiptRejectionReason,
 } from "@/lib/billing/verification";
 import { PAYMENT_COPY, receiptRejectedCopy, refundSentCopy } from "@/lib/chat/payment";
+import type { BookedPayment } from "@/lib/chat/schemas";
 import type { DecisionResult } from "@/server/front-desk/service";
 
 import type { ReceiptChatStore } from "./receipts";
 
-type DatabaseError = { code: string; message: string };
+export type DatabaseError = { code: string; message: string };
 
 type DecisionOutcome =
   | { ok: true; patientId: string; amountDueCentavos: number }
@@ -51,10 +52,10 @@ export type PatientChatNotifier = Pick<ReceiptChatStore, "latestConversationId" 
 /** ADR-0005 amendment: receipt links expire after 60 seconds. */
 export const RECEIPT_URL_SECONDS = 60;
 
-const RAISED_EXCEPTION = "P0001";
+export const RAISED_EXCEPTION = "P0001";
 const UNIQUE_VIOLATION = "23505";
 const DUPLICATE_REFERENCE = "This transaction reference was already used to verify another payment.";
-const GENERIC_ERROR = "The payment could not be updated. Try again in a moment.";
+export const GENERIC_ERROR = "The payment could not be updated. Try again in a moment.";
 
 const REFUSALS: Record<string, string> = {
   not_allowed: "You are not authorized to verify payments.",
@@ -89,17 +90,23 @@ function refusal(error: DatabaseError, messages: Record<string, string>): string
  * decision. The payload hides the text from the model (it can name an
  * amount).
  */
-async function tellPatient(
+export async function tellPatient(
   patientId: string,
   content: string,
   chat: PatientChatNotifier,
   now: Date,
+  payment?: BookedPayment,
 ): Promise<void> {
   try {
     const conversationId = await chat.latestConversationId(patientId);
     if (!conversationId) return;
     await chat.appendMessages(conversationId, [
-      { role: "assistant", content, payload: { kind: "payment_update" }, createdAt: now },
+      {
+        role: "assistant",
+        content,
+        payload: payment ? { kind: "payment_update", payment } : { kind: "payment_update" },
+        createdAt: now,
+      },
     ]);
   } catch {
     // Best effort; the patient also sees the status in My appointments.

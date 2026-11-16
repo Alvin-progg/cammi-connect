@@ -662,6 +662,47 @@ when the reason is "Patient request". The `payment_events` action check gains
   with a reference, and the chat gets "Your refund has been sent…". Doctors see no
   payment information on `/doctor`. Cancel the smoke-test appointments afterwards.
 
+`0037_hmo_decisions.sql` (PAY-06 HMO decisions): adds `payments.hmo_loa_number`,
+`hmo_denied_reason`, `hmo_decided_by`, and `hmo_decided_at`; relaxes
+`appointment_charges_hmo_details` so a self-pay charge may keep its HMO provider and
+member number after a denial (both or neither; an HMO payer always has them, PhilHealth
+never); and adds `cammi_connect_decide_hmo` (active `front_desk`/`admin` only, from
+`hmo_pending` while the request is still `requested`). **Approve** needs an LOA number →
+`hmo_approved` (the 0036 confirm gate accepts it). **Deny** needs a reason → the HMO
+deduction is removed from the items and the charge, the payer becomes `self`, and the
+payment becomes `awaiting_payment` by QR Ph with a new deadline of now +
+`payment.deadline_minutes` (default 120), never later than 2 hours before the visit.
+When the visit starts within 2 hours (too late to hold the slot with an online payment,
+and the deadline would already be past), the payment becomes `collect_at_counter`
+instead: the cashier collects at the visit and the request can be confirmed. A ₱0 share
+becomes `not_required`. Both write a `payment_events` row (`hmo_approved` with the LOA
+number, `hmo_denied` with the reason). Refusals: `not_allowed`, `invalid_decision`,
+`loa_required`, `reason_required`, `payment_not_found`, `not_open`, `not_pending`. Safe
+to re-run.
+- Local SQL check (Docker, `scripts/db-local-apply.sh`, synthetic rows in a rolled-back
+  transaction, as `service_role`): an HMO booking is `hmo_pending` and confirm is refused
+  (`payment_not_verified`); a patient or doctor deciding → `not_allowed`; a blank LOA →
+  `loa_required`; a deny with no reason → `reason_required`; approve → `hmo_approved` with
+  the LOA number, a second decision → `not_open`, and confirm then succeeds. Cardiology
+  ₱700 with full HMO, deny → payer `self`, charge and item `hmo_centavos` 0, amount
+  70000, `awaiting_payment`/`qr_ph`, deadline now + 120 min, member number kept, events
+  `created` then `hmo_denied`; a receipt is then accepted (`submitted`), verified with
+  ₱700, and the request confirmed. Senior with HMO, deny → 56000; an HMO with a ₱100
+  co-pay, deny → 70000; a visit 90 minutes away, deny → `collect_at_counter`, no
+  deadline, confirm succeeds; deciding on an `awaiting_payment` payment → `not_open`.
+  `anon`/`authenticated` have no execute. The file applies twice without error.
+- Smoke test: with payments on, book with **My HMO** and a member number as a synthetic
+  patient; Cami replies "Thanks! The front desk will check your … coverage. Please request
+  an LOA …". At `/front-desk/requests` the card shows **HMO to check** (no member
+  number). Open it: the Payment panel's **HMO coverage** section shows the provider, the
+  full member number, and the co-pay; Confirm is disabled. **Approve coverage** with an LOA
+  number: the chat gets "Your … coverage is approved ✔…" and Confirm works. Book again
+  and **Deny coverage** with a reason: the chat gets "Your HMO couldn't cover this visit.
+  You can still pay ₱… here to keep the slot…" with the QR card (the reason is not
+  shown), My appointments shows the payment card, and the panel shows the denial reason
+  and **Verify payment**. Send a receipt and verify it as for PAY-05. Cancel the
+  smoke-test appointments afterwards.
+
 Audit log (ADM-16, no migration): as an admin, open `/admin/audit-log`, filter by
 "Settings (settings.*)", open an entry and check its previous and new values, then use
 **Export CSV**. A new `audit.export` row appears at the top of the log. A patient

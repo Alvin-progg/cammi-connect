@@ -186,3 +186,42 @@ describe("PAY-04 pay later in My appointments", () => {
     expect(within(card).getByLabelText(/Photo of your receipt/)).toBeInTheDocument();
   });
 });
+
+describe("PAY-06 HMO denied in chat", () => {
+  function renderUpdate(payload: ChatMessage["payload"]) {
+    const message: ChatMessage = {
+      id: "m3",
+      role: "assistant",
+      content: "Your HMO couldn't cover this visit. You can still pay ₱700.00 here to keep the slot.",
+      createdAt: "2026-11-17T02:00:00.000Z",
+      payload,
+    };
+    return render(
+      <ChatShell
+        salutation="Good Morning"
+        firstName="Ana"
+        welcomeMessage="Welcome"
+        patientName="Ana Dela Cruz"
+        conversations={[]}
+        conversationId={CONVERSATION_ID}
+        initialMessages={[message]}
+        appointments={null}
+        paymentQr={QR}
+      />,
+    );
+  }
+
+  it("shows the PAY-04 QR card with the new amount under the denial", () => {
+    renderUpdate({ kind: "payment_update", payment: { ...PAYMENT, amountDueCentavos: 70000 } });
+
+    const card = screen.getByRole("group", { name: "Payment" });
+    expect(within(card).getByText("₱700.00")).toBeInTheDocument();
+    expect(within(card).getByRole("img", { name: /QR Ph code/ })).toBeInTheDocument();
+    expect(within(card).getByLabelText(/Photo of your receipt/)).toBeInTheDocument();
+  });
+
+  it("shows no card for a text-only payment update", () => {
+    renderUpdate({ kind: "payment_update" });
+    expect(screen.queryByRole("group", { name: "Payment" })).not.toBeInTheDocument();
+  });
+});

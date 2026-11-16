@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { PrivilegeChoice } from "./compute";
+import type { FrontDeskHmo } from "./hmo";
 import { formatPesos, pesosToCentavos } from "./money";
 import { PAYMENT_STATUS_LABELS, type PaymentStatus } from "./payments";
 
@@ -76,6 +77,8 @@ export type FrontDeskPayment = {
   rejectedReason: string | null;
   refundReference: string | null;
   hasReceipt: boolean;
+  /** PAY-06: set when the patient chose an HMO, also after a denial. */
+  hmo: FrontDeskHmo | null;
 };
 
 /** One row of the "Refund due" list. */

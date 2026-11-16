@@ -1,6 +1,6 @@
 # PAY-001 — Chat Payments, Discounts and Coverage, and Non-Consultation Services
 
-- Status: **Approved** 2026-11-16 by the project owner (all decisions D1–D10 at their recommended defaults); in progress (PAY-01 to PAY-05 built)
+- Status: **Approved** 2026-11-16 by the project owner (all decisions D1–D10 at their recommended defaults); in progress (PAY-01 to PAY-06 built)
 - Date: 2026-11-16
 - Type: Feature
 - Priority: High
@@ -60,6 +60,21 @@
   disabled Confirm, "Refund due" list. Cami's Verified, Rejected, and refund-sent texts
   are appended to the patient's latest chat (D9), hidden from the LLM. HMO actions are
   PAY-06; automatic expiry PAY-08.
+- 2026-11-17 — **PAY-06 built** (migration `0037_hmo_decisions.sql`): audited
+  `cammi_connect_decide_hmo` (front desk/admin, from `hmo_pending` on a pending request).
+  Approve records the LOA number (`hmo_approved`, confirmable). Deny records the reason
+  and makes the visit self-pay: the HMO deduction is removed from the snapshotted items
+  and charge (payer `self`; the HMO and member number stay on the charge), and the
+  payment becomes `awaiting_payment` by QR with a new deadline (`payment.deadline_minutes`,
+  clamped to 2 h before the visit). Decision: when the visit is less than 2 hours away the
+  denial makes the payment `collect_at_counter` instead (the cashier collects at the
+  visit, and it can be confirmed), since no online payment can be held that late. Front
+  desk HMO panel (provider, full member number, co-pay, LOA number or denial reason) with
+  **Approve coverage** and **Deny coverage**; the member number is masked (`••••4417`)
+  everywhere else. Cami's templated approved and denied messages (the denial with the
+  PAY-04 QR card, never the reason) go to the patient's latest chat, hidden from the LLM.
+  PhilHealth is offered only when a chosen item has a benefit (`philhealthOffered`);
+  consultations never have one, so services follow in PAY-07.
 
 ## Objective
 
@@ -347,8 +362,10 @@ Order: 01 → 02 → 03 → 04 → 05 → 06. PAY-07 can start after 03, in para
       the worked examples. *(PAY-02, math level; PAY-03, chat summary and SQL snapshot)*
 - [x] Senior and PWD can't both be applied to one booking. *(PAY-02, one `privilege`
       choice; PAY-03, one chat answer and one `privilege` column)*
-- [ ] PhilHealth is offered only for services with a benefit above ₱0. *(PAY-03: never
-      offered for consultations; services in PAY-06/07)*
+- [x] PhilHealth is offered only for services with a benefit above ₱0. *(PAY-03: never
+      offered for consultations; PAY-06: `philhealthOffered` over the chosen items, unit
+      tested with service lines, and the server refuses PhilHealth without a benefit;
+      chat-level booking of services comes with PAY-07)*
 - [x] Confirm creates the appointment, charge, and payment together or not at all.
       *(PAY-03, local SQL smoke)*
 - [x] Cami sends the QR card with exact amount, reference code, and deadline. *(PAY-04)*
@@ -362,7 +379,8 @@ Order: 01 → 02 → 03 → 04 → 05 → 06. PAY-07 can start after 03, in para
       *(PAY-05, local SQL)*
 - [x] A rejected receipt lets the patient resend, up to the limit. *(PAY-04 limit; PAY-05
       reject then resubmit, local SQL)*
-- [ ] HMO denial switches to self-pay and Cami sends the QR.
+- [x] HMO denial switches to self-pay and Cami sends the QR. *(PAY-06, local SQL and
+      service/component tests)*
 - [ ] Overdue unpaid requests are cancelled and release the slot; submitted receipts don't
       expire on their own.
 - [x] Cancelling a paid appointment creates a refund to track. *(PAY-05, local SQL;

@@ -1,5 +1,6 @@
 import type { ChargeLineInput, PrivilegeChoice } from "@/lib/billing/compute";
 import { formatPesos } from "@/lib/billing/money";
+import type { PaymentStatus } from "@/lib/billing/payments";
 import { formatManilaShortDate, formatManilaTime } from "@/lib/appointments/format";
 import { manilaDateOf } from "@/lib/chat/booking";
 import { addDays } from "@/lib/chat/resolve";
@@ -48,11 +49,6 @@ export function paymentChoiceLabel(payment: PaymentChoice): string {
   }
 }
 
-/** "••••4417": member numbers are never shown in full in chat. */
-export function maskMemberNumber(memberNumber: string): string {
-  return `••••${memberNumber.slice(-4)}`;
-}
-
 /**
  * A consultation as a billing line: doctors' fees are not VAT-able here, have
  * no PhilHealth benefit, and HMOs cover them (same constants as 0034).
@@ -98,6 +94,35 @@ export function paymentQrImageSrc(path: string): string | null {
 
 export function hmoPendingCopy(hmoName: string): string {
   return `Thanks! The front desk will check your ${hmoName} coverage. Please request an LOA in your HMO app and bring your HMO card and a valid ID.`;
+}
+
+/** PAY-06: appended when the front desk approves HMO coverage (D9). */
+export function hmoApprovedCopy(hmoName: string): string {
+  return `Your ${hmoName} coverage is approved ✔. Your appointment is now waiting for front desk confirmation. Please bring your HMO card and a valid ID.`;
+}
+
+/**
+ * PAY-06: appended when the front desk denies HMO coverage. The payment is
+ * now self-pay (0037): a QR payment with a new deadline, the cashier at the
+ * visit when that is less than 2 hours away, or nothing for a ₱0 visit. The
+ * denial reason is internal and never repeated to the patient.
+ */
+export function hmoDeniedCopy(input: {
+  status: PaymentStatus;
+  amountDueCentavos: number;
+  referenceCode: string;
+  deadline: string | null;
+  now: Date;
+}): string {
+  const amount = formatPesos(input.amountDueCentavos);
+  if (input.status === "awaiting_payment" && input.deadline) {
+    const deadline = formatPaymentDeadline(input.deadline, input.now);
+    return `Your HMO couldn't cover this visit. You can still pay ${amount} here to keep the slot. Please pay by ${deadline}: scan the QR with GCash, Maya, or your bank app, put ${input.referenceCode} in the message/notes, and send me a photo of your receipt.`;
+  }
+  if (input.amountDueCentavos === 0) {
+    return "Your HMO couldn't cover this visit, but there's nothing to pay for it. Your appointment is now waiting for front desk confirmation.";
+  }
+  return `Your HMO couldn't cover this visit. Please pay ${amount} at the hospital cashier when you arrive and give the reference code ${input.referenceCode}.`;
 }
 
 /** PAY-05: appended when the front desk rejects a receipt (D9). */
