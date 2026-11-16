@@ -438,7 +438,7 @@ function Doctors() {
 
       {/* Desktop: one overlapping row over a soft panel and a divider line at caption height. Mobile: 3 per row. */}
       <div
-        className="relative mx-auto mt-11 flex max-w-[1100px] flex-wrap items-end justify-center gap-y-2 md:flex-nowrap
+        className="relative isolate mx-auto mt-11 flex max-w-[1100px] flex-wrap items-end justify-center gap-y-2 md:flex-nowrap
                    md:before:absolute md:before:inset-x-[3%] md:before:bottom-[72px] md:before:h-[60%] md:before:rounded-t-[32px]
                    md:before:bg-linear-to-b md:before:from-primary-soft md:before:to-surface md:before:content-['']
                    md:after:absolute md:after:inset-x-0 md:after:bottom-[72px] md:after:h-0.5 md:after:content-['']
