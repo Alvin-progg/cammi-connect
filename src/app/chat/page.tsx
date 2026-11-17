@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 
 import { AccessDenied } from "@/components/auth/access-denied";
 import { ChatMaintenance } from "@/components/chat/chat-maintenance";
@@ -25,6 +26,7 @@ export default async function ChatPage({
 }: {
   searchParams: Promise<ChatSearchParams>;
 }) {
+  await connection();
   const params = await searchParams;
   const session = await getPatientSession("/chat");
 
