@@ -126,8 +126,6 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
           departments={departments.map((department) => ({ id: department.id, name: department.name }))}
         />
 
-        <AnalyticsSummary summary={summarize(interpretations)} />
-
         <KpiCards kpis={kpis} periodLabel={PERIOD_PHRASES[filters.range]} />
 
         <ChartSection title="Demand" description="How many appointments, with whom, and when" />
@@ -274,6 +272,8 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
         </div>
 
         <RevenueCards revenue={revenue} />
+
+        <AnalyticsSummary summary={summarize(interpretations)} />
 
         <div className="flex flex-col gap-1 text-sm text-ink-muted">
           {outcomeMonths ? <p>{`Outcome figures cover visits that finished in ${outcomeMonths}.`}</p> : null}

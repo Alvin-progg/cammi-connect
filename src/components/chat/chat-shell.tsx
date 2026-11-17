@@ -231,7 +231,7 @@ export function ChatShell({
           ) : (
             <>
               {hasThread ? (
-                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
                   <h1 className="sr-only">Chat with CamiConnect</h1>
                   <ol
                     role="log"

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 
 import { AccessDenied } from "@/components/auth/access-denied";
 import { ChatMaintenance } from "@/components/chat/chat-maintenance";
@@ -25,6 +26,7 @@ export default async function ChatPage({
 }: {
   searchParams: Promise<ChatSearchParams>;
 }) {
+  await connection();
   const params = await searchParams;
   const session = await getPatientSession("/chat");
 
@@ -58,7 +60,7 @@ export default async function ChatPage({
   const { salutation, firstName } = greetingFor(session.patient.fullName, now);
 
   return (
-    <main id="main" className="flex h-dvh flex-col bg-surface">
+    <main id="main" className="flex h-dvh flex-col overflow-hidden bg-surface">
       <ChatShell
         // A new key resets the client thread when another chat is opened.
         key={`${pageView}:${view.conversationId ?? "new"}`}
