@@ -597,9 +597,8 @@ a `receipt_submitted` event, in one transaction. Uploads go only through
   a `image/gif` object, or a 5 MB + 1 byte object is refused; the anon key can neither
   download nor upload, and the public URL answers 400; remove works.
 - Smoke test: as an admin, on the Payment tab set **QR Ph image path** to
-  `/payment/qr-synthetic-demo.svg` (a synthetic, unscannable placeholder for local demos
-  only; replace it with the hospital's merchant QR Ph image before go-live) and an
-  account name. As a synthetic patient, book with "I'll pay": the reply asks to scan the
+  `/payment/paymentQR.png` (replace the image with the hospital's merchant QR Ph before
+  go-live) and an account name. As a synthetic patient, book with "I'll pay": the reply asks to scan the
   QR and send a photo of the receipt, and the card shows the QR, account name, amount,
   `CC-` code, deadline, and a **Photo of your receipt** field. Send a small JPEG: Cami adds
   "Got your receipt, thank you! …", the card shows "Receipt sent", and in SQL the payment

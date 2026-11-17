@@ -63,6 +63,9 @@ const SPECIALTY_FEES_CENTAVOS = {
   Cardiology: 70000,
 };
 
+/** Synthetic fee for any other specialty that has none (₱500). */
+const FALLBACK_CONSULTATION_FEE_CENTAVOS = 50000;
+
 /** PAY-07 synthetic walk-in caps per day, by category. */
 const WALK_IN_DAILY_CAPACITY = {
   laboratory: 60,
@@ -440,6 +443,16 @@ async function main() {
   const specialtyId = Object.fromEntries(
     specialtyRows.map((row) => [row.name, row.id]),
   );
+
+  // Specialties from 0003 or the admin UI are not in SPECIALTY_FEES_CENTAVOS;
+  // without a fee Cami refuses to book them ("price on request"). Only fills nulls.
+  const { error: fallbackFeeError } = await supabase
+    .from("specialties")
+    .update({ default_consultation_fee_centavos: FALLBACK_CONSULTATION_FEE_CENTAVOS })
+    .is("default_consultation_fee_centavos", null);
+  if (fallbackFeeError) {
+    throw new Error(`Unable to set fallback specialty fees: ${fallbackFeeError.message}`);
+  }
 
   // Directory entries must exist before appointments, which reference doctors.
   const doctors = [

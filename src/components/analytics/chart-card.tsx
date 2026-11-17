@@ -7,8 +7,8 @@ import { NOT_ENOUGH_DATA_MESSAGE, type Interpretation } from "@/lib/analytics/in
 /**
  * One analytics chart on an opaque card (reference layout): a numbered title
  * with a caption or legend on the right, a one-line description, the chart,
- * and its data table behind "View as table". When given, an ADM-17
- * "What it means" line follows the description. An empty period shows a message
+ * an ADM-17 "What it means" line (when given) below the chart, and its data
+ * table behind "View as table". An empty period shows a message
  * instead of a zero-filled chart (design.md §6.8).
  */
 export function ChartCard({
@@ -52,12 +52,6 @@ export function ChartCard({
         {aside && !emptyMessage ? aside : null}
       </header>
       <p className="mb-4 text-[13px] text-ink-muted">{description}</p>
-      {interpretation !== undefined && !emptyMessage ? (
-        <p className="-mt-2 mb-4 text-[13px] text-ink-secondary">
-          <strong className="font-semibold text-ink">What it means:</strong>{" "}
-          <span>{interpretation?.text ?? NOT_ENOUGH_DATA_MESSAGE}</span>
-        </p>
-      ) : null}
       {smallSample && !emptyMessage ? (
         <p className="-mt-2 mb-4 text-xs text-warning-soft-ink">{SMALL_SAMPLE_NOTE}</p>
       ) : null}
@@ -66,6 +60,12 @@ export function ChartCard({
       ) : (
         <>
           <div className="flex-1">{children}</div>
+          {interpretation !== undefined ? (
+            <p className="mt-4 text-[13px] text-ink-secondary">
+              <strong className="font-semibold text-ink">What it means:</strong>{" "}
+              <span>{interpretation?.text ?? NOT_ENOUGH_DATA_MESSAGE}</span>
+            </p>
+          ) : null}
           {table ? (
             <details className="mt-3 text-[13px]">
               <summary className="cursor-pointer rounded font-medium text-primary focus-ring hover:text-primary-hover">
