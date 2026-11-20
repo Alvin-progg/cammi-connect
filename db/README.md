@@ -822,9 +822,7 @@ re-run.
   `/front-desk/requests` shows **Overdue** until the next job run (≤ 5 minutes); then the
   request is gone from the queue, the patient's chat shows the Expired message, My
   appointments shows it cancelled, and the slot is offered again. Upload a receipt on a
-  second booking and backdate it the same way: it stays **Receipt to check**. At
-  `/admin/analytics` the **Revenue** section shows collected, refunded, refund due,
-  outstanding, and HMO approved for the period.
+  second booking and backdate it the same way: it stays **Receipt to check**.
 
 Audit log (ADM-16, no migration): as an admin, open `/admin/audit-log`, filter by
 "Settings (settings.*)", open an entry and check its previous and new values, then use

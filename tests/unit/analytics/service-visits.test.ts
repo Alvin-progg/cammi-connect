@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 /**
  * PAY-07 decision: analytics (ADM-10/11/12) are doctor-consultation metrics,
  * so service visits (lab, imaging, packages; no doctor) are left out of every
- * appointment read the metric layer makes. Revenue numbers come with PAY-08.
+ * appointment read the metric layer makes.
  */
 describe("analytics and service visits", () => {
   it("filters every appointments read to consultations", () => {
