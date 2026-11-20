@@ -12,7 +12,7 @@ Change both together, and get sign-off first.
 - A period is `[from, to)` in Manila calendar dates (`Asia/Manila`, UTC+8, no DST). `to` is excluded. The page opens on **this year** (Jan 1 – Dec 31, Manila).
 - Unless stated otherwise, the cohort is every appointment whose `scheduled_at` falls in the period. A creation date is never used as a scheduled date.
 - Doctor and department filters narrow every metric. A department filter selects that department's doctors.
-- Every cohort holds doctor consultations only (`appointments.kind = 'consultation'`). Lab, imaging, and package visits (PAY-07, no doctor) are left out, so no metric changed. PAY-08 counts their payments only in the Revenue figures below.
+- Every cohort holds doctor consultations only (`appointments.kind = 'consultation'`). Lab, imaging, and package visits (PAY-07, no doctor) are left out, so no metric changed.
 
 ## Metrics
 
@@ -55,20 +55,6 @@ Rates are percentages rounded to 2 decimals (the page shows 1), and they are `nu
 | Rates by weekday | weekday → outcome cohort, cancellation and no-show rates | only weekdays with outcomes |
 
 Chart takeaways (`src/lib/analytics/takeaways.ts`) restate these datasets in one sentence each and never claim a cause.
-
-## Revenue (PAY-08)
-
-Shown as the Revenue section on `/admin/analytics`, computed by `src/lib/analytics/revenue.ts` from `payments` (and `appointment_charges.hmo_centavos`). Integer centavos, shown with `formatPesos`. Every chat payment counts, consultations and service visits alike; front desk bookings have no payment row and are not counted. The doctor and department filters do not apply. No patient fields are read.
-
-| Figure | Definition |
-|---|---|
-| Collected | Sum of `amount_received_centavos` (or the amount due if none was recorded) of payments whose `verified_at` is in the period, whatever their status now (a later refund still counts here and again under Refunded). |
-| Refunded | Same amount for payments now `refunded` whose `refunded_at` is in the period. |
-| Refund due | Snapshot: every `refund_due` payment now, ignoring the period. |
-| Outstanding | Snapshot: `amount_due_centavos` of every `awaiting_payment`, `submitted`, or `rejected` payment now. `hmo_pending` is not counted (the HMO may pay). |
-| HMO approved | The charge's `hmo_centavos` for payments now `hmo_approved` whose `hmo_decided_at` is in the period. |
-
-Collected minus Refunded is the net money kept for the period.
 
 ## Dashboard (ADM-12)
 

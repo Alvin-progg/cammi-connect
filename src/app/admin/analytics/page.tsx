@@ -15,7 +15,6 @@ import { ChartCard, ChartLegend, ChartSection } from "@/components/analytics/cha
 import { DataTable } from "@/components/analytics/data-table";
 import { KpiCards } from "@/components/analytics/kpi-cards";
 import { PeakHeatmap } from "@/components/analytics/peak-heatmap";
-import { RevenueCards } from "@/components/analytics/revenue-cards";
 import { AccessDenied } from "@/components/auth/access-denied";
 import {
   NO_OUTCOME_MESSAGE,
@@ -42,8 +41,8 @@ import {
   weekdayRatesTakeaway,
 } from "@/lib/analytics/takeaways";
 import { formatManilaMediumDate } from "@/lib/appointments/format";
-import { supabaseAnalyticsRepository, supabaseRevenueRepository } from "@/server/analytics/repository";
-import { loadAnalytics, loadRevenue } from "@/server/analytics/service";
+import { supabaseAnalyticsRepository } from "@/server/analytics/repository";
+import { loadAnalytics } from "@/server/analytics/service";
 import { getAdminSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 
@@ -77,11 +76,10 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
 
   const filters = parseAnalyticsFilters(params);
   const query = toAnalyticsQuery(filters);
-  const [doctors, departments, analytics, revenue] = await Promise.all([
+  const [doctors, departments, analytics] = await Promise.all([
     supabaseDirectoryRepository.listDoctors({ activeOnly: false }),
     supabaseDirectoryRepository.listDepartments(),
     loadAnalytics(query, supabaseAnalyticsRepository),
-    loadRevenue(query, supabaseRevenueRepository),
   ]);
 
   const { kpis } = analytics;
@@ -270,8 +268,6 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
             <DoctorRatesChart data={analytics.byDoctor} />
           </ChartCard>
         </div>
-
-        <RevenueCards revenue={revenue} />
 
         <AnalyticsSummary summary={summarize(interpretations)} />
 

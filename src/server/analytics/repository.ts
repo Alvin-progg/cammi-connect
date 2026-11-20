@@ -3,9 +3,8 @@ import "server-only";
 import type { AppointmentStatus } from "@/lib/appointments/status";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
-import type { RevenuePayment } from "@/lib/analytics/revenue";
 
-import type { DashboardReader, PendingSummary, RevenueReader } from "./service";
+import type { DashboardReader, PendingSummary } from "./service";
 
 /** PostgREST returns at most this many rows per request by default. */
 const PAGE_SIZE = 1000;
@@ -346,68 +345,6 @@ export const supabaseAnalyticsRepository: DashboardReader = {
       targetType: row.target_type,
       actorName: actors.get(row.actor_profile_id) || null,
       createdAt: row.created_at,
-    }));
-  },
-};
-
-/**
- * PAY-08 payment reads for the revenue numbers. Read-only; amounts, statuses,
- * and times only, never patient or reference fields.
- */
-export const supabaseRevenueRepository: RevenueReader = {
-  async listRevenuePayments({ start, end }) {
-    const between = (column: string) => `and(${column}.gte.${start},${column}.lt.${end})`;
-    const rows: {
-      charge_id: string;
-      status: RevenuePayment["status"];
-      amount_due_centavos: number;
-      amount_received_centavos: number | null;
-      verified_at: string | null;
-      refunded_at: string | null;
-      hmo_decided_at: string | null;
-    }[] = [];
-    for (let offset = 0; ; offset += PAGE_SIZE) {
-      const { data, error } = await getSupabaseAdminClient()
-        .from("payments")
-        .select("id, charge_id, status, amount_due_centavos, amount_received_centavos, verified_at, refunded_at, hmo_decided_at")
-        .or(
-          [
-            between("verified_at"),
-            between("refunded_at"),
-            between("hmo_decided_at"),
-            "status.in.(refund_due,awaiting_payment,submitted,rejected)",
-          ].join(","),
-        )
-        .order("id", { ascending: true })
-        .range(offset, offset + PAGE_SIZE - 1);
-      if (error) {
-        throw new Error("Unable to load payments.");
-      }
-      rows.push(...(data ?? []));
-      if ((data ?? []).length < PAGE_SIZE) break;
-    }
-
-    const hmoByCharge = new Map<string, number>();
-    const approvedChargeIds = rows.filter((row) => row.status === "hmo_approved").map((row) => row.charge_id);
-    for (const ids of chunk(approvedChargeIds, ID_CHUNK_SIZE)) {
-      const { data, error } = await getSupabaseAdminClient()
-        .from("appointment_charges")
-        .select("id, hmo_centavos")
-        .in("id", ids);
-      if (error) {
-        throw new Error("Unable to load charges.");
-      }
-      for (const row of data ?? []) hmoByCharge.set(row.id, row.hmo_centavos);
-    }
-
-    return rows.map((row) => ({
-      status: row.status,
-      amountDueCentavos: row.amount_due_centavos,
-      amountReceivedCentavos: row.amount_received_centavos,
-      verifiedAt: row.verified_at,
-      refundedAt: row.refunded_at,
-      hmoDecidedAt: row.hmo_decided_at,
-      hmoCentavos: hmoByCharge.get(row.charge_id) ?? 0,
     }));
   },
 };
