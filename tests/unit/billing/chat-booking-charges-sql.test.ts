@@ -23,7 +23,9 @@ describe("chat booking charges migration (0034)", () => {
   it("has every payment status the TS list has", () => {
     const enumBody = MIGRATION.match(/create type public\.payment_status as enum \(([^)]*)\)/)?.[1] ?? "";
     const values = [...enumBody.matchAll(/'(\w+)'/g)].map((match) => match[1]);
-    expect(values).toEqual([...PAYMENT_STATUSES]);
+    // 0040 keeps the refund labels in the enum (Postgres cannot drop them) but drops them from the TS list.
+    const labelsKeptUnused = ["refund_due", "refunded"];
+    expect(values.filter((value) => !labelsKeptUnused.includes(value))).toEqual([...PAYMENT_STATUSES]);
   });
 
   it("locks every new table down per ADR-0003", () => {

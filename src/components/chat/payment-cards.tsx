@@ -19,7 +19,7 @@ import type {
   ChatMessage,
   ChatMessagePayload,
 } from "@/lib/chat/schemas";
-import { HMO_MEMBER_NUMBER_MAX_LENGTH, type PaymentChoice } from "@/lib/chat/state";
+import type { PaymentChoice } from "@/lib/chat/state";
 
 import { RequirementList, type CardProps } from "./booking-cards";
 
@@ -38,15 +38,22 @@ export function PrivilegeOptions({
   return (
     <>
       {payload.requirements?.length ? <RequirementList requirements={payload.requirements} /> : null}
-      <PrivilegeButtons interactive={interactive} busy={busy} onEvent={onEvent} />
+      <PrivilegeButtons interactive={interactive} busy={busy} onEvent={onEvent} pwdVerified={payload.pwdVerified} />
     </>
   );
 }
 
-function PrivilegeButtons({ interactive, busy, onEvent }: CardProps) {
+function PrivilegeButtons({
+  interactive,
+  busy,
+  onEvent,
+  pwdVerified,
+}: CardProps & { pwdVerified: boolean }) {
+  // BEN-05: the PWD discount is offered only once the declaration is verified.
+  const offered = privilegeChoiceSchema.options.filter((privilege) => privilege !== "pwd" || pwdVerified);
   return (
     <ul aria-label="Discounts" className="mt-3 flex flex-wrap gap-2">
-      {privilegeChoiceSchema.options.map((privilege) => (
+      {offered.map((privilege) => (
         <li key={privilege}>
           <button
             type="button"
@@ -74,8 +81,7 @@ export function PayerOptions({
   onEvent,
 }: CardProps & { payload: Extract<ChatMessagePayload, { kind: "payer_options" }> }) {
   const [hmoOpen, setHmoOpen] = useState(false);
-  const [hmoProviderId, setHmoProviderId] = useState("");
-  const [memberNumber, setMemberNumber] = useState("");
+  const [patientHmoId, setPatientHmoId] = useState("");
   const id = useId();
   const disabled = !interactive || busy;
   const choices: PaymentChoice[] = payload.philhealth
@@ -97,7 +103,7 @@ export function PayerOptions({
             </button>
           </li>
         ))}
-        {payload.hmoProviders.length > 0 ? (
+        {payload.hmoMemberships.length > 0 ? (
           <li>
             <button
               type="button"
@@ -116,45 +122,30 @@ export function PayerOptions({
           className="flex flex-col gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            const trimmed = memberNumber.trim();
-            if (!hmoProviderId || !trimmed) return;
-            onEvent({
-              type: "select_payer",
-              payment: { payer: "hmo", hmoProviderId, memberNumber: trimmed },
-            });
+            if (!patientHmoId) return;
+            onEvent({ type: "select_payer", payment: { payer: "hmo", patientHmoId } });
           }}
         >
           <label htmlFor={`${id}-hmo`} className="text-sm font-medium text-ink">
-            HMO
+            HMO membership
           </label>
           <select
             id={`${id}-hmo`}
-            value={hmoProviderId}
-            onChange={(event) => setHmoProviderId(event.target.value)}
+            value={patientHmoId}
+            onChange={(event) => setPatientHmoId(event.target.value)}
             className={`${CONTROL_CLASS} h-11`}
           >
             <option value="">Choose your HMO</option>
-            {payload.hmoProviders.map((provider) => (
-              <option key={provider.id} value={provider.id}>
-                {provider.name}
+            {payload.hmoMemberships.map((membership) => (
+              <option key={membership.patientHmoId} value={membership.patientHmoId}>
+                {`${membership.name} (${membership.maskedNumber})`}
               </option>
             ))}
           </select>
-          <label htmlFor={`${id}-member`} className="text-sm font-medium text-ink">
-            Member number
-          </label>
-          <input
-            id={`${id}-member`}
-            value={memberNumber}
-            maxLength={HMO_MEMBER_NUMBER_MAX_LENGTH}
-            autoComplete="off"
-            onChange={(event) => setMemberNumber(event.target.value)}
-            className={`${CONTROL_CLASS} h-11`}
-          />
           <div>
             <button
               type="submit"
-              disabled={disabled || !hmoProviderId || !memberNumber.trim()}
+              disabled={disabled || !patientHmoId}
               className={buttonVariants({ variant: "primary" })}
             >
               Use my HMO

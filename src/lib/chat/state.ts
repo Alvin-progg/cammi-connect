@@ -49,9 +49,6 @@ const careNeedSchema = z.object({
 
 export type CareNeed = z.infer<typeof careNeedSchema>;
 
-/** Matches appointment_charges.hmo_member_number in 0034. */
-export const HMO_MEMBER_NUMBER_MAX_LENGTH = 50;
-
 /**
  * PAY-03: who pays. A self-paying patient pays by QR Ph or at the hospital
  * counter (decision D6, same deadline). The HMO is re-read from the active
@@ -59,11 +56,8 @@ export const HMO_MEMBER_NUMBER_MAX_LENGTH = 50;
  */
 export const paymentChoiceSchema = z.discriminatedUnion("payer", [
   z.object({ payer: z.literal("self"), method: z.enum(["qr_ph", "counter"]) }),
-  z.object({
-    payer: z.literal("hmo"),
-    hmoProviderId: z.uuid(),
-    memberNumber: z.string().trim().min(1).max(HMO_MEMBER_NUMBER_MAX_LENGTH),
-  }),
+  // BEN-05: a saved, verified membership the chosen doctor accepts (re-checked on booking).
+  z.object({ payer: z.literal("hmo"), patientHmoId: z.uuid() }),
   z.object({ payer: z.literal("philhealth") }),
 ]);
 

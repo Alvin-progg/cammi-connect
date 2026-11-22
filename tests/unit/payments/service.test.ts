@@ -23,7 +23,7 @@ const INPUT = {
 function storeReturning(result: Awaited<ReturnType<ChargeStore["bookWithCharge"]>>): ChargeStore {
   return {
     getConsultationFee: vi.fn(),
-    listActiveHmoProviders: vi.fn(),
+    listHmoOptions: vi.fn(),
     bookWithCharge: vi.fn(async () => result),
   };
 }

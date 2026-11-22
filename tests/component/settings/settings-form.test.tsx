@@ -40,7 +40,7 @@ describe("SettingsForm", () => {
     expect(screen.getByRole("checkbox", { name: "Online payment in chat is on" })).not.toBeChecked();
     expect(screen.getByLabelText("Payment deadline (minutes)")).toHaveValue(120);
     expect(screen.getByLabelText("Receipts allowed per payment")).toHaveValue(3);
-    expect(screen.getByLabelText("Full refund cutoff (hours before the visit)")).toHaveValue(24);
+    expect(screen.queryByLabelText(/refund/i)).toBeNull();
     expect(screen.getByLabelText("QR Ph image path")).toHaveValue("");
     expect(screen.getByLabelText("Account name shown with the QR")).toHaveValue("");
     expect(screen.getByText("20%")).toBeInTheDocument();

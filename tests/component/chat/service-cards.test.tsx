@@ -77,6 +77,7 @@ describe("PAY-07 service cards", () => {
   it("lists requirements above the discount question", () => {
     renderCard({
       kind: "privilege_options",
+      pwdVerified: true,
       requirements: [
         { serviceName: "Urinalysis", title: "Clean-catch midstream sample", description: null },
       ],

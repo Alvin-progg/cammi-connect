@@ -11,13 +11,21 @@ import { REGISTER_ERROR_TOAST_ID } from "@/lib/auth/toast-ids";
 
 import { Alert } from "@/components/ui/data";
 
+import { RegistrationBenefitsFields } from "@/components/benefits/registration-benefits-fields";
+
 import { FormField } from "./form-field";
 import { useMascot } from "./mascot-stage";
 import { SubmitButton } from "./submit-button";
 
 const INITIAL_STATE: AuthFormState = {};
 
-export function RegisterForm({ next }: { next?: string }) {
+export function RegisterForm({
+  next,
+  providers = [],
+}: {
+  next?: string;
+  providers?: { id: string; name: string }[];
+}) {
   const [state, formAction, pending] = useActionState(registerAction, INITIAL_STATE);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -102,6 +110,7 @@ export function RegisterForm({ next }: { next?: string }) {
         <p className="text-xs text-ink-muted">
           Cami&apos;s answers are AI-generated and not medical advice.
         </p>
+        <RegistrationBenefitsFields providers={providers} />
         <SubmitButton
           pending={pending}
           label="Create account"

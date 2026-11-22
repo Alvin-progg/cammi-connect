@@ -620,12 +620,12 @@ needs a transaction reference that no other payment used, ignoring case and spac
 amount received of at least the amount due, and a time received not in the future),
 `cammi_connect_reject_payment_receipt` (a `submitted` receipt; reason codes
 `not_found`, `amount_different`, `unreadable`, `already_used`, `other`),
-`cammi_connect_mark_refunded` (`refund_due` → `refunded` with a refund reference), and
+`cammi_connect_mark_refunded` (removed by `0040`), and
 `cammi_connect_record_receipt_view` (returns the latest receipt's path for a 60-second
 signed URL and writes `receipt_viewed` plus an `audit_logs` `payment.receipt_viewed`
 row). All four re-check that the staff profile is an active `front_desk` or `admin`
 (`not_allowed`); verify and reject also need the request to still be `requested`
-(`not_pending`). The `appointments_payment_refund` trigger applies D4 on every cancel or
+(`not_pending`). Removed by `0040`: the `appointments_payment_refund` trigger applied D4 on every cancel or
 reject path: a `verified` payment becomes `refund_due`, except a patient's own
 cancellation less than `payment.refund_cutoff_hours` (24) before the visit, which keeps
 `verified` and records a `no_refund` event (free rebooking within 30 days is handled by
@@ -640,10 +640,8 @@ when the reason is "Patient request". The `payment_events` action check gains
   ahead, and a doctor; verify → `verified` and confirm then succeeds; a second verify →
   `not_open`; the same reference in another case on another payment →
   `duplicate_reference`; an `awaiting_payment` (counter) payment verifies without a
-  receipt; front desk cancel and front desk reject of verified requests → `refund_due`;
-  mark refunded with a blank reference → `reference_required`, then `refunded`, then
-  `not_open`; patient cancel ≥ 24 h ahead → `refund_due`, < 24 h → stays `verified` with
-  `no_refund`; a front-desk booking and a legacy request with no payment row are still
+  receipt; the refund steps of 0036 (cancel → `refund_due`, mark refunded) no longer
+  apply after 0040; a front-desk booking and a legacy request with no payment row are still
   confirmed; one `audit_logs` `payment.receipt_viewed` row; `anon`/`authenticated` have
   no execute. The file applies twice without error.
 - Smoke test: with payments on and a QR path set, book with "I'll pay" as a synthetic
@@ -657,9 +655,8 @@ when the reason is "Patient request". The `payment_events` action check gains
   from ₱…". Send another receipt, then **Verify payment** with a made-up reference, the
   amount, and the time: the chat gets "Payment received ✔…", and Confirm now works.
   Verifying another payment with the same reference is refused. Cancel the confirmed
-  appointment: it appears under **Refund due** on the requests page; **Mark refunded**
-  with a reference, and the chat gets "Your refund has been sent…". Doctors see no
-  payment information on `/doctor`. Cancel the smoke-test appointments afterwards.
+  appointment: 0036 sent it to **Refund due**, but 0040 removed refunds, so the payment
+  stays **Paid**. Doctors see no payment information on `/doctor`. Cancel the smoke-test appointments afterwards.
 
 `0037_hmo_decisions.sql` (PAY-06 HMO decisions): adds `payments.hmo_loa_number`,
 `hmo_denied_reason`, `hmo_decided_by`, and `hmo_decided_at`; relaxes
@@ -761,6 +758,19 @@ Front desk reschedule is hidden for service visits. Safe to re-run.
   counts neither. As an admin, add and remove hours on a service's detail page and check
   `/admin/audit-log`. Cancel the smoke-test appointments afterwards.
 
+`0040_remove_refunds.sql` (no-refund policy): drops the `appointments_payment_refund`
+trigger and `cammi_connect_payment_refund_on_cancel`/`cammi_connect_mark_refunded`;
+moves `refund_due` and `refunded` payments back to `verified`; deletes their
+`refund_due`, `no_refund`, and `refunded` `payment_events` rows (the immutability trigger
+is disabled only for that delete); drops `payments.refund_reference`, `refunded_by`, and
+`refunded_at`; deletes the `payment.refund_cutoff_hours` setting and redefines
+`cammi_connect_admin_save_settings` without it. The `payment_status` enum keeps the
+`refund_due` and `refunded` labels (Postgres cannot drop enum values, and three booking
+functions return `payment_status`); nothing writes them. Back up `payments` and
+`payment_events` first. Safe to re-run. Smoke test: cancel a verified appointment as the
+patient and as the front desk; the payment stays `verified`; the Payment tab in
+`/admin/settings` has no cutoff field.
+
 `0039_payment_expiry.sql` (PAY-08 expiry, receipt retention): adds `system` to
 `user_role` (used only by `appointments.cancelled_by_role`; `profiles_role_not_system`
 keeps every profile on one of the four real roles) and `cammi_connect_expire_unpaid()`,
@@ -792,8 +802,7 @@ re-run.
   `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; add `-- --dry-run` to only
   count) deletes receipt images from the `payment-receipts` bucket 90 days after their
   payment closed (`verified`, `hmo_approved`, `expired`, `refunded`, `not_required`,
-  `collect_at_counter`, or an unfinished payment whose request is no longer pending;
-  `refund_due` stays open), then sets `purged_at`. Payment rows, receipt rows, and
+  `collect_at_counter`, or an unfinished payment whose request is no longer pending), then sets `purged_at`. Payment rows, receipt rows, and
   history stay. It prints counts only. There is no scheduler for it: run it monthly by
   hand (or from any cron host with the env vars). A front desk "View receipt" on a
   purged receipt fails to load the image.
@@ -1398,3 +1407,33 @@ scripts/db-local-apply.sh       # drops public schema, applies db/migrations in 
 supabase status                 # local URL and keys for a local .env.local
 supabase stop
 ```
+
+## Patient benefits (BEN-001): `0041` and `0042`
+
+Apply in order after `0040`, in the Supabase SQL editor (each file can run again):
+
+1. `0041_patient_benefits.sql`: the private `benefit-documents` bucket; `patient_pwd`,
+   `patient_hmo`, `doctor_hmo_accreditations`, and `appointment_hmo` (RLS on, no policies);
+   the submit, front desk decision, admin accreditation, appointment HMO, and document view
+   functions. Nothing else changes until 0042.
+2. `0042_benefit_booking.sql`: `cammi_connect_resolve_benefit_choice` and the
+   `cammi_connect_book_with_saved_hmo` and `cammi_connect_book_service_with_saved_hmo`
+   wrappers (they call the existing 0034/0038 booking functions and write `appointment_hmo`
+   in the same transaction); the trigger that mirrors the 0037 HMO decision into
+   `appointment_hmo`; the backfill of existing HMO charges; and the audited document view
+   function.
+
+The app calls only the wrappers, so the PWD and accreditation checks cannot be skipped. The
+typed-HMO functions from 0034 and 0038 remain for service_role callers only.
+
+Storage: the bucket is created by `0041`. Keep it private; the app opens documents through
+60-second signed links after an audited view (`benefit.document_viewed`).
+
+Smoke test on the hosted project (synthetic data only):
+
+- As a patient, declare PWD (ID number and image) and add an HMO membership at `/account/benefits`. Both show **Waiting for review**.
+- As front desk, open `/front-desk/benefits`, view each document, reject one with a reason, then verify the other. Check `/admin/audit-log` for `benefit.*` and `benefit.document_viewed` rows.
+- As admin, open `/admin/doctors/[id]`, tab **HMO**, and accredit the doctor for one provider with `active` status. Leave another provider out.
+- In chat, book with the verified membership and the accredited doctor: the HMO is offered. Book with the unaccredited doctor: Cami explains why and offers QR Ph or the counter. A verified PWD discount is offered only after verification.
+- On a request, open **Benefits**: set authorization and coverage separately, add an LOA number, and check that coverage does not change when authorization does.
+- Confirm that another patient's document link cannot be opened (`not_found`), and that no membership or ID number appears in any `audit_logs` row's payload.

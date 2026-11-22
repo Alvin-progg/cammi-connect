@@ -8,7 +8,6 @@ import type { FrontDeskPayment } from "@/lib/billing/verification";
 import {
   ApproveHmoDialog,
   DenyHmoDialog,
-  MarkRefundedDialog,
   ReceiptViewer,
   RejectReceiptDialog,
   VerifyPaymentDialog,
@@ -104,11 +103,6 @@ export function PaymentPanel({
         ) : null}
         {payment.receivedAt ? <Row label="Received">{formatManilaDateTime(payment.receivedAt)}</Row> : null}
         {payment.rejectedReason ? <Row label="Receipt rejected">{payment.rejectedReason}</Row> : null}
-        {payment.refundReference ? (
-          <Row label="Refund reference">
-            <span className="font-mono">{payment.refundReference}</span>
-          </Row>
-        ) : null}
       </dl>
       {payment.hmo ? (
         <HmoCoverage
@@ -117,12 +111,11 @@ export function PaymentPanel({
           decision={decidable && payment.status === "hmo_pending" ? ref : null}
         />
       ) : null}
-      {payment.hasReceipt || canVerify || canReject || payment.status === "refund_due" ? (
+      {payment.hasReceipt || canVerify || canReject ? (
         <div className="mt-5 flex flex-col gap-2">
           {payment.hasReceipt ? <ReceiptViewer paymentId={payment.id} /> : null}
           {canVerify ? <VerifyPaymentDialog {...ref} /> : null}
           {canReject ? <RejectReceiptDialog {...ref} /> : null}
-          {payment.status === "refund_due" ? <MarkRefundedDialog {...ref} /> : null}
         </div>
       ) : null}
     </section>

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  markRefundedSchema,
   paymentAllowsConfirm,
   paymentBadge,
   receiptRejectionPhrase,
@@ -28,8 +27,6 @@ describe("paymentAllowsConfirm", () => {
       "rejected",
       "hmo_pending",
       "expired",
-      "refund_due",
-      "refunded",
     ] as const) {
       expect(paymentAllowsConfirm(status)).toBe(false);
     }
@@ -60,7 +57,7 @@ describe("paymentBadge", () => {
   });
 
   it("falls back to the status label for other statuses", () => {
-    expect(paymentBadge({ status: "refund_due", deadline: null }, NOW).label).toBe("Refund due");
+    expect(paymentBadge({ status: "expired", deadline: null }, NOW).label).toBe("Payment expired");
   });
 });
 
@@ -131,14 +128,3 @@ describe("receiptRejectionPhrase", () => {
   });
 });
 
-describe("markRefundedSchema", () => {
-  it("requires a refund reference", () => {
-    expect(
-      markRefundedSchema.parse({ paymentId: PAYMENT_ID, appointmentId: APPOINTMENT_ID, refundReference: " R-1 " }),
-    ).toEqual({ paymentId: PAYMENT_ID, appointmentId: APPOINTMENT_ID, refundReference: "R-1" });
-    expect(
-      markRefundedSchema.safeParse({ paymentId: PAYMENT_ID, appointmentId: APPOINTMENT_ID, refundReference: "" })
-        .success,
-    ).toBe(false);
-  });
-});

@@ -15,7 +15,7 @@ export type SignUpPatientInput = {
 export type ServiceError = { ok: false; code: string | undefined };
 export type SignInResult = { ok: true; userId: string } | ServiceError;
 export type SignUpPatientResult =
-  | { ok: true; sessionCreated: boolean }
+  | { ok: true; sessionCreated: boolean; authUserId: string | null }
   | ServiceError;
 
 export type SessionUser = { id: string; email: string };
@@ -58,7 +58,8 @@ export async function signUpPatient(
     return { ok: false, code: error.code ?? undefined };
   }
   // A session is only returned when email confirmation is disabled.
-  return { ok: true, sessionCreated: Boolean(data.session) };
+  // authUserId lets registration attach optional benefits to the new profile.
+  return { ok: true, sessionCreated: Boolean(data.session), authUserId: data.user?.id ?? null };
 }
 
 export async function signOut(): Promise<void> {

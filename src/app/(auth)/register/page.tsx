@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { redirectIfSignedIn } from "@/server/auth/dal";
 import { AuthCard } from "@/components/auth/auth-card";
 import { RegisterForm } from "@/components/auth/register-form";
+import { listActiveHmoProviderOptions } from "@/server/benefits/providers";
 
 export const instant = false;
 
@@ -19,6 +20,7 @@ export default async function RegisterPage({
 }) {
   await redirectIfSignedIn();
   const { next } = await searchParams;
+  const providers = await listActiveHmoProviderOptions();
 
   return (
     <main id="main" className="flex flex-1 flex-col">
@@ -28,7 +30,7 @@ export default async function RegisterPage({
         subtitle="Use your own details so the hospital can reach you about appointments."
         note="Doctor and staff accounts are provided by the hospital and cannot be created here."
       >
-        <RegisterForm next={typeof next === "string" ? next : undefined} />
+        <RegisterForm next={typeof next === "string" ? next : undefined} providers={providers} />
       </AuthCard>
     </main>
   );

@@ -252,9 +252,6 @@ export type Database = {
           rejected_reason: string | null;
           rejected_by: string | null;
           rejected_at: string | null;
-          refund_reference: string | null;
-          refunded_by: string | null;
-          refunded_at: string | null;
           /** Migration 0037 (PAY-06): the HMO decision. */
           hmo_loa_number: string | null;
           hmo_denied_reason: string | null;
@@ -300,7 +297,7 @@ export type Database = {
           reason: string | null;
           created_at: string;
         };
-        // Written only by the 0034–0037 payment functions and the 0036 refund trigger.
+        // Written only by the 0034–0037 payment functions.
         Insert: { [_ in never]: never };
         Update: { [_ in never]: never };
         Relationships: [];
@@ -863,6 +860,163 @@ export type Database = {
         };
         Relationships: [];
       };
+      /** Migration 0041 (BEN-01). One PWD declaration per patient; service_role only. */
+      patient_pwd: {
+        Row: {
+          id: string;
+          patient_id: string;
+          pwd_id_number: string;
+          pwd_id_image_path: string;
+          verification_status: "pending" | "verified" | "rejected" | "expired";
+          verified_by: string | null;
+          verified_at: string | null;
+          rejection_reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          patient_id: string;
+          pwd_id_number: string;
+          pwd_id_image_path: string;
+          verification_status?: "pending" | "verified" | "rejected" | "expired";
+          verified_by?: string | null;
+          verified_at?: string | null;
+          rejection_reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          pwd_id_number?: string;
+          pwd_id_image_path?: string;
+          verification_status?: "pending" | "verified" | "rejected" | "expired";
+          verified_by?: string | null;
+          verified_at?: string | null;
+          rejection_reason?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      /** Migration 0041 (BEN-01). HMO memberships, one per patient and provider. */
+      patient_hmo: {
+        Row: {
+          id: string;
+          patient_id: string;
+          hmo_provider_id: string;
+          membership_number: string;
+          hmo_card_image_path: string | null;
+          verification_status: "pending" | "verified" | "rejected" | "expired";
+          verified_by: string | null;
+          verified_at: string | null;
+          rejection_reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          patient_id: string;
+          hmo_provider_id: string;
+          membership_number: string;
+          hmo_card_image_path?: string | null;
+          verification_status?: "pending" | "verified" | "rejected" | "expired";
+          verified_by?: string | null;
+          verified_at?: string | null;
+          rejection_reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          membership_number?: string;
+          hmo_card_image_path?: string | null;
+          verification_status?: "pending" | "verified" | "rejected" | "expired";
+          verified_by?: string | null;
+          verified_at?: string | null;
+          rejection_reason?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      /** Migration 0041 (BEN-01). Which HMO providers a doctor accepts, with validity dates. */
+      doctor_hmo_accreditations: {
+        Row: {
+          id: string;
+          doctor_id: string;
+          hmo_provider_id: string;
+          status: "pending" | "active" | "inactive" | "expired" | "rejected";
+          valid_from: string;
+          valid_until: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          doctor_id: string;
+          hmo_provider_id: string;
+          status: "pending" | "active" | "inactive" | "expired" | "rejected";
+          valid_from: string;
+          valid_until?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          status?: "pending" | "active" | "inactive" | "expired" | "rejected";
+          valid_from?: string;
+          valid_until?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      /** Migrations 0041 and 0042 (BEN-01, BEN-02). Appointment HMO authorization and coverage. */
+      appointment_hmo: {
+        Row: {
+          id: string;
+          appointment_id: string;
+          patient_hmo_id: string;
+          hmo_provider_id: string;
+          provider_name_snapshot: string;
+          membership_number_snapshot: string;
+          accreditation_status_snapshot: "pending" | "active" | "inactive" | "expired" | "rejected" | null;
+          accreditation_valid_from_snapshot: string | null;
+          accreditation_valid_until_snapshot: string | null;
+          authorization_status: "not_required" | "pending" | "approved" | "rejected" | "expired";
+          coverage_status: "pending" | "covered" | "partially_covered" | "not_covered";
+          loa_number: string | null;
+          verified_by: string | null;
+          verified_at: string | null;
+          remarks: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          appointment_id: string;
+          patient_hmo_id: string;
+          hmo_provider_id: string;
+          provider_name_snapshot: string;
+          membership_number_snapshot: string;
+          accreditation_status_snapshot?: "pending" | "active" | "inactive" | "expired" | "rejected" | null;
+          accreditation_valid_from_snapshot?: string | null;
+          accreditation_valid_until_snapshot?: string | null;
+          authorization_status?: "not_required" | "pending" | "approved" | "rejected" | "expired";
+          coverage_status?: "pending" | "covered" | "partially_covered" | "not_covered";
+          loa_number?: string | null;
+          verified_by?: string | null;
+          verified_at?: string | null;
+          remarks?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          authorization_status?: "not_required" | "pending" | "approved" | "rejected" | "expired";
+          coverage_status?: "pending" | "covered" | "partially_covered" | "not_covered";
+          loa_number?: string | null;
+          verified_by?: string | null;
+          verified_at?: string | null;
+          remarks?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {
@@ -875,8 +1029,7 @@ export type Database = {
        * Migration 0036 (PAY-05). Front desk/admin only (P0001 not_allowed);
        * verify also raises payment_not_found, not_open, not_pending,
        * reference_required, duplicate_reference, amount_short, or
-       * invalid_received_at; reject raises reason_required; mark refunded
-       * raises reference_required.
+       * invalid_received_at; reject raises reason_required.
        */
       cammi_connect_verify_payment: {
         Args: {
@@ -906,10 +1059,6 @@ export type Database = {
       cammi_connect_mark_receipts_purged: {
         Args: { p_receipt_ids: string[] };
         Returns: number;
-      };
-      cammi_connect_mark_refunded: {
-        Args: { p_payment_id: string; p_staff_id: string; p_refund_reference: string };
-        Returns: { patient_id: string; amount_due_centavos: number }[];
       };
       cammi_connect_decide_hmo: {
         Args: {
@@ -1486,6 +1635,112 @@ export type Database = {
           p_document: Json;
           p_chunks: Json;
         };
+        Returns: string;
+      };
+      cammi_connect_submit_pwd: {
+        Args: { p_patient_id: string; p_pwd_id_number: string; p_pwd_id_image_path: string };
+        Returns: undefined;
+      };
+      cammi_connect_submit_hmo: {
+        Args: {
+          p_patient_id: string;
+          p_hmo_provider_id: string;
+          p_membership_number: string;
+          p_hmo_card_image_path: string | null;
+        };
+        Returns: string;
+      };
+      cammi_connect_decide_pwd: {
+        Args: { p_patient_id: string; p_staff_id: string; p_decision: "verify" | "reject"; p_reason: string | null };
+        Returns: "pending" | "verified" | "rejected" | "expired";
+      };
+      cammi_connect_decide_hmo_membership: {
+        Args: { p_patient_hmo_id: string; p_staff_id: string; p_decision: "verify" | "reject"; p_reason: string | null };
+        Returns: "pending" | "verified" | "rejected" | "expired";
+      };
+      cammi_connect_save_doctor_hmo_accreditation: {
+        Args: {
+          p_doctor_id: string;
+          p_hmo_provider_id: string;
+          p_status: "pending" | "active" | "inactive" | "expired" | "rejected";
+          p_valid_from: string;
+          p_valid_until: string | null;
+          p_actor_id: string;
+        };
+        Returns: string;
+      };
+      cammi_connect_update_appointment_hmo: {
+        Args: {
+          p_appointment_id: string;
+          p_staff_id: string;
+          p_authorization_status: "not_required" | "pending" | "approved" | "rejected" | "expired";
+          p_coverage_status: "pending" | "covered" | "partially_covered" | "not_covered";
+          p_loa_number: string | null;
+          p_remarks: string | null;
+        };
+        Returns: undefined;
+      };
+      cammi_connect_resolve_benefit_choice: {
+        Args: {
+          p_patient_id: string;
+          p_doctor_id: string | null;
+          p_privilege: string;
+          p_payer: string;
+          p_patient_hmo_id: string | null;
+        };
+        Returns: {
+          hmo_provider_id: string | null;
+          hmo_member_number: string | null;
+          provider_name: string | null;
+          accreditation_status: string | null;
+          accreditation_valid_from: string | null;
+          accreditation_valid_until: string | null;
+        }[];
+      };
+      cammi_connect_book_with_saved_hmo: {
+        Args: {
+          p_doctor_id: string;
+          p_specialty_id: string;
+          p_patient_id: string;
+          p_scheduled_at: string;
+          p_reason: string | null;
+          p_privilege: string;
+          p_payer: string;
+          p_payment_method: string | null;
+          p_patient_hmo_id: string | null;
+          p_expected_amount_due_centavos: number;
+        };
+        Returns: {
+          appointment_id: string;
+          reference_code: string;
+          payment_status: Database["public"]["Enums"]["payment_status"];
+          amount_due_centavos: number;
+          deadline_at: string | null;
+        }[];
+      };
+      cammi_connect_book_service_with_saved_hmo: {
+        Args: {
+          p_patient_id: string;
+          p_service_ids: string[];
+          p_visit_date: string | null;
+          p_scheduled_at: string | null;
+          p_reason: string | null;
+          p_privilege: string;
+          p_payer: string;
+          p_payment_method: string | null;
+          p_patient_hmo_id: string | null;
+          p_expected_amount_due_centavos: number;
+        };
+        Returns: {
+          appointment_id: string;
+          reference_code: string;
+          payment_status: Database["public"]["Enums"]["payment_status"];
+          amount_due_centavos: number;
+          deadline_at: string | null;
+        }[];
+      };
+      cammi_connect_record_benefit_document_view: {
+        Args: { p_kind: "pwd" | "hmo"; p_record_id: string; p_staff_id: string };
         Returns: string;
       };
     };

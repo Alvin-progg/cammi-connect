@@ -1,7 +1,9 @@
 import "server-only";
 
 import type { PaymentStatus } from "@/lib/billing/payments";
+import { todayInManila } from "@/lib/appointments/filters";
 import type { BookedPayment } from "@/lib/chat/schemas";
+import { readHmoBookingOptions } from "@/server/benefits/booking-options";
 import { getSupabaseAdminClient } from "@/server/db/admin-client";
 
 import type { HmoDecisionStore } from "./hmo";
@@ -36,25 +38,15 @@ export const supabaseChargeRepository: ChargeStore = {
     );
   },
 
-  async listActiveHmoProviders() {
-    const { data, error } = await getSupabaseAdminClient()
-      .from("hmo_providers")
-      .select("id, name, copay_centavos")
-      .eq("is_active", true)
-      .order("name", { ascending: true });
-    if (error) {
-      throw new Error("Unable to load HMO providers.");
-    }
-    return (data ?? []).map((row) => ({
-      id: row.id,
-      name: row.name,
-      copayCentavos: row.copay_centavos,
-    }));
+  async listHmoOptions(input) {
+    return readHmoBookingOptions({ ...input, today: todayInManila() });
   },
 
   async bookWithCharge(input) {
     const { payment } = input;
-    const { data, error } = await getSupabaseAdminClient().rpc("cammi_connect_book_with_charge", {
+    // 0042: the wrapper checks PWD verification and the doctor's accreditation,
+    // then books and writes appointment_hmo in the same transaction.
+    const { data, error } = await getSupabaseAdminClient().rpc("cammi_connect_book_with_saved_hmo", {
       p_doctor_id: input.doctorId,
       p_specialty_id: input.specialtyId,
       p_patient_id: input.patientId,
@@ -63,8 +55,7 @@ export const supabaseChargeRepository: ChargeStore = {
       p_privilege: input.privilege,
       p_payer: payment.payer,
       p_payment_method: payment.payer === "self" ? payment.method : null,
-      p_hmo_provider_id: payment.payer === "hmo" ? payment.hmoProviderId : null,
-      p_hmo_member_number: payment.payer === "hmo" ? payment.memberNumber : null,
+      p_patient_hmo_id: payment.payer === "hmo" ? payment.patientHmoId : null,
       p_expected_amount_due_centavos: input.expectedAmountDueCentavos,
     });
     if (error) {
@@ -259,16 +250,6 @@ export const supabasePaymentDecisionRepository: PaymentDecisionStore = {
         p_staff_id: input.staffId,
         p_reason_code: input.reasonCode,
         p_reason: input.rejectedReason,
-      }),
-    );
-  },
-
-  async markRefunded(input) {
-    return toDecisionOutcome(
-      await getSupabaseAdminClient().rpc("cammi_connect_mark_refunded", {
-        p_payment_id: input.paymentId,
-        p_staff_id: input.staffId,
-        p_refund_reference: input.refundReference,
       }),
     );
   },

@@ -153,11 +153,6 @@ const settingSchemas = {
     .int("Enter a whole number.")
     .min(1, "Allow at least 1 receipt.")
     .max(10, "Allow at most 10 receipts."),
-  "payment.refund_cutoff_hours": z
-    .number()
-    .int("Enter a whole number of hours.")
-    .min(0, "Enter 0 or more hours.")
-    .max(168, "Enter at most 168 hours (7 days)."),
   "billing.privilege_discount_bps": z.literal(PRIVILEGE_DISCOUNT_BPS),
 };
 
@@ -194,7 +189,6 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   "payment.account_name": "",
   "payment.deadline_minutes": 120,
   "payment.max_receipts": 3,
-  "payment.refund_cutoff_hours": 24,
   "billing.privilege_discount_bps": PRIVILEGE_DISCOUNT_BPS,
 };
 
@@ -314,7 +308,6 @@ export function settingsFromFormData(group: SettingGroup, formData: FormData): R
         "payment.account_name": text(formData, "payment.account_name"),
         "payment.deadline_minutes": numberOrNull(formData, "payment.deadline_minutes"),
         "payment.max_receipts": numberOrNull(formData, "payment.max_receipts"),
-        "payment.refund_cutoff_hours": numberOrNull(formData, "payment.refund_cutoff_hours"),
       };
   }
 }

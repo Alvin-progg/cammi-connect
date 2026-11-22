@@ -74,6 +74,15 @@ const PACKAGE = service({
 const WALK_IN = { start: "2026-11-02T23:00:00.000Z", end: "2026-11-03T04:00:00.000Z" };
 const US_SLOT = { start: "2026-11-03T01:00:00.000Z", end: "2026-11-03T01:30:00.000Z" };
 const MAXICARE = { id: "00000000-0000-4000-8000-00000000a0a1", name: "Maxicare", copayCentavos: 0 };
+/** BEN-05: a saved membership the doctor accepts (what the tools return). */
+const MAXICARE_OPTION = {
+  patientHmoId: "00000000-0000-4000-8000-00000000b0b1",
+  providerId: MAXICARE.id,
+  name: MAXICARE.name,
+  copayCentavos: MAXICARE.copayCentavos,
+  maskedNumber: "••••4417",
+  offer: { kind: "offered" as const },
+};
 
 function fakeTools(services: BookableService[] = [CBC, URINALYSIS, ULTRASOUND, PACKAGE]): ChatTools {
   return {
@@ -86,7 +95,8 @@ function fakeTools(services: BookableService[] = [CBC, URINALYSIS, ULTRASOUND, P
     getDoctorAvailability: vi.fn(async () => []),
     createAppointment: vi.fn(),
     getConsultationFee: vi.fn(async () => 50000),
-    getActiveHmoProviders: vi.fn(async () => [MAXICARE]),
+    getHmoOptions: vi.fn(async () => [MAXICARE_OPTION]),
+    isPwdVerified: vi.fn(async () => true),
     createChargedAppointment: vi.fn(),
     getBookableServices: vi.fn(async () => services),
     getServiceTimes: vi.fn(async ({ serviceIds }: { serviceIds: string[] }) =>
@@ -207,6 +217,7 @@ describe("lab tests: CBC + urinalysis, PWD, pay by QR", () => {
     expect(result.reply).toBe(`${SERVICE_COPY.requirementsLead} ${PAYMENT_COPY.privilegeQuestion}`);
     expect(result.payload).toEqual({
       kind: "privilege_options",
+      pwdVerified: true,
       requirements: [
         { serviceName: CBC.name, title: SERVICE_COPY.doctorRequest, description: null },
         { serviceName: URINALYSIS.name, title: "Clean-catch midstream sample", description: null },
@@ -223,7 +234,7 @@ describe("lab tests: CBC + urinalysis, PWD, pay by QR", () => {
     expect(result.payload).toEqual({
       kind: "payer_options",
       philhealth: false,
-      hmoProviders: [{ id: MAXICARE.id, name: MAXICARE.name }],
+      hmoMemberships: [{ patientHmoId: MAXICARE_OPTION.patientHmoId, name: MAXICARE.name, maskedNumber: "••••4417" }],
     });
   });
 
@@ -369,7 +380,7 @@ describe("packages", () => {
       ),
       deps(),
     );
-    expect(result.payload).toEqual({ kind: "payer_options", philhealth: false, hmoProviders: [] });
+    expect(result.payload).toEqual({ kind: "payer_options", philhealth: false, hmoMemberships: [] });
   });
 });
 
