@@ -2,7 +2,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  markRefunded,
   rejectReceipt,
   verifyPayment,
   viewReceipt,
@@ -22,7 +21,6 @@ function fakes() {
   const store = {
     verify: vi.fn(),
     reject: vi.fn(),
-    markRefunded: vi.fn(),
     recordReceiptView: vi.fn(),
     signReceiptUrl: vi.fn(),
   } satisfies PaymentDecisionStore;
@@ -129,39 +127,6 @@ describe("rejectReceipt", () => {
     expect(chat.appendMessages.mock.calls[0][1][0].content).toBe(
       "The front desk couldn't match your payment: amount is different from ₱560.00. Please check and send the correct receipt.",
     );
-  });
-});
-
-describe("markRefunded", () => {
-  it("records the refund and tells the patient the reference", async () => {
-    store.markRefunded.mockResolvedValue({ ok: true, patientId: PATIENT_ID, amountDueCentavos: 56000 });
-
-    const result = await markRefunded(
-      { paymentId: PAYMENT_ID, staffId: STAFF_ID, refundReference: "R-77" },
-      store,
-      chat,
-      NOW,
-    );
-
-    expect(result).toEqual({ ok: true });
-    expect(chat.appendMessages.mock.calls[0][1][0].content).toBe(
-      "Your refund has been sent. Refund reference: R-77.",
-    );
-  });
-
-  it("explains a payment that is not refund due", async () => {
-    store.markRefunded.mockResolvedValue({ ok: false, error: { code: "P0001", message: "not_open" } });
-
-    const result = await markRefunded(
-      { paymentId: PAYMENT_ID, staffId: STAFF_ID, refundReference: "R-77" },
-      store,
-      chat,
-      NOW,
-    );
-    expect(result).toEqual({
-      ok: false,
-      message: "This payment isn't waiting for a refund. Refresh to see its current status.",
-    });
   });
 });
 

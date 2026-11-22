@@ -17,6 +17,7 @@ import {
   type PatientCancelResult,
 } from "@/server/appointments/service";
 import { getAvailableSlots, type AvailabilitySource } from "@/server/availability/service";
+import { readPwdVerified } from "@/server/benefits/booking-options";
 import { listBookableDoctors, type DirectoryStore } from "@/server/directory/service";
 import {
   bookConsultationWithCharge,
@@ -56,6 +57,7 @@ const availabilityInputSchema = z.object({
 });
 
 const patientIdInputSchema = z.object({ patientId: z.uuid() });
+const hmoOptionsInputSchema = z.object({ patientId: z.uuid(), doctorId: z.uuid().nullable() });
 
 const patientAppointmentInputSchema = z.object({
   patientId: z.uuid(),
@@ -138,7 +140,10 @@ export type ChatTools = {
   }): Promise<BookingOutcome>;
   /** PAY-03: the doctor's own fee, else the specialty default; null is "price on request". */
   getConsultationFee(input: { doctorId: string; specialtyId: string }): Promise<number | null>;
-  getActiveHmoProviders(): Promise<HmoOption[]>;
+  /** BEN-05: saved HMO memberships with the offer for this doctor (null for a service visit). */
+  getHmoOptions(input: { patientId: string; doctorId: string | null }): Promise<HmoOption[]>;
+  /** BEN-05: only a verified PWD declaration unlocks the PWD discount. */
+  isPwdVerified(input: { patientId: string }): Promise<boolean>;
   /** PAY-03: books with a charge and payment in one transaction (payment.enabled only). */
   createChargedAppointment(input: ChargedBookingInput): Promise<ChargedBookingOutcome>;
   /** PAY-07: active, walk-in or scheduled, priced services; read live with their prices. */
@@ -270,8 +275,12 @@ export function createChatTools({
       return charges.getConsultationFee(consultationFeeInputSchema.parse(input));
     },
 
-    async getActiveHmoProviders() {
-      return charges.listActiveHmoProviders();
+    async getHmoOptions(input) {
+      return charges.listHmoOptions(hmoOptionsInputSchema.parse(input));
+    },
+
+    async isPwdVerified(input) {
+      return readPwdVerified(patientIdInputSchema.parse(input).patientId);
     },
 
     async createChargedAppointment(input) {

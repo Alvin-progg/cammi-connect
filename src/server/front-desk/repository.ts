@@ -6,7 +6,7 @@ import type {
   BookingSource,
 } from "@/lib/appointments/status";
 import type { UserRole } from "@/lib/auth/roles";
-import type { FrontDeskPayment, RefundDueItem } from "@/lib/billing/verification";
+import type { FrontDeskPayment } from "@/lib/billing/verification";
 import {
   PATIENT_SEARCH_LIMIT,
   type PatientMatch,
@@ -201,7 +201,7 @@ async function loadPaymentDetails(appointmentId: string): Promise<FrontDeskPayme
   const { data: payment, error } = await supabase
     .from("payments")
     .select(
-      "id, charge_id, status, method, amount_due_centavos, deadline_at, attempts, transaction_reference, amount_received_centavos, received_at, rejected_reason, refund_reference, hmo_loa_number, hmo_denied_reason",
+      "id, charge_id, status, method, amount_due_centavos, deadline_at, attempts, transaction_reference, amount_received_centavos, received_at, rejected_reason, hmo_loa_number, hmo_denied_reason",
     )
     .eq("appointment_id", appointmentId)
     .maybeSingle();
@@ -262,45 +262,9 @@ async function loadPaymentDetails(appointmentId: string): Promise<FrontDeskPayme
     amountReceivedCentavos: payment.amount_received_centavos,
     receivedAt: payment.received_at,
     rejectedReason: payment.rejected_reason,
-    refundReference: payment.refund_reference,
     hasReceipt: (receipts.count ?? 0) > 0,
     hmo,
   };
-}
-
-/** The "Refund due" list (PAY-05), oldest first. */
-export async function listRefundsDue(limit = 50): Promise<RefundDueItem[]> {
-  const supabase = getSupabaseAdminClient();
-  const { data: payments, error } = await supabase
-    .from("payments")
-    .select("id, appointment_id, charge_id, amount_received_centavos, transaction_reference")
-    .eq("status", "refund_due")
-    .order("updated_at", { ascending: true })
-    .limit(limit);
-  if (error) {
-    throw new Error("Unable to load refunds.");
-  }
-  if (!payments?.length) return [];
-
-  const [appointments, charges] = await Promise.all([
-    supabase.from("appointments").select("id, patient_id").in("id", payments.map((p) => p.appointment_id)),
-    supabase.from("appointment_charges").select("id, reference_code").in("id", payments.map((p) => p.charge_id)),
-  ]);
-  if (appointments.error || charges.error) {
-    throw new Error("Unable to load refunds.");
-  }
-  const patientIds = new Map((appointments.data ?? []).map((row) => [row.id, row.patient_id]));
-  const references = new Map((charges.data ?? []).map((row) => [row.id, row.reference_code]));
-  const profiles = await loadProfiles(unique([...patientIds.values()]));
-
-  return payments.map((payment) => ({
-    paymentId: payment.id,
-    appointmentId: payment.appointment_id,
-    patientName: profiles.get(patientIds.get(payment.appointment_id) ?? "")?.full_name ?? "Patient",
-    referenceCode: references.get(payment.charge_id) ?? "",
-    amountReceivedCentavos: payment.amount_received_centavos,
-    transactionReference: payment.transaction_reference,
-  }));
 }
 
 async function toQueueItems(rows: RequestRow[]): Promise<RequestQueueItem[]> {

@@ -12,8 +12,6 @@ export const PAYMENT_STATUSES = [
   "verified",
   "hmo_approved",
   "expired",
-  "refund_due",
-  "refunded",
   "collect_at_counter",
 ] as const;
 
@@ -29,7 +27,5 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   verified: "Paid",
   hmo_approved: "Covered by HMO",
   expired: "Payment expired",
-  refund_due: "Refund due",
-  refunded: "Refunded",
   collect_at_counter: "Pay at the counter",
 };

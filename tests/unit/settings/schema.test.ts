@@ -286,10 +286,9 @@ describe("payment settings (PAY-01)", () => {
     "payment.account_name": "",
     "payment.deadline_minutes": 120,
     "payment.max_receipts": 3,
-    "payment.refund_cutoff_hours": 24,
   };
 
-  it("defaults to payments off, a 120-minute deadline, 3 receipts, a 24-hour refund cutoff, and 20%", () => {
+  it("defaults to payments off, a 120-minute deadline, 3 receipts, and 20%", () => {
     expect(DEFAULT_SETTINGS).toMatchObject({
       ...paymentValues,
       "billing.privilege_discount_bps": 2000,
@@ -305,7 +304,6 @@ describe("payment settings (PAY-01)", () => {
           ["payment.account_name", " Synthetic Hospital Inc. "],
           ["payment.deadline_minutes", "90"],
           ["payment.max_receipts", "2"],
-          ["payment.refund_cutoff_hours", "48"],
         ]),
       ),
     );
@@ -315,11 +313,10 @@ describe("payment settings (PAY-01)", () => {
       "payment.account_name": "Synthetic Hospital Inc.",
       "payment.deadline_minutes": 90,
       "payment.max_receipts": 2,
-      "payment.refund_cutoff_hours": 48,
     });
   });
 
-  it("bounds the deadline, receipt limit, and refund cutoff", () => {
+  it("bounds the deadline and receipt limit", () => {
     const parse = (patch: Record<string, unknown>) =>
       settingsGroupSchemas.payment.safeParse({ ...paymentValues, ...patch }).success;
 
@@ -327,8 +324,6 @@ describe("payment settings (PAY-01)", () => {
     expect(parse({ "payment.deadline_minutes": 1441 })).toBe(false);
     expect(parse({ "payment.max_receipts": 0 })).toBe(false);
     expect(parse({ "payment.max_receipts": 11 })).toBe(false);
-    expect(parse({ "payment.refund_cutoff_hours": -1 })).toBe(false);
-    expect(parse({ "payment.refund_cutoff_hours": 169 })).toBe(false);
   });
 
   it("never lets the payment tab change the legal 20% privilege discount", () => {

@@ -171,19 +171,19 @@ describe("loginAction", () => {
 
 describe("registerAction", () => {
   it("redirects when a session is created immediately", async () => {
-    vi.mocked(signUpPatient).mockResolvedValue({ ok: true, sessionCreated: true });
+    vi.mocked(signUpPatient).mockResolvedValue({ ok: true, sessionCreated: true, authUserId: null });
     await registerAction({}, registerFormData({ next: "/account" }));
     expect(redirect).toHaveBeenCalledWith("/account");
   });
 
   it("sends a new patient to /chat when no next path is given", async () => {
-    vi.mocked(signUpPatient).mockResolvedValue({ ok: true, sessionCreated: true });
+    vi.mocked(signUpPatient).mockResolvedValue({ ok: true, sessionCreated: true, authUserId: null });
     await registerAction({}, registerFormData());
     expect(redirect).toHaveBeenCalledWith("/chat");
   });
 
   it("returns a neutral confirmation when email confirmation is required", async () => {
-    vi.mocked(signUpPatient).mockResolvedValue({ ok: true, sessionCreated: false });
+    vi.mocked(signUpPatient).mockResolvedValue({ ok: true, sessionCreated: false, authUserId: null });
     const state = await registerAction({}, registerFormData());
     expect(state.success).toBe(
       "If an account can be created for this email, check your inbox.",
@@ -192,7 +192,7 @@ describe("registerAction", () => {
   });
 
   it("passes the sanitized next path to the sign-up service", async () => {
-    vi.mocked(signUpPatient).mockResolvedValue({ ok: true, sessionCreated: false });
+    vi.mocked(signUpPatient).mockResolvedValue({ ok: true, sessionCreated: false, authUserId: null });
     await registerAction({}, registerFormData({ next: "//evil.example" }));
     expect(signUpPatient).toHaveBeenCalledWith(
       expect.objectContaining({ next: "/chat" }),

@@ -2,6 +2,7 @@ import type { ChargeLineInput, PrivilegeChoice } from "@/lib/billing/compute";
 import { formatPesos } from "@/lib/billing/money";
 import type { PaymentStatus } from "@/lib/billing/payments";
 import { formatManilaShortDate, formatManilaTime } from "@/lib/appointments/format";
+import type { HmoOfferStatus } from "@/lib/benefits/hmo-offer";
 import { manilaDateOf } from "@/lib/chat/booking";
 import { addDays } from "@/lib/chat/resolve";
 import type { ChatMessage, ChatRole } from "@/lib/chat/schemas";
@@ -18,6 +19,9 @@ export const PAYMENT_COPY = {
   priceOnRequest:
     "The fee for this visit is available on request, so I can't book it here. Please contact the hospital front desk and they'll help you book.",
   hmoUnavailable: "That HMO isn't available for booking anymore.",
+  /** BEN-05: the discount needs a verified PWD declaration. */
+  pwdNotVerified:
+    "Your PWD discount needs a verified PWD ID, so I've kept the question open. You can add your PWD ID in your account.",
   /** PAY-04: appended by the receipt route after a successful upload. */
   receiptReceived:
     "Got your receipt, thank you! The front desk will check it and I'll let you know here.",
@@ -92,6 +96,23 @@ export function paymentQrImageSrc(path: string): string | null {
   return /^\/(?![/\\])[^\s\\]*$/.test(trimmed) ? trimmed : null;
 }
 
+/** BEN-05: why a saved membership can't be used for this doctor; undefined when it can. */
+export function hmoOfferCopy(offer: HmoOfferStatus, hmoName: string): string | undefined {
+  switch (offer.kind) {
+    case "offered":
+    case "no_membership":
+      return undefined;
+    case "verification_required":
+      return `Your ${hmoName} membership is still waiting for front desk review, so it can't be used yet.`;
+    case "membership_not_usable":
+      return `Your ${hmoName} membership can't be used for payment. You can check it in your account.`;
+    case "doctor_not_accredited":
+      return `This doctor doesn't accept ${hmoName}. You can pay by QR Ph or at the counter instead.`;
+    case "accreditation_expired":
+      return `This doctor's ${hmoName} accreditation has ended. You can pay by QR Ph or at the counter instead.`;
+  }
+}
+
 export function hmoPendingCopy(hmoName: string): string {
   return `Thanks! The front desk will check your ${hmoName} coverage. Please request an LOA in your HMO app and bring your HMO card and a valid ID.`;
 }
@@ -128,11 +149,6 @@ export function hmoDeniedCopy(input: {
 /** PAY-05: appended when the front desk rejects a receipt (D9). */
 export function receiptRejectedCopy(reason: string): string {
   return `The front desk couldn't match your payment: ${reason}. Please check and send the correct receipt.`;
-}
-
-/** PAY-05: appended when the front desk marks a refund sent. */
-export function refundSentCopy(refundReference: string): string {
-  return `Your refund has been sent. Refund reference: ${refundReference}.`;
 }
 
 /**

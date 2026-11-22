@@ -223,12 +223,15 @@ export const chatMessagePayloadSchema = z.discriminatedUnion("kind", [
     kind: z.literal("privilege_options"),
     /** PAY-07: what to prepare for the chosen services, shown before any payment. */
     requirements: z.array(serviceRequirementSchema).optional(),
+    /** BEN-05: the PWD choice is offered only when the declaration is verified. */
+    pwdVerified: z.boolean(),
   }),
   z.object({
     kind: z.literal("payer_options"),
     /** Only when the item has a PhilHealth benefit above ₱0. */
     philhealth: z.boolean(),
-    hmoProviders: z.array(z.object({ id: z.string(), name: z.string() })),
+    /** BEN-05: saved memberships the doctor accepts; numbers are masked. */
+    hmoMemberships: z.array(z.object({ patientHmoId: z.uuid(), name: z.string(), maskedNumber: z.string() })),
   }),
   z.object({
     kind: z.literal("slot_picker"),

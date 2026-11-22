@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { CONFIRMABLE_PAYMENT_STATUSES, RECEIPT_REJECTION_REASONS } from "@/lib/billing/verification";
-import { DEFAULT_SETTINGS } from "@/lib/settings/schema";
 
 import { functionBodies, MIGRATIONS_DIR } from "../../helpers/sql";
 
@@ -21,13 +20,11 @@ const body = (name: string) => bodies.find((fn) => fn.name === name)?.body ?? ""
 const confirm = body("cammi_connect_confirm_appointment");
 const verify = body("cammi_connect_verify_payment");
 const reject = body("cammi_connect_reject_payment_receipt");
-const refunded = body("cammi_connect_mark_refunded");
 const viewed = body("cammi_connect_record_receipt_view");
-const onCancel = body("cammi_connect_payment_refund_on_cancel");
 
 describe("payment verification migration (0036)", () => {
   it("defines every PAY-05 function", () => {
-    for (const fn of [confirm, verify, reject, refunded, viewed, onCancel]) {
+    for (const fn of [confirm, verify, reject, viewed]) {
       expect(fn).not.toBe("");
     }
   });
@@ -46,7 +43,7 @@ describe("payment verification migration (0036)", () => {
   });
 
   it("lets only active front desk or admin staff decide", () => {
-    for (const fn of [verify, reject, refunded, viewed]) {
+    for (const fn of [verify, reject, viewed]) {
       expect(fn).toMatch(/role in \('front_desk', 'admin'\)/);
       expect(fn).toMatch(/is_active/);
       expect(fn).toMatch(/raise exception 'not_allowed'/);
@@ -83,30 +80,10 @@ describe("payment verification migration (0036)", () => {
     }
   });
 
-  it("marks a refund_due payment refunded with a reference", () => {
-    expect(refunded).toMatch(/v_payment\.status <> 'refund_due'/);
-    expect(refunded).toMatch(/raise exception 'reference_required'/);
-    expect(refunded).toMatch(/status = 'refunded'/);
-    expect(refunded).toMatch(/insert into public\.payment_events[\s\S]*'refunded'/);
-  });
-
   it("audits every receipt view in payment_events and audit_logs", () => {
     expect(viewed).toMatch(/insert into public\.payment_events[\s\S]*'receipt_viewed'/);
     expect(viewed).toMatch(/insert into public\.audit_logs[\s\S]*'payment\.receipt_viewed'/);
     expect(viewed).toMatch(/raise exception 'receipt_not_found'/);
-  });
-
-  it("applies the D4 refund rule when a paid appointment is cancelled or rejected", () => {
-    expect(MIGRATION).toMatch(
-      /create trigger appointments_payment_refund\s+after update of status on public\.appointments/,
-    );
-    expect(onCancel).toMatch(/new\.status not in \('cancelled', 'rejected'\) or old\.status = new\.status/);
-    expect(onCancel).toMatch(/status = 'verified'/);
-    expect(onCancel).toMatch(/cancelled_by_role = 'patient'/);
-    const fallback = onCancel.match(/'payment\.refund_cutoff_hours'\s*\),\s*(\d+)\)/)?.[1];
-    expect(Number(fallback)).toBe(DEFAULT_SETTINGS["payment.refund_cutoff_hours"]);
-    expect(onCancel).toMatch(/status = 'refund_due'/);
-    expect(onCancel).toMatch(/'no_refund'/);
   });
 
   it("locks every function down per ADR-0003", () => {

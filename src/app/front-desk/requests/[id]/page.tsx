@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { AccessDenied } from "@/components/auth/access-denied";
 import { AttendanceActions } from "@/components/front-desk/attendance-actions";
 import { PaymentPanel } from "@/components/front-desk/payment-panel";
+import { RequestBenefitsPanel } from "@/components/front-desk/request-benefits-panel";
 import { SplitLayout } from "@/components/shell/staff-shell";
 import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
 import {
@@ -126,6 +127,7 @@ export default async function FrontDeskRequestPage({
               <PaymentPanel appointmentId={request.id} payment={payment} now={new Date()} decidable={isPending} />
             ) : null}
             <RequestDetailsView request={request} />
+            <RequestBenefitsPanel appointmentId={request.id} />
           </div>
         }
         side={

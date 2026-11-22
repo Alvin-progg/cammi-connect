@@ -4,7 +4,6 @@ import Link from "next/link";
 
 import { AccessDenied } from "@/components/auth/access-denied";
 import { FrontDeskShell } from "@/components/front-desk/front-desk-shell";
-import { RefundDueList } from "@/components/front-desk/refund-due-list";
 import { RequestBoard, RequestQueue } from "@/components/front-desk/request-queue";
 import { LinkTabs } from "@/components/ui/navigation";
 import { LinkButton, buttonVariants } from "@/components/ui/button";
@@ -17,7 +16,6 @@ import {
 import { getFrontDeskSession } from "@/server/auth/dal";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import {
-  listRefundsDue,
   supabaseFrontDeskOverviewRepository,
   supabaseFrontDeskRequestsRepository,
 } from "@/server/front-desk/repository";
@@ -48,12 +46,11 @@ export default async function FrontDeskRequestsPage({
   const parsedFilters = parseRequestQueueFilters(params);
   // The board shows every status in its own column, so it ignores the status filter.
   const filters = view === "board" ? { ...parsedFilters, status: "all" as const } : parsedFilters;
-  const [queue, doctors, specialties, counts, refundsDue] = await Promise.all([
+  const [queue, doctors, specialties, counts] = await Promise.all([
     listRequestQueue(filters, supabaseFrontDeskRequestsRepository),
     supabaseDirectoryRepository.listDoctors({ activeOnly: false }),
     supabaseDirectoryRepository.listSpecialties(),
     getOverviewCounts(supabaseFrontDeskOverviewRepository, now),
-    listRefundsDue(),
   ]);
 
   // Tab links keep the other filters.
@@ -195,7 +192,6 @@ export default async function FrontDeskRequestsPage({
         ) : (
           <RequestQueue items={queue.items} limitReached={queue.limitReached} now={now} />
         )}
-        <RefundDueList items={refundsDue} />
       </div>
     </FrontDeskShell>
   );

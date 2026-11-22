@@ -28,7 +28,7 @@ If you have an HMO card from an accredited HMO, choose "My HMO" when Cami asks h
 
 ## Cancellations and refunds
 
-If you cancel a paid appointment at least 24 hours before your schedule, the hospital refunds the full amount to the account you paid from. If the hospital cancels your appointment, you always get a full refund.
+Payments are non-refundable. Once the front desk has verified your payment, the amount is not refunded if you cancel the appointment, whether you cancel it yourself or the hospital cancels it.
 
 ## Emergencies
 

@@ -26,7 +26,6 @@ import {
 import type { RequestDecisionState } from "@/server/front-desk/actions";
 import {
   decideHmoAction,
-  markRefundedAction,
   rejectReceiptAction,
   verifyPaymentAction,
   viewReceiptAction,
@@ -202,32 +201,6 @@ function RejectForm({ close, safeActionRef, ...payment }: FormProps) {
   );
 }
 
-function RefundForm({ close, safeActionRef, ...payment }: FormProps) {
-  const [state, formAction, pending] = useActionState(markRefundedAction, IDLE_STATE);
-  useSuccess(state, close);
-
-  return (
-    <form action={formAction}>
-      <Hidden {...payment} />
-      <TextField
-        id={`refund-${payment.paymentId}-reference`}
-        name="refundReference"
-        label="Refund reference"
-        maxLength={100}
-        autoComplete="off"
-      />
-      <FormFooter
-        state={state}
-        pending={pending}
-        submitLabel="Mark refunded"
-        pendingLabel="Saving…"
-        close={close}
-        safeActionRef={safeActionRef}
-      />
-    </form>
-  );
-}
-
 function ApproveHmoForm({ close, safeActionRef, ...payment }: FormProps) {
   const [state, formAction, pending] = useActionState(decideHmoAction, IDLE_STATE);
   useSuccess(state, close);
@@ -332,18 +305,6 @@ export function RejectReceiptDialog(payment: PaymentRef) {
       triggerLabel="Reject receipt"
       destructive
       Form={RejectForm}
-    />
-  );
-}
-
-export function MarkRefundedDialog(payment: PaymentRef) {
-  return (
-    <PaymentDialog
-      payment={payment}
-      title="Mark this payment refunded?"
-      description="Enter the reference of the refund you sent. Cami tells the patient."
-      triggerLabel="Mark refunded"
-      Form={RefundForm}
     />
   );
 }

@@ -11,12 +11,11 @@ export const RECEIPT_RETENTION_DAYS = 90;
 
 const DAY_MS = 86_400_000;
 
-/** Statuses after which no further payment action is expected. refund_due is still open. */
+/** Statuses after which no further payment action is expected. */
 const CLOSED_STATUSES: readonly PaymentStatus[] = [
   "verified",
   "hmo_approved",
   "expired",
-  "refunded",
   "not_required",
   "collect_at_counter",
 ];
@@ -38,7 +37,7 @@ export function paymentClosedAt(row: ReceiptRetentionRow): string | null {
   if (CLOSED_STATUSES.includes(row.paymentStatus)) {
     return row.paymentUpdatedAt;
   }
-  if (row.paymentStatus === "refund_due" || row.appointmentStatus === "requested") {
+  if (row.appointmentStatus === "requested") {
     return null;
   }
   return Date.parse(row.appointmentUpdatedAt) > Date.parse(row.paymentUpdatedAt)

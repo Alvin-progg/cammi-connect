@@ -1,7 +1,7 @@
 import type { DoctorStatusFilter, DoctorTab } from "./types";
 
 const STATUS_FILTERS: readonly DoctorStatusFilter[] = ["all", "active", "inactive"];
-const TABS: readonly DoctorTab[] = ["profile", "schedule", "appointments"];
+const TABS: readonly DoctorTab[] = ["profile", "schedule", "appointments", "hmo"];
 
 function firstValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;

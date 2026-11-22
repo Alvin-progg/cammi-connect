@@ -230,10 +230,10 @@ Authorization model note: under ADR-0003, every table has RLS on with no policie
 | Reject a submitted receipt with a preset reason (not found, amount different, unreadable, already used, other + text); the patient can resend up to the limit | test + local SQL smoke | `tests/unit/billing/verification.test.ts`, `tests/component/front-desk/payment-panel.test.tsx`, db/README.md (0036) |
 | Only active front desk/admin staff decide (re-checked in SQL, `not_allowed`); every decision writes `payment_events`; Server Actions resolve the front desk session | test (static) + local SQL smoke | `tests/unit/billing/payment-verification-sql.test.ts`, `tests/unit/security/server-actions.test.ts` |
 | Queue payment badges (Awaiting payment, Receipt to check, HMO to check, Paid, Overdue), "Receipt to check" filter, receipts to check sorted first | test | `tests/component/front-desk/request-queue.test.tsx`, `tests/unit/billing/verification.test.ts`, `tests/unit/front-desk/requests.test.ts`, `tests/unit/front-desk/service.test.ts` |
-| Payment panel: breakdown, reference code, deadline, attempts; Verify / Reject / Mark refunded; no actions for HMO (PAY-06) | test | `tests/component/front-desk/payment-panel.test.tsx` |
+| Payment panel: breakdown, reference code, deadline, attempts; Verify / Reject; no actions for HMO (PAY-06) | test | `tests/component/front-desk/payment-panel.test.tsx` |
 | Receipt viewer: the view is audited (`payment_events` `receipt_viewed` and `audit_logs` `payment.receipt_viewed`) before a 60-second signed URL is made server-side; the image is shown from a blob (CSP unchanged) | test + local SQL smoke | `tests/unit/payments/verification.test.ts`, `tests/component/front-desk/payment-panel.test.tsx`, db/README.md (0036) |
-| Cami tells the patient in their latest chat (D9): the spec's Verified and Rejected texts and a refund-sent text, templated and hidden from the LLM (`payment_update` payload) | test | `tests/unit/payments/verification.test.ts`, `tests/unit/chat/payment.test.ts` |
-| Cancelling a paid appointment creates a refund to track (D4 trigger on any cancel or reject path); a patient's own cancellation under `payment.refund_cutoff_hours` keeps the payment verified with a `no_refund` event; "Refund due" list and Mark refunded with a reference | test (static) + local SQL smoke | `tests/unit/billing/payment-verification-sql.test.ts`, `tests/component/front-desk/payment-panel.test.tsx`, db/README.md (0036) |
+| Cami tells the patient in their latest chat (D9): the spec's Verified and Rejected texts, templated and hidden from the LLM (`payment_update` payload) | test | `tests/unit/payments/verification.test.ts`, `tests/unit/chat/payment.test.ts` |
+| Cancelling a paid appointment keeps the payment `verified` (no-refund policy, 0040); no refund trigger, function, column, setting, or refund UI remains; `payment_events` allows no refund actions | test (static) | `tests/unit/billing/refund-removal-sql.test.ts`, `tests/unit/billing/retention.test.ts` |
 | Doctors never see payment data (doctor routes, components, and server reads never touch payment tables or billing modules) | test (static) | `tests/unit/security/doctor-payment-privacy.test.ts` |
 | End-to-end verify/reject/refund through the running app, and the receipt image loading from Supabase Storage | manual | db/README.md (0036 smoke test) |
 
@@ -278,6 +278,27 @@ Decisions: one appointment row per visit (`kind = 'service'`, `doctor_id` null, 
 | Cami's Expired message (spec text, doctor or service names) in the patient's latest conversation, `payment_update` payload hidden from the LLM | test (static) + local SQL smoke | `tests/unit/billing/expire-unpaid-sql.test.ts`, db/README.md (0039) |
 | No profile can hold the `system` role | test (static) + local SQL smoke | `tests/unit/billing/expire-unpaid-sql.test.ts`, db/README.md (0039) |
 | pg_cron every 5 minutes, scheduled only when the extension is installed | test (static) + local (job ran) | `tests/unit/billing/expire-unpaid-sql.test.ts`, db/README.md (0039) |
-| Receipt retention (D5): purgeable 90 days after the payment closed; `refund_due` and pending requests stay open; `npm run payments:purge-receipts` deletes images then marks `purged_at` | test + local run | `tests/unit/billing/retention.test.ts`, db/README.md (0039) |
-| Refunds tracked (`refund_due` → `refunded`) | test (PAY-05) | see PAY-05 |
+| Receipt retention (D5): purgeable 90 days after the payment closed; pending requests stay open; `npm run payments:purge-receipts` deletes images then marks `purged_at` | test + local run | `tests/unit/billing/retention.test.ts`, db/README.md (0039) |
+| Refunds removed (no-refund policy, 0040) | test (static) | `tests/unit/billing/refund-removal-sql.test.ts` |
 | Overdue requests cancel automatically on the hosted project (pg_cron enabled) and the purge run there | manual | db/README.md (0039 smoke test) |
+
+## BEN-001 Patient PWD benefits and HMO management
+
+Requirements: `SPEC.md` §17 (`FR-040`–`FR-052`). Tests are written; the local and hosted SQL smoke
+tests in `db/README.md` ("Patient benefits") are still pending and are the QA step.
+
+| Requirement | Verification | Evidence |
+|---|---|---|
+| `FR-040` optional PWD and HMO at registration, stored `pending`, never blocks sign-up | test | `tests/unit/benefits/registration.test.ts`, `tests/unit/auth/actions.test.ts` |
+| `FR-041` patient views and updates benefits; change returns to `pending` | test (static) + manual | `tests/unit/benefits/benefits-sql.test.ts` (submit resets), `tests/unit/benefits/service.test.ts`; db/README.md smoke test |
+| `FR-042` front desk reviews, views (audited link), verifies or rejects with a reason | test | `tests/unit/benefits/schemas.test.ts`, `tests/unit/benefits/service.test.ts`, `tests/unit/benefits/benefits-sql.test.ts` |
+| `FR-043` only verified PWD is applied; `pwd_not_verified` refused in SQL and hidden in chat | test (static + component) | `tests/unit/benefits/benefit-booking-sql.test.ts`, `tests/component/chat/payment-cards.test.tsx`, `tests/unit/chat/booking-payment.test.ts` |
+| `FR-044` admin manages each doctor's accreditation (status and dates), audited | test | `tests/unit/benefits/benefits-sql.test.ts`, `tests/unit/benefits/schemas.test.ts`; manual: `/admin/doctors/[id]` HMO tab |
+| `FR-045` chat offers HMO only for a verified, accepted membership; explains otherwise | test | `tests/unit/benefits/hmo-offer.test.ts`, `tests/unit/chat/booking-payment.test.ts` |
+| `FR-046` `appointment_hmo` snapshots on booking | test (static) | `tests/unit/benefits/benefit-booking-sql.test.ts` |
+| `FR-047` authorization and coverage set independently; LOA recorded | test | `tests/unit/benefits/service.test.ts`, `tests/unit/benefits/schemas.test.ts`, `tests/unit/benefits/benefits-sql.test.ts` |
+| `FR-048` full member number on the request panel only; masked elsewhere | test (static) + manual | `src/components/front-desk/request-benefits-panel.tsx`; `maskMemberNumber` in `src/lib/billing/hmo.ts` |
+| `FR-049` private bucket, owner-only upload, audited 60-second view | test | `tests/unit/benefits/service.test.ts`, `tests/unit/benefits/benefit-booking-sql.test.ts` |
+| `FR-050` no membership or ID numbers in audit payloads or LLM history | test (static) | `tests/unit/benefits/benefits-sql.test.ts` ("keeps ID numbers…") |
+| `FR-051` service_role only, RLS on with no policies | test (static) | `tests/unit/benefits/benefits-sql.test.ts`, `tests/unit/benefits/benefit-booking-sql.test.ts` |
+| `FR-052` confirmation gate unchanged; no new benefit math | test (existing) | `tests/unit/billing/*` (existing 0036 and compute tests stay green) |

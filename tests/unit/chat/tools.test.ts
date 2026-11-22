@@ -160,8 +160,15 @@ function fakeServices(): ServiceBookingStore {
 function fakeCharges(): ChargeStore {
   return {
     getConsultationFee: vi.fn(async () => 70000),
-    listActiveHmoProviders: vi.fn(async () => [
-      { id: "00000000-0000-4000-8000-00000000a0a1", name: "Maxicare", copayCentavos: 0 },
+    listHmoOptions: vi.fn(async () => [
+      {
+        patientHmoId: "00000000-0000-4000-8000-00000000b0b1",
+        providerId: "00000000-0000-4000-8000-00000000a0a1",
+        name: "Maxicare",
+        copayCentavos: 0,
+        maskedNumber: "••••4417",
+        offer: { kind: "offered" as const },
+      },
     ]),
     bookWithCharge: vi.fn(async () => ({
       ok: true as const,

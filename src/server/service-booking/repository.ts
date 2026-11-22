@@ -124,7 +124,8 @@ export const supabaseServiceBookingRepository: ServiceBookingStore = {
   async bookService(input) {
     const { payment } = input;
     const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase.rpc("cammi_connect_book_service", {
+    // 0042: as the consultation wrapper; service visits check verification only.
+    const { data, error } = await supabase.rpc("cammi_connect_book_service_with_saved_hmo", {
       p_patient_id: input.patientId,
       p_service_ids: input.serviceIds,
       p_visit_date: input.visitDate,
@@ -133,8 +134,7 @@ export const supabaseServiceBookingRepository: ServiceBookingStore = {
       p_privilege: input.privilege,
       p_payer: payment.payer,
       p_payment_method: payment.payer === "self" ? payment.method : null,
-      p_hmo_provider_id: payment.payer === "hmo" ? payment.hmoProviderId : null,
-      p_hmo_member_number: payment.payer === "hmo" ? payment.memberNumber : null,
+      p_patient_hmo_id: payment.payer === "hmo" ? payment.patientHmoId : null,
       p_expected_amount_due_centavos: input.expectedAmountDueCentavos,
     });
     if (error) {

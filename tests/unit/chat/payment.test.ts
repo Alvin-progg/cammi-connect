@@ -9,7 +9,6 @@ import {
   hmoPendingCopy,
   modelHistory,
   receiptRejectedCopy,
-  refundSentCopy,
   paymentQrImageSrc,
   paymentRequestCopy,
 } from "@/lib/chat/payment";
@@ -199,7 +198,6 @@ describe("front desk payment updates (PAY-05)", () => {
     expect(receiptRejectedCopy("amount is different from ₱560.00")).toBe(
       "The front desk couldn't match your payment: amount is different from ₱560.00. Please check and send the correct receipt.",
     );
-    expect(refundSentCopy("R-77")).toBe("Your refund has been sent. Refund reference: R-77.");
   });
 
   it("hides payment updates from the model", () => {

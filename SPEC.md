@@ -648,3 +648,21 @@ Do not block independent foundation work on decisions not yet needed. Record unr
 - Automatically deploying production changes without human approval.
 
 **Final principle:** The LLM generates language; the retrieval system supplies evidence; the database supplies authoritative operational facts; and the server-side code enforces security and business rules.
+
+## 17. Patient Benefits (PWD and HMO)
+
+Source: `specs/tasks/BEN-001-patient-benefits.md`; decisions in `specs/decisions/ADR-0010-patient-benefits-verification.md`.
+
+- `FR-040` Registration has an optional PWD section (yes/no, ID number, ID image) and an optional HMO section (provider, member number, optional card image). Both are stored `pending`. Declining either never blocks sign-up.
+- `FR-041` Patients view and update their PWD and HMO records at `/account/benefits`, see verification status and rejection reasons, and replace documents. Any change returns the record to `pending`.
+- `FR-042` Front desk reviews, views (audited, short-lived signed URL), approves, or rejects PWD and HMO submissions at `/front-desk/benefits`. Rejection needs a reason. Every decision is audited.
+- `FR-043` Only verified PWD benefits are applied in chat. An unverified patient cannot book with `privilege = pwd` (`pwd_not_verified`).
+- `FR-044` Admins maintain HMO providers (existing `/admin/hmo-providers`) and each doctor's HMO accreditation (`/admin/doctors/[id]`, HMO tab): status (`pending`, `active`, `inactive`, `expired`, `rejected`) and validity dates. Changes are audited.
+- `FR-045` Chat offers HMO only for a verified membership whose provider the chosen doctor accepts (active, today inside validity). Otherwise Cami says why and offers self-pay or another payer.
+- `FR-046` Booking writes an `appointment_hmo` row with snapshots of the provider, membership, and accreditation at booking time. Later changes to the profile or accreditation do not rewrite it.
+- `FR-047` Front desk sets appointment HMO authorization (`not_required`, `pending`, `approved`, `rejected`, `expired`) and coverage (`pending`, `covered`, `partially_covered`, `not_covered`) independently, and records the LOA number. Accreditation never implies coverage.
+- `FR-048` Request details show the HMO review panel with the full member number (front desk only). Doctors and chat see masked numbers only.
+- `FR-049` Benefit documents live in the private `benefit-documents` bucket. Patients upload only their own; staff view through an audited 60-second signed URL.
+- `FR-050` Membership numbers, ID numbers, and document paths never appear in audit payloads, LLM history, or public API responses.
+- `FR-051` Benefit records and appointment HMO rows are service_role only with RLS on and no policies (ADR-0003). Application guards are the enforcement point.
+- `FR-052` Confirmation stays separate from benefit verification: the `0036` payment gate is unchanged, and PWD and HMO are never combined beyond the existing `computeCharge` order.

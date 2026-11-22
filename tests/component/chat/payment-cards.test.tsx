@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { BookingCard, type BookingPayload } from "@/components/chat/booking-cards";
 
-const MAXICARE_ID = "00000000-0000-4000-8000-00000000a0a1";
+const MEMBERSHIP_ID = "00000000-0000-4000-8000-00000000b0b1";
+const MEMBERSHIP = { patientHmoId: MEMBERSHIP_ID, name: "Maxicare", maskedNumber: "••••4417" };
 const SLOT = { start: "2026-11-03T01:00:00.000Z", end: "2026-11-03T01:30:00.000Z" };
 
 function renderCard(payload: BookingPayload) {
@@ -14,7 +15,7 @@ function renderCard(payload: BookingPayload) {
 
 describe("PAY-03 payment cards", () => {
   it("sends one discount choice", () => {
-    const onEvent = renderCard({ kind: "privilege_options" });
+    const onEvent = renderCard({ kind: "privilege_options", pwdVerified: true });
 
     fireEvent.click(screen.getByRole("button", { name: "Senior citizen (60+)" }));
     expect(onEvent).toHaveBeenCalledWith({ type: "select_privilege", privilege: "senior" });
@@ -24,11 +25,18 @@ describe("PAY-03 payment cards", () => {
     expect(onEvent).toHaveBeenCalledWith({ type: "select_privilege", privilege: "none" });
   });
 
+  it("offers the PWD discount only once the declaration is verified", () => {
+    renderCard({ kind: "privilege_options", pwdVerified: false });
+
+    expect(screen.getByRole("button", { name: "Senior citizen (60+)" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "PWD" })).not.toBeInTheDocument();
+  });
+
   it("offers self-pay, pay at the hospital, and HMO, and hides PhilHealth without a benefit", () => {
     const onEvent = renderCard({
       kind: "payer_options",
       philhealth: false,
-      hmoProviders: [{ id: MAXICARE_ID, name: "Maxicare" }],
+      hmoMemberships: [MEMBERSHIP],
     });
 
     expect(screen.queryByRole("button", { name: "PhilHealth" })).not.toBeInTheDocument();
@@ -44,22 +52,22 @@ describe("PAY-03 payment cards", () => {
     });
   });
 
-  it("asks for the HMO and member number before sending an HMO choice", () => {
+  it("lets the patient pick a saved HMO membership, with no member number to type", () => {
     const onEvent = renderCard({
       kind: "payer_options",
       philhealth: true,
-      hmoProviders: [{ id: MAXICARE_ID, name: "Maxicare" }],
+      hmoMemberships: [MEMBERSHIP],
     });
 
     expect(screen.getByRole("button", { name: "PhilHealth" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "My HMO" }));
-    fireEvent.change(screen.getByLabelText("HMO"), { target: { value: MAXICARE_ID } });
-    fireEvent.change(screen.getByLabelText("Member number"), { target: { value: "12344417" } });
+    expect(screen.queryByLabelText("Member number")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("HMO membership"), { target: { value: MEMBERSHIP_ID } });
     fireEvent.click(screen.getByRole("button", { name: "Use my HMO" }));
 
     expect(onEvent).toHaveBeenCalledWith({
       type: "select_payer",
-      payment: { payer: "hmo", hmoProviderId: MAXICARE_ID, memberNumber: "12344417" },
+      payment: { payer: "hmo", patientHmoId: MEMBERSHIP_ID },
     });
   });
 

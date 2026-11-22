@@ -4,7 +4,7 @@ import {
   receiptRejectionPhrase,
   type ReceiptRejectionReason,
 } from "@/lib/billing/verification";
-import { PAYMENT_COPY, receiptRejectedCopy, refundSentCopy } from "@/lib/chat/payment";
+import { PAYMENT_COPY, receiptRejectedCopy } from "@/lib/chat/payment";
 import type { BookedPayment } from "@/lib/chat/schemas";
 import type { DecisionResult } from "@/server/front-desk/service";
 
@@ -34,11 +34,6 @@ export type PaymentDecisionStore = {
     reasonCode: ReceiptRejectionReason;
     rejectedReason: string;
   }): Promise<DecisionOutcome>;
-  markRefunded(input: {
-    paymentId: string;
-    staffId: string;
-    refundReference: string;
-  }): Promise<DecisionOutcome>;
   /** Audits the view and returns the latest receipt's storage path. */
   recordReceiptView(input: {
     paymentId: string;
@@ -67,12 +62,6 @@ const REFUSALS: Record<string, string> = {
   amount_short: "The amount received is less than the amount due.",
   invalid_received_at: "The time received can't be in the future.",
   reason_required: "Choose a reason for rejecting the receipt.",
-};
-
-const REFUND_REFUSALS: Record<string, string> = {
-  ...REFUSALS,
-  not_open: "This payment isn't waiting for a refund. Refresh to see its current status.",
-  reference_required: "Enter the refund reference.",
 };
 
 function refusal(error: DatabaseError, messages: Record<string, string>): string {
@@ -146,18 +135,6 @@ export async function rejectReceipt(
   if (!outcome.ok) return { ok: false, message: refusal(outcome.error, REFUSALS) };
   const phrase = receiptRejectionPhrase(input.reasonCode, input.details, outcome.amountDueCentavos);
   await tellPatient(outcome.patientId, receiptRejectedCopy(phrase), chat, now);
-  return { ok: true };
-}
-
-export async function markRefunded(
-  input: Parameters<PaymentDecisionStore["markRefunded"]>[0],
-  store: PaymentDecisionStore,
-  chat: PatientChatNotifier,
-  now: Date = new Date(),
-): Promise<DecisionResult> {
-  const outcome = await store.markRefunded(input);
-  if (!outcome.ok) return { ok: false, message: refusal(outcome.error, REFUND_REFUSALS) };
-  await tellPatient(outcome.patientId, refundSentCopy(input.refundReference), chat, now);
   return { ok: true };
 }
 

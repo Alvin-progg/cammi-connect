@@ -20,15 +20,15 @@ describe("receipt retention (PAY-001 D5)", () => {
     expect(RECEIPT_RETENTION_DAYS).toBe(90);
   });
 
-  it.each(["verified", "hmo_approved", "expired", "refunded", "not_required", "collect_at_counter"] as const)(
+  it.each(["verified", "hmo_approved", "expired", "not_required", "collect_at_counter"] as const)(
     "treats a %s payment as closed when it last changed",
     (paymentStatus) => {
       expect(paymentClosedAt(row({ paymentStatus }))).toBe(CLOSED);
     },
   );
 
-  it("keeps a refund_due payment open, even after the visit was cancelled", () => {
-    expect(paymentClosedAt(row({ paymentStatus: "refund_due", appointmentStatus: "cancelled" }))).toBeNull();
+  it("keeps a verified payment closed after its visit was cancelled (no refunds)", () => {
+    expect(paymentClosedAt(row({ paymentStatus: "verified", appointmentStatus: "cancelled" }))).toBe(CLOSED);
   });
 
   it.each(["awaiting_payment", "submitted", "rejected", "hmo_pending"] as const)(

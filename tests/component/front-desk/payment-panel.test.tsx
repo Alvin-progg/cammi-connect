@@ -3,11 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PaymentPanel } from "@/components/front-desk/payment-panel";
-import { RefundDueList } from "@/components/front-desk/refund-due-list";
 import type { FrontDeskPayment } from "@/lib/billing/verification";
 import {
   decideHmoAction,
-  markRefundedAction,
   rejectReceiptAction,
   verifyPaymentAction,
   viewReceiptAction,
@@ -15,7 +13,6 @@ import {
 
 vi.mock("@/server/payments/actions", () => ({
   decideHmoAction: vi.fn(),
-  markRefundedAction: vi.fn(),
   rejectReceiptAction: vi.fn(),
   verifyPaymentAction: vi.fn(),
   viewReceiptAction: vi.fn(),
@@ -44,7 +41,6 @@ const SUBMITTED: FrontDeskPayment = {
   amountReceivedCentavos: null,
   receivedAt: null,
   rejectedReason: null,
-  refundReference: null,
   hasReceipt: true,
   hmo: null,
 };
@@ -69,7 +65,6 @@ const HMO_PENDING: FrontDeskPayment = {
 beforeEach(() => {
   vi.mocked(verifyPaymentAction).mockReset();
   vi.mocked(rejectReceiptAction).mockReset();
-  vi.mocked(markRefundedAction).mockReset();
   vi.mocked(viewReceiptAction).mockReset();
   vi.mocked(decideHmoAction).mockReset();
 });
@@ -172,24 +167,17 @@ describe("PaymentPanel", () => {
     expect(screen.queryByRole("button", { name: "View receipt" })).toBeNull();
   });
 
-  it("marks a refund due payment refunded", async () => {
-    vi.mocked(markRefundedAction).mockResolvedValue({ status: "success", message: "Refund recorded." });
-    const user = userEvent.setup();
+  it("shows no refund controls for a cancelled paid visit (no-refund policy)", () => {
     render(
       <PaymentPanel
         appointmentId={APPOINTMENT_ID}
-        payment={{ ...SUBMITTED, status: "refund_due", transactionReference: "GC-1234" }}
+        payment={{ ...SUBMITTED, status: "verified", transactionReference: "GC-1234" }}
         now={NOW}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Mark refunded" }));
-    const dialog = screen.getByRole("dialog", { name: "Mark this payment refunded?" });
-    await user.type(within(dialog).getByLabelText("Refund reference"), "R-77");
-    await user.click(within(dialog).getByRole("button", { name: "Mark refunded" }));
-
-    await waitFor(() => expect(markRefundedAction).toHaveBeenCalledTimes(1));
-    expect(vi.mocked(markRefundedAction).mock.calls[0][1].get("refundReference")).toBe("R-77");
+    expect(screen.queryByRole("button", { name: "Mark refunded" })).toBeNull();
+    expect(screen.queryByText("Refund reference")).toBeNull();
   });
 });
 
@@ -277,32 +265,5 @@ describe("PaymentPanel HMO coverage (PAY-06)", () => {
   it("hides the decisions once the request is no longer pending", () => {
     render(<PaymentPanel appointmentId={APPOINTMENT_ID} payment={HMO_PENDING} now={NOW} decidable={false} />);
     expect(screen.queryByRole("button", { name: "Approve coverage" })).toBeNull();
-  });
-});
-
-describe("RefundDueList", () => {
-  it("lists refunds due with a link to the request and Mark refunded", () => {
-    render(
-      <RefundDueList
-        items={[
-          {
-            paymentId: SUBMITTED.id,
-            appointmentId: APPOINTMENT_ID,
-            patientName: "Synthetic Patient B",
-            referenceCode: "CC-7F3K2",
-            amountReceivedCentavos: 56000,
-            transactionReference: "GC-1234",
-          },
-        ]}
-      />,
-    );
-
-    const region = screen.getByRole("region", { name: "Refund due" });
-    expect(within(region).getByRole("link", { name: "Synthetic Patient B" })).toHaveAttribute(
-      "href",
-      `/front-desk/requests/${APPOINTMENT_ID}`,
-    );
-    expect(within(region).getByText("₱560.00")).toBeInTheDocument();
-    expect(within(region).getByRole("button", { name: "Mark refunded" })).toBeInTheDocument();
   });
 });

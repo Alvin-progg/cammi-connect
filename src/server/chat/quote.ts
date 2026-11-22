@@ -1,10 +1,11 @@
 import "server-only";
 
 import { computeCharge, type ChargeLineInput, type PrivilegeChoice } from "@/lib/billing/compute";
-import { maskMemberNumber, philhealthOffered } from "@/lib/billing/hmo";
+import { philhealthOffered } from "@/lib/billing/hmo";
 import { BOOKING_COPY } from "@/lib/chat/booking";
 import {
   PAYMENT_COPY,
+  hmoOfferCopy,
   hmoPendingCopy,
   paymentChoiceLabel,
   paymentRequestCopy,
@@ -46,45 +47,63 @@ export async function quoteLines(
   requirements: ServiceRequirementView[] = [],
 ): Promise<Quote> {
   const { privilege } = draft;
-  if (!privilege) {
+  const pwdVerified = await ctx.tools.isPwdVerified({ patientId: ctx.patientId });
+  // A PWD choice without a verified declaration is asked again, with the reason.
+  if (!privilege || (privilege === "pwd" && !pwdVerified)) {
+    const body = requirements.length
+      ? `${SERVICE_COPY.requirementsLead} ${PAYMENT_COPY.privilegeQuestion}`
+      : PAYMENT_COPY.privilegeQuestion;
     return {
       ok: false,
       reply: {
-        reply: requirements.length
-          ? `${SERVICE_COPY.requirementsLead} ${PAYMENT_COPY.privilegeQuestion}`
-          : PAYMENT_COPY.privilegeQuestion,
-        payload: requirements.length
-          ? { kind: "privilege_options", requirements }
-          : { kind: "privilege_options" },
-        state: { step: "choosing_privilege", draft },
+        reply: privilege === "pwd" ? withLead(PAYMENT_COPY.pwdNotVerified, body) : body,
+        payload: {
+          kind: "privilege_options",
+          pwdVerified,
+          ...(requirements.length ? { requirements } : {}),
+        },
+        state: { step: "choosing_privilege", draft: { ...draft, privilege: undefined } },
       },
     };
   }
 
   const offerPhilhealth = philhealthOffered(lines);
-  const hmoProviders = hmoOffered(lines) ? await ctx.tools.getActiveHmoProviders() : [];
+  const hmoOptions = hmoOffered(lines)
+    ? await ctx.tools.getHmoOptions({ patientId: ctx.patientId, doctorId: draft.doctorId ?? null })
+    : [];
   let payment = draft.payment;
   let lead: string | undefined;
   if (payment?.payer === "philhealth" && !offerPhilhealth) {
     payment = undefined;
   }
   const hmoChoice = payment?.payer === "hmo" ? payment : undefined;
-  const hmo = hmoChoice
-    ? hmoProviders.find((provider) => provider.id === hmoChoice.hmoProviderId)
+  const chosenOption = hmoChoice
+    ? hmoOptions.find((option) => option.patientHmoId === hmoChoice.patientHmoId)
     : undefined;
+  const hmo = chosenOption?.offer.kind === "offered" ? chosenOption : undefined;
   if (hmoChoice && !hmo) {
     payment = undefined;
-    lead = PAYMENT_COPY.hmoUnavailable;
+    lead = chosenOption
+      ? hmoOfferCopy(chosenOption.offer, chosenOption.name) ?? PAYMENT_COPY.hmoUnavailable
+      : PAYMENT_COPY.hmoUnavailable;
   }
   if (!payment) {
+    // The other memberships that can't be used now are explained, not silently hidden.
+    const explanations = hmoOptions
+      .filter((option) => option.patientHmoId !== hmoChoice?.patientHmoId)
+      .map((option) => hmoOfferCopy(option.offer, option.name))
+      .filter((text): text is string => text !== undefined);
+    const leadText = [lead, ...explanations].filter(Boolean).join(" ") || undefined;
     return {
       ok: false,
       reply: {
-        reply: withLead(lead, PAYMENT_COPY.payerQuestion),
+        reply: withLead(leadText, PAYMENT_COPY.payerQuestion),
         payload: {
           kind: "payer_options",
           philhealth: offerPhilhealth,
-          hmoProviders: hmoProviders.map(({ id, name }) => ({ id, name })),
+          hmoMemberships: hmoOptions
+            .filter((option) => option.offer.kind === "offered")
+            .map((option) => ({ patientHmoId: option.patientHmoId, name: option.name, maskedNumber: option.maskedNumber })),
         },
         state: { step: "choosing_payer", draft: { ...draft, payment: undefined } },
       },
@@ -99,7 +118,7 @@ export async function quoteLines(
   });
   const payerLabel =
     payment.payer === "hmo" && hmo
-      ? `${hmo.name} (member ${maskMemberNumber(payment.memberNumber)})`
+      ? `${hmo.name} (member ${hmo.maskedNumber})`
       : paymentChoiceLabel(payment);
   return {
     ok: true,

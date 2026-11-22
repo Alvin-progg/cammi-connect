@@ -5,6 +5,7 @@ const TABS: { tab: DoctorTab; label: string }[] = [
   { tab: "profile", label: "Profile" },
   { tab: "schedule", label: "Schedule" },
   { tab: "appointments", label: "Appointments" },
+  { tab: "hmo", label: "HMO" },
 ];
 
 /** Section links for the doctor detail page; the open one is marked current. */

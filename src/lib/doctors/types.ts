@@ -3,7 +3,7 @@ import type { DoctorSummary } from "@/lib/directory/types";
 
 export type DoctorStatusFilter = "all" | "active" | "inactive";
 
-export type DoctorTab = "profile" | "schedule" | "appointments";
+export type DoctorTab = "profile" | "schedule" | "appointments" | "hmo";
 
 /** One row of the admin doctors list. */
 export type AdminDoctorListItem = DoctorSummary & {

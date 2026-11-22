@@ -75,20 +75,9 @@ export type FrontDeskPayment = {
   amountReceivedCentavos: number | null;
   receivedAt: string | null;
   rejectedReason: string | null;
-  refundReference: string | null;
   hasReceipt: boolean;
   /** PAY-06: set when the patient chose an HMO, also after a denial. */
   hmo: FrontDeskHmo | null;
-};
-
-/** One row of the "Refund due" list. */
-export type RefundDueItem = {
-  paymentId: string;
-  appointmentId: string;
-  patientName: string;
-  referenceCode: string;
-  amountReceivedCentavos: number | null;
-  transactionReference: string | null;
 };
 
 export const RECEIPT_REJECTION_REASONS = [
@@ -125,14 +114,14 @@ export function receiptRejectionPhrase(
   }
 }
 
-const id = z.uuid("Invalid payment reference.");
+export const paymentIdSchema = z.uuid("Invalid payment reference.");
 const reference = (message: string) => z.string(message).trim().min(1, message).max(100, "Keep the reference under 100 characters.");
 
 /** "2026-11-17T13:45" from a datetime-local input, read as Manila time (UTC+8, no DST). */
 const MANILA_LOCAL = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
 export const verifyPaymentSchema = z.object({
-  paymentId: id,
+  paymentId: paymentIdSchema,
   appointmentId: z.uuid("Invalid appointment reference."),
   transactionReference: reference("Enter the transaction reference from the hospital's account."),
   amountReceived: z.string("Enter the amount received."),
@@ -160,7 +149,7 @@ export const verifyPaymentSchema = z.object({
 
 export const rejectReceiptSchema = z
   .object({
-    paymentId: id,
+    paymentId: paymentIdSchema,
     appointmentId: z.uuid("Invalid appointment reference."),
     reason: z.enum(RECEIPT_REJECTION_REASONS, "Choose a reason for rejecting the receipt."),
     details: z.string().trim().max(500, "Keep the details under 500 characters.").nullish(),
@@ -178,9 +167,3 @@ export const rejectReceiptSchema = z
       ? `${RECEIPT_REJECTION_REASON_LABELS[reason]}: ${details}`
       : RECEIPT_REJECTION_REASON_LABELS[reason],
   }));
-
-export const markRefundedSchema = z.object({
-  paymentId: id,
-  appointmentId: z.uuid("Invalid appointment reference."),
-  refundReference: reference("Enter the refund reference."),
-});

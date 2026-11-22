@@ -3,11 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { hmoDecisionSchema } from "@/lib/billing/hmo";
-import {
-  markRefundedSchema,
-  rejectReceiptSchema,
-  verifyPaymentSchema,
-} from "@/lib/billing/verification";
+import { paymentIdSchema, rejectReceiptSchema, verifyPaymentSchema } from "@/lib/billing/verification";
 import { getFrontDeskSession } from "@/server/auth/dal";
 import { supabaseChatRepository } from "@/server/chat/repository";
 import type { RequestDecisionState } from "@/server/front-desk/actions";
@@ -15,7 +11,7 @@ import type { DecisionResult } from "@/server/front-desk/service";
 
 import { decideHmo } from "./hmo";
 import { supabaseHmoDecisionRepository, supabasePaymentDecisionRepository } from "./repository";
-import { markRefunded, rejectReceipt, verifyPayment, viewReceipt } from "./verification";
+import { rejectReceipt, verifyPayment, viewReceipt } from "./verification";
 
 const QUEUE_PATH = "/front-desk/requests";
 
@@ -90,26 +86,6 @@ export async function rejectReceiptAction(
   );
 }
 
-export async function markRefundedAction(
-  _previous: RequestDecisionState,
-  formData: FormData,
-): Promise<RequestDecisionState> {
-  const parsed = markRefundedSchema.safeParse({
-    paymentId: formData.get("paymentId"),
-    appointmentId: formData.get("appointmentId"),
-    refundReference: formData.get("refundReference"),
-  });
-  if (!parsed.success) return firstIssue(parsed.error, "Check the refund reference.");
-  const { appointmentId, ...input } = parsed.data;
-
-  return runPaymentDecision(
-    appointmentId,
-    (staffId) =>
-      markRefunded({ ...input, staffId }, supabasePaymentDecisionRepository, supabaseChatRepository),
-    "Refund recorded.",
-  );
-}
-
 /** PAY-06: Approve coverage (LOA number) or Deny coverage (reason). */
 export async function decideHmoAction(
   _previous: RequestDecisionState,
@@ -149,7 +125,7 @@ export async function viewReceiptAction(paymentId: string): Promise<ReceiptViewS
     return { status: "error", message: "You are not authorized to view receipts." };
   }
   // Server Action arguments are untrusted.
-  const parsed = markRefundedSchema.shape.paymentId.safeParse(paymentId);
+  const parsed = paymentIdSchema.safeParse(paymentId);
   if (!parsed.success) {
     return { status: "error", message: "Invalid payment reference." };
   }

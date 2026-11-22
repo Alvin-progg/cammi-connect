@@ -25,7 +25,6 @@ export const SETTING_LABELS: Record<SettingKey, string> = {
   "payment.account_name": "Account name shown with the QR",
   "payment.deadline_minutes": "Payment deadline",
   "payment.max_receipts": "Receipts allowed per payment",
-  "payment.refund_cutoff_hours": "Full refund cutoff",
   "billing.privilege_discount_bps": "Senior citizen and PWD discount",
 };
 
@@ -37,7 +36,6 @@ const UNITS: Partial<Record<SettingKey, string>> = {
   "appointment.max_upcoming_per_patient": "appointment",
   "payment.deadline_minutes": "minute",
   "payment.max_receipts": "receipt",
-  "payment.refund_cutoff_hours": "hour",
 };
 
 const TEXT_PREVIEW_LENGTH = 120;

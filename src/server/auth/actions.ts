@@ -17,6 +17,8 @@ import {
   setPasswordSchema,
 } from "@/lib/auth/schemas";
 import { getProfileForAuthUser } from "@/server/profiles/service";
+import { supabaseBenefitsWriteStore } from "@/server/benefits/repository";
+import { readRegistrationBenefits, saveRegistrationBenefits } from "@/server/benefits/registration";
 
 import {
   getUser,
@@ -105,6 +107,11 @@ export async function registerAction(
     return { fieldErrors: toFieldErrors(z.flattenError(parsed.error)) };
   }
 
+  const benefits = await readRegistrationBenefits(formData);
+  if (!benefits.ok) {
+    return { formError: benefits.message };
+  }
+
   const { fullName, email, password } = parsed.data;
   // Registration only ever creates patients, so the fallback is the patient landing.
   const next =
@@ -114,11 +121,19 @@ export async function registerAction(
   if (!result.ok) {
     return { formError: messageForAuthError(result.code) };
   }
+
+  // Optional benefits are saved before any redirect; a failure never blocks sign-up.
+  const failedBenefits = result.authUserId
+    ? await saveRegistrationBenefits(result.authUserId, benefits.value, supabaseBenefitsWriteStore)
+    : [];
   if (result.sessionCreated) {
     redirect(next);
   }
+  const accountNote = failedBenefits.length
+    ? ` We could not save your ${failedBenefits.join(" and ")} details; add them from your account after you sign in.`
+    : "";
   return {
-    success: "If an account can be created for this email, check your inbox.",
+    success: `If an account can be created for this email, check your inbox.${accountNote}`,
   };
 }
 

@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { BOOKING_COPY } from "@/lib/chat/booking";
-import { PAYMENT_COPY, hmoPendingCopy, paymentRequestCopy } from "@/lib/chat/payment";
+import { PAYMENT_COPY, hmoOfferCopy, hmoPendingCopy, paymentRequestCopy } from "@/lib/chat/payment";
 import { DEFAULT_FIRST_CONTACT } from "@/lib/chat/routing";
 import type { ChatEvent } from "@/lib/chat/schemas";
 import type { BookingState } from "@/lib/chat/state";
@@ -44,6 +44,15 @@ const MAXICARE = {
   name: "Maxicare",
   copayCentavos: 0,
 };
+/** BEN-05: a saved membership the doctor accepts (what the tools return). */
+const MAXICARE_OPTION = {
+  patientHmoId: "00000000-0000-4000-8000-00000000b0b1",
+  providerId: MAXICARE.id,
+  name: MAXICARE.name,
+  copayCentavos: MAXICARE.copayCentavos,
+  maskedNumber: "••••4417",
+  offer: { kind: "offered" as const },
+};
 
 function fakeTools(feeCentavos: number | null = 70000): ChatTools {
   return {
@@ -58,7 +67,8 @@ function fakeTools(feeCentavos: number | null = 70000): ChatTools {
     getDoctorAvailability: vi.fn(async () => [SLOT]),
     createAppointment: vi.fn(async () => ({ ok: true as const, appointmentId: "appt-1" })),
     getConsultationFee: vi.fn(async () => feeCentavos),
-    getActiveHmoProviders: vi.fn(async () => [MAXICARE]),
+    getHmoOptions: vi.fn(async () => [MAXICARE_OPTION]),
+    isPwdVerified: vi.fn(async () => true),
     createChargedAppointment: vi.fn(async () => ({
       ok: true as const,
       appointmentId: "appt-1",
@@ -121,7 +131,7 @@ describe("chat booking with payment enabled", () => {
     const result = await handleTurn(turn({ type: "select_slot", start: SLOT.start }, CHOOSING_SLOT), deps());
 
     expect(result.reply).toBe(PAYMENT_COPY.privilegeQuestion);
-    expect(result.payload).toEqual({ kind: "privilege_options" });
+    expect(result.payload).toEqual({ kind: "privilege_options", pwdVerified: true });
     expect(result.state).toEqual({ step: "choosing_privilege", draft: SLOT_DRAFT });
   });
 
@@ -163,7 +173,7 @@ describe("chat booking with payment enabled", () => {
     expect(result.payload).toEqual({
       kind: "payer_options",
       philhealth: false,
-      hmoProviders: [{ id: MAXICARE.id, name: "Maxicare" }],
+      hmoMemberships: [{ patientHmoId: MAXICARE_OPTION.patientHmoId, name: "Maxicare", maskedNumber: "••••4417" }],
     });
     expect(result.state).toEqual({
       step: "choosing_payer",
@@ -197,12 +207,50 @@ describe("chat booking with payment enabled", () => {
     });
   });
 
+  it("asks the discount question again, with the reason, when PWD is chosen without a verified declaration", async () => {
+    const tools = fakeTools();
+    vi.mocked(tools.isPwdVerified).mockResolvedValue(false);
+
+    const result = await handleTurn(
+      turn({ type: "select_privilege", privilege: "pwd" }, { step: "choosing_privilege", draft: SLOT_DRAFT }),
+      deps(tools),
+    );
+
+    expect(result.reply).toBe(`${PAYMENT_COPY.pwdNotVerified} ${PAYMENT_COPY.privilegeQuestion}`);
+    expect(result.payload).toEqual({ kind: "privilege_options", pwdVerified: false });
+    expect(result.state).toEqual({ step: "choosing_privilege", draft: SLOT_DRAFT });
+  });
+
+  it("explains a saved HMO the doctor does not accept, and offers only the accepted memberships", async () => {
+    const tools = fakeTools();
+    const notAccepted = {
+      ...MAXICARE_OPTION,
+      patientHmoId: "00000000-0000-4000-8000-00000000b0b2",
+      name: "Intellicare",
+      offer: { kind: "doctor_not_accredited" as const },
+    };
+    vi.mocked(tools.getHmoOptions).mockResolvedValue([MAXICARE_OPTION, notAccepted]);
+
+    const result = await handleTurn(
+      turn({ type: "select_privilege", privilege: "none" }, { step: "choosing_privilege", draft: SLOT_DRAFT }),
+      deps(tools),
+    );
+
+    expect(result.reply).toBe(
+      `${hmoOfferCopy(notAccepted.offer, "Intellicare")} ${PAYMENT_COPY.payerQuestion}`,
+    );
+    expect(result.payload).toMatchObject({
+      kind: "payer_options",
+      hmoMemberships: [{ patientHmoId: MAXICARE_OPTION.patientHmoId, name: "Maxicare" }],
+    });
+  });
+
   it("shows HMO full coverage with a masked member number", async () => {
     const result = await handleTurn(
       turn(
         {
           type: "select_payer",
-          payment: { payer: "hmo", hmoProviderId: MAXICARE.id, memberNumber: "12344417" },
+          payment: { payer: "hmo", patientHmoId: MAXICARE_OPTION.patientHmoId },
         },
         { step: "choosing_payer", draft: { ...SLOT_DRAFT, privilege: "none" } },
       ),
@@ -219,13 +267,13 @@ describe("chat booking with payment enabled", () => {
 
   it("asks again when the chosen HMO is no longer active", async () => {
     const tools = fakeTools();
-    vi.mocked(tools.getActiveHmoProviders).mockResolvedValue([]);
+    vi.mocked(tools.getHmoOptions).mockResolvedValue([]);
 
     const result = await handleTurn(
       turn(
         {
           type: "select_payer",
-          payment: { payer: "hmo", hmoProviderId: MAXICARE.id, memberNumber: "12344417" },
+          payment: { payer: "hmo", patientHmoId: MAXICARE_OPTION.patientHmoId },
         },
         { step: "choosing_payer", draft: { ...SLOT_DRAFT, privilege: "none" } },
       ),
@@ -312,7 +360,7 @@ describe("chat booking with payment enabled", () => {
       draft: {
         ...SLOT_DRAFT,
         privilege: "none",
-        payment: { payer: "hmo", hmoProviderId: MAXICARE.id, memberNumber: "12344417" },
+        payment: { payer: "hmo", patientHmoId: MAXICARE_OPTION.patientHmoId },
       },
     };
 

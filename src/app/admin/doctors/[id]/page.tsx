@@ -10,6 +10,7 @@ import { AccessDenied } from "@/components/auth/access-denied";
 import { DoctorAccount } from "@/components/doctors/doctor-account";
 import { DoctorAppointments } from "@/components/doctors/doctor-appointments";
 import { DoctorForm } from "@/components/doctors/doctor-form";
+import { DoctorHmoTab } from "@/components/doctors/doctor-hmo-tab";
 import { DoctorStatusForm } from "@/components/doctors/doctor-status";
 import { DoctorTabs } from "@/components/doctors/doctor-tabs";
 import { SchedulePeriodsSection } from "@/components/schedules/schedule-editor";
@@ -65,6 +66,7 @@ export default async function AdminDoctorPage({
         {tab === "profile" ? <ProfileTab doctor={doctor} /> : null}
         {tab === "schedule" ? <ScheduleTab doctorId={doctor.id} /> : null}
         {tab === "appointments" ? <AppointmentsTab doctorId={doctor.id} /> : null}
+        {tab === "hmo" ? <DoctorHmoTab doctorId={doctor.id} /> : null}
       </div>
     </AdminShell>
   );

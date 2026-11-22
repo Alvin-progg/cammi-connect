@@ -7,7 +7,7 @@ import { BrandMark } from "@/components/ui/brand-mark";
 import { Avatar, Card, CardHeader } from "@/components/ui/card";
 import { ListRow, ListRows } from "@/components/ui/data";
 import { initialsOf } from "@/components/ui/rail";
-import { requireUser } from "@/server/auth/dal";
+import { getPatientSession, requireUser } from "@/server/auth/dal";
 import { signOutAction } from "@/server/auth/actions";
 
 export const metadata: Metadata = { title: "Your account" };
@@ -41,6 +41,7 @@ export default function AccountPage() {
 async function AccountDetails() {
   const user = await requireUser("/account");
   const email = user.email;
+  const patient = await getPatientSession("/account");
   return (
     <>
       <div className="border-b border-line bg-wash">
@@ -81,6 +82,22 @@ async function AccountDetails() {
             </ListRow>
           </ListRows>
         </Card>
+        {patient ? (
+          <Card>
+            <CardHeader title="Benefits" />
+            <ListRows>
+              <ListRow>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">PWD and HMO</p>
+                  <p className="text-xs text-ink-muted">Declare PWD status and add HMO membership</p>
+                </div>
+                <LinkButton variant="outline" size="sm" href="/account/benefits">
+                  Manage benefits
+                </LinkButton>
+              </ListRow>
+            </ListRows>
+          </Card>
+        ) : null}
       </main>
     </>
   );

@@ -3,6 +3,7 @@ import "server-only";
 import type { PrivilegeChoice } from "@/lib/billing/compute";
 import type { BookedPayment } from "@/lib/chat/schemas";
 import type { PaymentChoice } from "@/lib/chat/state";
+import type { HmoBookingOption } from "@/server/benefits/booking-options";
 import {
   BOOKING_REJECTION_MESSAGES,
   EXCLUSION_VIOLATION,
@@ -10,7 +11,7 @@ import {
   SLOT_TAKEN_MESSAGE,
 } from "@/server/appointments/service";
 
-export type HmoOption = { id: string; name: string; copayCentavos: number };
+export type HmoOption = HmoBookingOption;
 
 export type ChargedBookingInput = {
   patientId: string;
@@ -36,7 +37,8 @@ export type ChargedBookingOutcome =
 export type ChargeStore = {
   /** The doctor's own fee, else the specialty default; null is "price on request". */
   getConsultationFee(input: { doctorId: string; specialtyId: string }): Promise<number | null>;
-  listActiveHmoProviders(): Promise<HmoOption[]>;
+  /** BEN-05: the patient's saved memberships with the offer for this doctor (null: a service visit). */
+  listHmoOptions(input: { patientId: string; doctorId: string | null }): Promise<HmoOption[]>;
   bookWithCharge(
     input: ChargedBookingInput,
   ): Promise<
@@ -54,6 +56,12 @@ export const CHARGED_BOOKING_MESSAGES: Record<string, string> = {
   price_on_request:
     "The fee for this visit is available on request. Please contact the hospital front desk to book it.",
   hmo_unavailable: "That HMO isn't available for booking anymore. Please choose your time again.",
+  hmo_required: "Please choose your HMO membership again.",
+  hmo_not_verified: "That HMO membership isn't verified yet, so it can't be used for this visit.",
+  hmo_not_accepted: "This doctor doesn't accept that HMO. Please choose another payment option.",
+  hmo_accreditation_expired: "This doctor's HMO accreditation has ended. Please choose another payment option.",
+  pwd_not_verified:
+    "Your PWD discount needs a verified PWD ID. Choose another option, or add your PWD ID in your account.",
   invalid_member_number: "Please check your HMO member number and try again.",
   invalid_payment_choice: "That payment option isn't available for this visit.",
   invalid_specialty: "This doctor isn't taking appointments for that specialty.",

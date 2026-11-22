@@ -466,14 +466,6 @@ function PaymentFields({ settings }: { settings: SystemSettings }) {
           max={10}
         />
       </div>
-      <NumberField
-        name="payment.refund_cutoff_hours"
-        label="Full refund cutoff (hours before the visit)"
-        defaultValue={settings["payment.refund_cutoff_hours"]}
-        min={0}
-        max={168}
-        hint="Cancelling at least this long before the visit gets a full refund."
-      />
       <div className="flex flex-col gap-1.5">
         <span className={LABEL_CLASS}>Senior citizen and PWD discount</span>
         <p className="text-sm text-ink">{`${PRIVILEGE_DISCOUNT_BPS / 100}%`}</p>
