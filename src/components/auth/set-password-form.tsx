@@ -12,8 +12,8 @@ import { SubmitButton } from "./submit-button";
 
 const INITIAL_STATE: AuthFormState = {};
 
-/** New-password form for staff invites and password resets. */
-export function SetPasswordForm() {
+/** New-password form for staff invites, password resets, and the account page. */
+export function SetPasswordForm({ returnTo }: { returnTo?: string }) {
   const [state, formAction, pending] = useActionState(updatePasswordAction, INITIAL_STATE);
 
   return (
@@ -40,7 +40,12 @@ export function SetPasswordForm() {
         autoComplete="new-password"
         error={state.fieldErrors?.confirmPassword}
       />
-      <SubmitButton pending={pending} label="Set password" pendingLabel="Saving…" />
+      {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
+      <SubmitButton
+        pending={pending}
+        label={returnTo ? "Change password" : "Set password"}
+        pendingLabel="Saving…"
+      />
     </form>
   );
 }

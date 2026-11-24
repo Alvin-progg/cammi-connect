@@ -8,6 +8,7 @@ import { signOutAction } from "@/server/auth/actions";
 
 import { CalendarIcon, LogOutIcon, PanelLeftIcon, SearchIcon, PlusIcon } from "lucide-react";
 import { BrandMark } from "@/components/ui/brand-mark";
+import { initialsOf } from "@/components/ui/rail";
 
 /**
  * Width and label visibility are driven by `data-state` on the aside:
@@ -24,18 +25,6 @@ const ROW =
   "focus-ring flex min-h-11 w-full items-center gap-3 rounded-xl px-2 text-left text-sm font-medium text-ink-secondary transition-colors hover:bg-surface-muted hover:text-ink motion-reduce:transition-none";
 
 const ICON_SLOT = "inline-flex size-8 shrink-0 items-center justify-center";
-
-/** Up to two initials for the account avatar; "?" when the name yields none. */
-function initialsOf(name: string): string {
-  const initials = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-  return initials || "?";
-}
 
 export function ChatSidebar({
   state,
@@ -194,15 +183,20 @@ export function ChatSidebar({
        * becomes horizontal once the sidebar is open.
        */}
       <div className="flex shrink-0 flex-col gap-0.5 border-t border-line px-2 py-2 group-data-[state=open]:flex-row group-data-[state=open]:items-center md:group-data-[state=auto]:flex-row md:group-data-[state=auto]:items-center">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <Link
+          href="/account"
+          onClick={onNavigate}
+          aria-label={`Your account, ${patientName}`}
+          className="focus-ring flex min-w-0 flex-1 items-center gap-3 rounded-xl"
+        >
           <span
             aria-hidden="true"
             className={`${ICON_SLOT} rounded-full bg-accent-soft text-xs font-semibold text-accent`}
           >
-            {initialsOf(patientName)}
+            {initialsOf(patientName, "?")}
           </span>
           <span className={`${LABEL} text-sm font-medium text-ink`}>{patientName}</span>
-        </div>
+        </Link>
         <form action={signOutAction}>
           <button
             type="submit"

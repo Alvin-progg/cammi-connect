@@ -1408,6 +1408,14 @@ supabase status                 # local URL and keys for a local .env.local
 supabase stop
 ```
 
+## Chat counter payments removed: `0043`
+
+`0043_chat_no_counter_payment.sql` adds a trigger on `payments` that refuses a new
+`counter` payment still `awaiting_payment` (PAY-03, D6 reversed). Front-desk and HMO
+fallback rows (`collect_at_counter`) are unaffected. Apply in the Supabase SQL editor
+(it can run again). Smoke test: a `counter` + `awaiting_payment` insert raises
+`counter_payment_not_allowed_in_chat`.
+
 ## Patient benefits (BEN-001): `0041` and `0042`
 
 Apply in order after `0040`, in the Supabase SQL editor (each file can run again):
@@ -1434,6 +1442,6 @@ Smoke test on the hosted project (synthetic data only):
 - As a patient, declare PWD (ID number and image) and add an HMO membership at `/account/benefits`. Both show **Waiting for review**.
 - As front desk, open `/front-desk/benefits`, view each document, reject one with a reason, then verify the other. Check `/admin/audit-log` for `benefit.*` and `benefit.document_viewed` rows.
 - As admin, open `/admin/doctors/[id]`, tab **HMO**, and accredit the doctor for one provider with `active` status. Leave another provider out.
-- In chat, book with the verified membership and the accredited doctor: the HMO is offered. Book with the unaccredited doctor: Cami explains why and offers QR Ph or the counter. A verified PWD discount is offered only after verification.
+- In chat, book with the verified membership and the accredited doctor: the HMO is offered. Book with the unaccredited doctor: Cami explains why and offers QR Ph. A verified PWD discount is offered only after verification.
 - On a request, open **Benefits**: set authorization and coverage separately, add an LOA number, and check that coverage does not change when authorization does.
 - Confirm that another patient's document link cannot be opened (`not_found`), and that no membership or ID number appears in any `audit_logs` row's payload.

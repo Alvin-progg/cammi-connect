@@ -69,10 +69,8 @@ function PrivilegeButtons({
   );
 }
 
-const SELF_PAY_CHOICES: PaymentChoice[] = [
-  { payer: "self", method: "qr_ph" },
-  { payer: "self", method: "counter" },
-];
+// PAY-03: chat self-pay is QR Ph only; the hospital counter is walk-ins at the front desk.
+const SELF_PAY_CHOICES: PaymentChoice[] = [{ payer: "self", method: "qr_ph" }];
 
 export function PayerOptions({
   payload,

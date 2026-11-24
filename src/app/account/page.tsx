@@ -6,9 +6,13 @@ import { LinkButton, buttonVariants } from "@/components/ui/button";
 import { BrandMark } from "@/components/ui/brand-mark";
 import { Avatar, Card, CardHeader } from "@/components/ui/card";
 import { ListRow, ListRows } from "@/components/ui/data";
+import { PatientProfileForm } from "@/components/account/patient-profile-form";
+import { VerifiedBenefitBadges } from "@/components/benefits/verified-benefit-badges";
 import { initialsOf } from "@/components/ui/rail";
 import { getPatientSession, requireUser } from "@/server/auth/dal";
 import { signOutAction } from "@/server/auth/actions";
+import { readPatientBenefits } from "@/server/benefits/repository";
+import { getPatientProfileDetails } from "@/server/profiles/service";
 
 export const metadata: Metadata = { title: "Your account" };
 
@@ -42,11 +46,23 @@ async function AccountDetails() {
   const user = await requireUser("/account");
   const email = user.email;
   const patient = await getPatientSession("/account");
+  const [profile, benefits] = patient
+    ? await Promise.all([
+        getPatientProfileDetails(patient.patient.id),
+        readPatientBenefits(patient.patient.id),
+      ])
+    : [null, null];
+  const pwdVerified = benefits?.pwd?.verificationStatus === "verified";
+  const hmoVerified = benefits?.hmo.some((membership) => membership.verificationStatus === "verified") ?? false;
+  const avatarInitials = patient
+    ? initialsOf(patient.patient.fullName, "ME")
+    : initialsOf(email.split("@")[0].replace(/[._-]+/g, " "), "ME");
+
   return (
     <>
       <div className="border-b border-line bg-wash">
         <div className="mx-auto flex max-w-[880px] flex-wrap items-center gap-5 px-6 pb-7 pt-10">
-          <Avatar initials={initialsOf(email.split("@")[0].replace(/[._-]+/g, " "), "ME")} size="lg" />
+          <Avatar initials={avatarInitials} size="lg" />
           <div className="min-w-0">
             <h1 className="text-3xl font-semibold tracking-tight">Your account</h1>
             <p className="break-all text-ink-secondary">
@@ -56,6 +72,19 @@ async function AccountDetails() {
         </div>
       </div>
       <main id="main" className="mx-auto flex w-full max-w-[880px] flex-col gap-4 px-6 pb-12 pt-7">
+        {patient ? (
+          <div>
+            <LinkButton variant="outline" size="sm" href="/chat">
+              Back to chat
+            </LinkButton>
+          </div>
+        ) : null}
+        {patient && profile ? (
+          <Card>
+            <CardHeader title="Profile" />
+            <PatientProfileForm initialFullName={profile.fullName} initialPhone={profile.phone ?? ""} />
+          </Card>
+        ) : null}
         <Card>
           <CardHeader title="Security" />
           <ListRows>
@@ -64,7 +93,7 @@ async function AccountDetails() {
                 <p className="text-sm font-medium">Password</p>
                 <p className="text-xs text-ink-muted">Choose a new password for signing in</p>
               </div>
-              <LinkButton variant="outline" size="sm" href="/account/password">
+              <LinkButton variant="outline" size="sm" href="/account/password?from=account">
                 Change password
               </LinkButton>
             </ListRow>
@@ -85,6 +114,9 @@ async function AccountDetails() {
         {patient ? (
           <Card>
             <CardHeader title="Benefits" />
+            <div className="px-4 pt-4">
+              <VerifiedBenefitBadges pwdVerified={pwdVerified} hmoVerified={hmoVerified} />
+            </div>
             <ListRows>
               <ListRow>
                 <div className="flex-1">

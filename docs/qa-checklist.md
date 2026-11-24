@@ -107,9 +107,9 @@ Mark each item `[x]` when it passes. Note failures with the page, steps, and the
 - [ ] After the slot, Cami asks the discount question. Senior, PWD (only if verified), and None are shown.
 - [ ] Unverified patient: PWD button is absent. Sending "PWD" anyway re-asks with the verification message.
 - [ ] Verified PWD patient: PWD is offered; the summary shows 20% and VAT exemption from database fees.
-- [ ] Payer question: "I'll pay (QR Ph)", "Pay at the hospital", PhilHealth only when the service has a benefit, and "My HMO" only with usable memberships.
+- [ ] Payer question: "I'll pay (QR Ph)" (no "Pay at the hospital"; that is front-desk only), PhilHealth only when the service has a benefit, and "My HMO" only with usable memberships.
 - [ ] "My HMO" lists only memberships the chosen doctor accepts, masked. No member-number field.
-- [ ] Doctor does not accept your HMO: lead text explains it; QR and counter still available.
+- [ ] Doctor does not accept your HMO: lead text explains it; QR still available.
 - [ ] Accreditation ended (date passed): lead text says the accreditation ended.
 - [ ] Pick QR Ph. Payment card shows amount, reference code `CC-XXXXX`, deadline, and the QR image.
 - [ ] Summary amount equals card amount. A price change between summary and confirm is refused (`price_changed`).

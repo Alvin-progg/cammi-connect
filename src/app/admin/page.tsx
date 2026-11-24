@@ -5,18 +5,18 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import {
   AppointmentActivity,
   DoctorPerformance,
-  PendingOverview,
+  NeedsAttention,
   SystemActivity,
 } from "@/components/admin-dashboard/dashboard-sections";
 import { DashboardFilters } from "@/components/admin-dashboard/dashboard-filters";
 import { SummaryCards } from "@/components/admin-dashboard/summary-cards";
 import { DailyActivityChart, StatusDistributionChart } from "@/components/analytics/analytics-charts";
-import { AnalyticsSummary } from "@/components/analytics/analytics-summary";
 import { ChartCard } from "@/components/analytics/chart-card";
 import { AccessDenied } from "@/components/auth/access-denied";
-import { DASHBOARD_PATH, parseDashboardFilters, toDashboardQuery } from "@/lib/admin/dashboard";
+import { DASHBOARD_PATH, dashboardGreeting, parseDashboardFilters, toDashboardQuery } from "@/lib/admin/dashboard";
 import { NO_VOLUME_MESSAGE } from "@/lib/analytics/display";
-import { analyticsHref } from "@/lib/analytics/filters";
+import { formatManilaDate } from "@/lib/appointments/format";
+import { todayInManila } from "@/lib/appointments/filters";
 import { supabaseAnalyticsRepository } from "@/server/analytics/repository";
 import { loadDashboard } from "@/server/analytics/service";
 import { getAdminSession } from "@/server/auth/dal";
@@ -38,7 +38,8 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
     return <AccessDenied message={ADMIN_ACCESS_DENIED_MESSAGE} />;
   }
 
-  const filters = parseDashboardFilters(params);
+  const now = new Date();
+  const filters = parseDashboardFilters(params, now);
   const [doctors, departments, dashboard] = await Promise.all([
     supabaseDirectoryRepository.listDoctors({ activeOnly: false }),
     supabaseDirectoryRepository.listDepartments(),
@@ -46,9 +47,16 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
   ]);
 
   const volumeEmpty = dashboard.cards.total > 0 ? null : NO_VOLUME_MESSAGE;
+  const firstName = session.admin.fullName.split(" ")[0];
 
   return (
-    <AdminShell adminName={session.admin.fullName} active="dashboard" crumbs={[{ label: "Dashboard" }]}>
+    <AdminShell
+      adminName={session.admin.fullName}
+      active="dashboard"
+      crumbs={[{ label: "Dashboard" }]}
+      title={`${dashboardGreeting(now)}, ${firstName}`}
+      lead={`${formatManilaDate(todayInManila(now))} · Asia/Manila`}
+    >
       <div className="flex flex-col gap-6">
         <DashboardFilters
           filters={filters}
@@ -63,9 +71,6 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
           trendPercent={dashboard.trend.percent}
         />
 
-        {/* ADM-17: links open the analytics charts for the same dates and filters. */}
-        <AnalyticsSummary summary={dashboard.summary} chartPath={analyticsHref({ ...filters, range: "custom" })} />
-
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <ChartCard
             id="daily-activity"
@@ -75,6 +80,8 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
           >
             <DailyActivityChart data={dashboard.daily} />
           </ChartCard>
+
+          <NeedsAttention pending={dashboard.pending} />
 
           <ChartCard
             id="status-distribution"
@@ -86,7 +93,9 @@ export default async function AdminDashboardPage({ searchParams }: PageProps<"/a
           </ChartCard>
 
           <DoctorPerformance doctors={dashboard.topDoctors} />
-          <PendingOverview pending={dashboard.pending} />
+        </div>
+
+        <div className="flex flex-col gap-6">
           <AppointmentActivity entries={dashboard.appointmentActivity} />
           <SystemActivity entries={dashboard.adminActivity} />
         </div>

@@ -329,7 +329,6 @@ describe("chat booking with payment enabled", () => {
         amountDueCentavos: 56000,
         referenceCode: "CC-7F3K2",
         deadline: "2026-10-31T03:00:00.000Z",
-        method: "qr_ph",
         now: NOW,
       }),
     );

@@ -50,12 +50,13 @@ const careNeedSchema = z.object({
 export type CareNeed = z.infer<typeof careNeedSchema>;
 
 /**
- * PAY-03: who pays. A self-paying patient pays by QR Ph or at the hospital
- * counter (decision D6, same deadline). The HMO is re-read from the active
- * list every time it is used.
+ * PAY-03: who pays. A self-paying chat patient pays by QR Ph. The hospital
+ * counter is for walk-ins at the front desk only (D6, reversed; 0043 refuses
+ * a chat counter payment). The HMO is re-read from the active list every time
+ * it is used.
  */
 export const paymentChoiceSchema = z.discriminatedUnion("payer", [
-  z.object({ payer: z.literal("self"), method: z.enum(["qr_ph", "counter"]) }),
+  z.object({ payer: z.literal("self"), method: z.literal("qr_ph") }),
   // BEN-05: a saved, verified membership the chosen doctor accepts (re-checked on booking).
   z.object({ payer: z.literal("hmo"), patientHmoId: z.uuid() }),
   z.object({ payer: z.literal("philhealth") }),

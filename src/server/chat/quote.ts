@@ -133,7 +133,6 @@ export async function quoteLines(
 /** The templated reply for a booking with a charge; amounts come from the payment row. */
 export function bookedPaymentReply(
   payment: BookedPayment,
-  choice: PaymentChoice,
   hmoName: string | undefined,
   now: Date,
   requested: string = BOOKING_COPY.requested,
@@ -146,7 +145,6 @@ export function bookedPaymentReply(
       amountDueCentavos: payment.amountDueCentavos,
       referenceCode: payment.referenceCode,
       deadline: payment.deadline,
-      method: choice.payer === "self" ? choice.method : "qr_ph",
       now,
     });
   }

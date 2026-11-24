@@ -141,13 +141,10 @@ describe("admin analytics page", () => {
   it("says there is not enough data to interpret a thin period", async () => {
     await renderPage();
 
-    expect(screen.getByRole("region", { name: "Summary" })).toHaveTextContent(
-      "Not enough data yet to interpret this period.",
-    );
     expect(screen.getAllByText("Not enough data yet to interpret.").length).toBeGreaterThan(0);
   });
 
-  it("interprets the filtered data in the Summary card and under each chart", async () => {
+  it("has no Summary card, but still interprets the filtered data under each chart", async () => {
     vi.mocked(supabaseAnalyticsRepository.listAppointments).mockResolvedValue([
       ...Array.from({ length: 20 }, (_, index) => row("completed", index)),
       ...Array.from({ length: 5 }, (_, index) => row("no_show", 20 + index)),
@@ -155,12 +152,7 @@ describe("admin analytics page", () => {
 
     await renderPage();
 
-    const summary = screen.getByRole("region", { name: "Summary" });
-    expect(within(summary).getByText("Alert")).toBeInTheDocument();
-    expect(within(summary).getByRole("link", { name: "Outcomes: about 1 in 5 visits is lost." })).toHaveAttribute(
-      "href",
-      "#outcomes",
-    );
+    expect(screen.queryByRole("region", { name: "Summary" })).not.toBeInTheDocument();
     const outcomes = screen.getByRole("region", { name: "Monthly appointment outcomes" });
     expect(within(outcomes).getByText("High: about 1 in 5 visits is lost.")).toBeInTheDocument();
     expect(screen.getByText("No weekday stands out for missed visits.")).toBeInTheDocument();

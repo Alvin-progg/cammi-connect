@@ -708,7 +708,7 @@ async function confirmWithCharge(
   }
 
   return {
-    reply: bookedPaymentReply(outcome.payment, quote.payment, quote.hmoName, ctx.now),
+    reply: bookedPaymentReply(outcome.payment, quote.hmoName, ctx.now),
     payload: {
       kind: "booking_result",
       doctorName: doctorDisplayName(doctor.fullName),

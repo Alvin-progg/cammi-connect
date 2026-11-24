@@ -7,10 +7,8 @@ import {
   interpretAnalytics,
   monthlyInterpretation,
   outcomesInterpretation,
-  summarize,
   weekdayRatesInterpretation,
   type Interpretation,
-  type Interpretations,
 } from "@/lib/analytics/interpretation";
 import {
   DAYTIME_SLOTS,
@@ -238,53 +236,6 @@ describe("doctorRatesInterpretation", () => {
   });
 });
 
-const ALERT: Interpretation = { severity: "alert", text: "Alert text.", point: "alert point." };
-const WATCH: Interpretation = { severity: "watch", text: "Watch text.", point: "watch point." };
-const OK: Interpretation = { severity: "ok", text: "Ok text.", point: "ok point." };
-
-function interpretations(values: Partial<Interpretations>): Interpretations {
-  return {
-    "monthly-volume": null,
-    "doctor-volume": null,
-    "peak-times": null,
-    outcomes: null,
-    "weekday-rates": null,
-    "doctor-rates": null,
-    ...values,
-  };
-}
-
-describe("summarize", () => {
-  it("puts alerts before watch items, keeps chart order, and stops at 3", () => {
-    const summary = summarize(
-      interpretations({
-        "monthly-volume": WATCH,
-        "doctor-volume": ALERT,
-        "peak-times": WATCH,
-        outcomes: ALERT,
-        "weekday-rates": OK,
-      }),
-    );
-    expect(summary).toEqual({
-      points: [
-        { chartId: "doctor-volume", severity: "alert", text: "Doctors: alert point." },
-        { chartId: "outcomes", severity: "alert", text: "Outcomes: alert point." },
-        { chartId: "monthly-volume", severity: "watch", text: "Volume: watch point." },
-      ],
-    });
-  });
-
-  it("shows the steady line when nothing is alert or watch", () => {
-    expect(summarize(interpretations({ outcomes: OK }))).toEqual({
-      message: "Everything looks steady for this period.",
-    });
-  });
-
-  it("shows the not-enough line when no chart has enough data", () => {
-    expect(summarize(interpretations({}))).toEqual({ message: "Not enough data yet to interpret this period." });
-  });
-});
-
 /** Every template, with the longest realistic doctor name and month. */
 function everyInterpretation(): Interpretation[] {
   const all = [
@@ -322,17 +273,6 @@ describe("interpretation templates", () => {
     for (const { text } of all) expect(words(text), text).toBeLessThanOrEqual(12);
   });
 
-  it("make summary points of at most 15 words", () => {
-    const ids = Object.keys(interpretations({})) as (keyof Interpretations)[];
-    for (const item of everyInterpretation()) {
-      for (const chartId of ids) {
-        const summary = summarize(interpretations({ [chartId]: { ...item, severity: "alert" } }));
-        if (!("points" in summary)) throw new Error("expected points");
-        for (const point of summary.points) expect(words(point.text), point.text).toBeLessThanOrEqual(15);
-      }
-    }
-  });
-
   it("never state a cause", () => {
     for (const { text, point } of everyInterpretation()) {
       expect(`${text} ${point}`).not.toMatch(/\bbecause\b|\bdue to\b|\bcaused?\b|\bsince\b/i);
@@ -361,6 +301,5 @@ describe("interpretAnalytics", () => {
 
   it("gives the same words for the same data", () => {
     expect(interpretAnalytics(datasets)).toEqual(interpretAnalytics(structuredClone(datasets)));
-    expect(summarize(interpretAnalytics(datasets))).toEqual(summarize(interpretAnalytics(datasets)));
   });
 });

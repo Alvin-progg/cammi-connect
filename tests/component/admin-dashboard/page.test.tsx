@@ -137,7 +137,8 @@ describe("admin dashboard page", () => {
     expect(within(card("Cancelled")).getByText("Cancelled in range")).toBeInTheDocument();
   });
 
-  it("shows the analytics Summary card, linking to the same period's charts", async () => {
+  it("has no interpretation Summary card (it lives on the analytics page only)", async () => {
+    // Data that would raise an alert on the analytics page.
     vi.mocked(supabaseAnalyticsRepository.listAppointments).mockResolvedValue([
       ...Array.from({ length: 20 }, (_, index) => row("completed", index)),
       ...Array.from({ length: 5 }, (_, index) => row("no_show", 20 + index)),
@@ -145,20 +146,7 @@ describe("admin dashboard page", () => {
 
     await renderPage();
 
-    const summary = screen.getByRole("region", { name: "Summary" });
-    expect(within(summary).getByText("Alert")).toBeInTheDocument();
-    expect(within(summary).getByRole("link", { name: "Outcomes: about 1 in 5 visits is lost." })).toHaveAttribute(
-      "href",
-      "/admin/analytics?range=custom&from=2026-11-01&to=2026-11-30#outcomes",
-    );
-  });
-
-  it("says there is not enough data to interpret a thin period", async () => {
-    await renderPage();
-
-    expect(screen.getByRole("region", { name: "Summary" })).toHaveTextContent(
-      "Not enough data yet to interpret this period.",
-    );
+    expect(screen.queryByRole("region", { name: "Summary" })).not.toBeInTheDocument();
   });
 
   it("links each card to the appointment list with matching filters", async () => {
@@ -178,22 +166,56 @@ describe("admin dashboard page", () => {
     );
   });
 
-  it("shows the pending overview, top doctors, and both activity feeds", async () => {
+  it("greets the admin by first name with the Manila date", async () => {
+    // 12:00 in Manila on Thursday 2026-11-05.
     await renderPage();
 
-    const pending = screen.getByRole("region", { name: "Front desk queue" });
-    expect(within(pending).getByText("Synthetic Medicine")).toBeInTheDocument();
-    expect(within(pending).getByText(/Oldest waiting since/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Good afternoon, Synthetic" })).toBeInTheDocument();
+    expect(screen.getByText(/Thursday, November 5/)).toHaveTextContent("Asia/Manila");
+  });
+
+  it("offers the period as a segmented control that keeps the doctor and department filters", async () => {
+    await renderPage({ doctor: DOCTOR_ID });
+
+    const period = screen.getByRole("navigation", { name: "Dashboard period" });
+    expect(within(period).getByRole("link", { name: "This month" })).toHaveAttribute("aria-current", "page");
+    expect(within(period).getByRole("link", { name: "Today" })).toHaveAttribute(
+      "href",
+      `/admin?range=today&doctor=${DOCTOR_ID}`,
+    );
+    expect(within(period).getByRole("link", { name: "This week" })).toHaveAttribute(
+      "href",
+      `/admin?range=this_week&doctor=${DOCTOR_ID}`,
+    );
+  });
+
+  it("shows needs attention from the front desk queue, with a review link", async () => {
+    await renderPage();
+
+    const attention = screen.getByRole("region", { name: "Needs attention" });
+    expect(within(attention).getByText("2 requests waiting for confirmation")).toBeInTheDocument();
+    expect(within(attention).getByText(/Oldest waiting since/)).toBeInTheDocument();
+    expect(within(attention).getByRole("link", { name: "Review" })).toHaveAttribute(
+      "href",
+      "/admin/appointments?status=requested",
+    );
+    expect(within(attention).getByText("Synthetic Medicine")).toBeInTheDocument();
+  });
+
+  it("shows top doctors and both activity feeds as tables", async () => {
+    await renderPage();
 
     const doctors = screen.getByRole("table", { name: "Doctor performance" });
     expect(within(doctors).getByText("Dr. Synthetic Alpha")).toBeInTheDocument();
     expect(within(doctors).getByText("25.00%")).toBeInTheDocument();
 
     const appointmentActivity = screen.getByRole("region", { name: "Recent appointment activity" });
+    expect(within(appointmentActivity).getByRole("columnheader", { name: "Actor" })).toBeInTheDocument();
     expect(within(appointmentActivity).getByRole("link")).toHaveAttribute("href", `/admin/appointments/${APPOINTMENT_ID}`);
     expect(within(appointmentActivity).getByText(/Synthetic Front Desk/)).toBeInTheDocument();
 
     const systemActivity = screen.getByRole("region", { name: "System activity" });
+    expect(within(systemActivity).getByRole("columnheader", { name: "Action" })).toBeInTheDocument();
     expect(within(systemActivity).getByText("department.update")).toBeInTheDocument();
   });
 

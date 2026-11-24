@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { formatManilaTime } from "@/lib/appointments/format";
+import { paymentChoiceSchema } from "@/lib/chat/state";
 import {
   PAYMENT_COPY,
   formatPaymentDeadline,
@@ -30,7 +31,6 @@ describe("payment copy (PAY-03)", () => {
       amountDueCentavos: 56000,
       referenceCode: "CC-7F3K2",
       deadline: "2026-10-31T08:30:00Z",
-      method: "qr_ph",
       now: NOW,
     });
 
@@ -43,7 +43,6 @@ describe("payment copy (PAY-03)", () => {
       amountDueCentavos: 56000,
       referenceCode: "CC-7F3K2",
       deadline: "2026-10-31T08:30:00Z",
-      method: "qr_ph",
       now: NOW,
     });
 
@@ -63,19 +62,10 @@ describe("payment copy (PAY-03)", () => {
     }
   });
 
-  it("sends a counter payer to the cashier with the same deadline", () => {
-    const text = paymentRequestCopy({
-      amountDueCentavos: 70000,
-      referenceCode: "CC-ABCDE",
-      deadline: "2026-10-31T08:30:00Z",
-      method: "counter",
-      now: NOW,
-    });
-
-    expect(text).toContain("₱700.00");
-    expect(text).toContain("cashier");
-    expect(text).toContain("4:30 PM today");
-    expect(text).toContain("CC-ABCDE");
+  it("rejects a self-pay choice at the hospital counter in chat (PAY-03, D6 reversed)", () => {
+    const counterChoice = paymentChoiceSchema.safeParse({ payer: "self", method: "counter" });
+    expect(counterChoice.success).toBe(false);
+    expect(paymentChoiceSchema.safeParse({ payer: "self", method: "qr_ph" }).success).toBe(true);
   });
 
   it("says today, tomorrow, or the date for the deadline", () => {

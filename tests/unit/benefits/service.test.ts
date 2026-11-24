@@ -185,4 +185,14 @@ describe("viewBenefitDocument", () => {
     expect(result).toEqual({ ok: false, message: "Record not found." });
     expect(store.signDocument).not.toHaveBeenCalled();
   });
+
+  it("returns a fixed message when the storage link cannot be signed", async () => {
+    const store = fakeStore({
+      signDocument: vi.fn(async () => {
+        throw new Error("storage: object not found at patient/pwd/x.jpg");
+      }),
+    });
+    const result = await viewBenefitDocument({ kind: "pwd", recordId: PATIENT_ID, staffId: STAFF_ID }, store);
+    expect(result).toEqual({ ok: false, message: "Could not open the document. Try again." });
+  });
 });

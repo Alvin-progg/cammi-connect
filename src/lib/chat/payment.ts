@@ -45,7 +45,7 @@ export const PRIVILEGE_LABELS: Record<PrivilegeChoice, string> = {
 export function paymentChoiceLabel(payment: PaymentChoice): string {
   switch (payment.payer) {
     case "self":
-      return payment.method === "qr_ph" ? "I'll pay (GCash, Maya, bank)" : "Pay at the hospital";
+      return "I'll pay (GCash, Maya, bank)";
     case "hmo":
       return "My HMO";
     case "philhealth":
@@ -76,15 +76,11 @@ export function paymentRequestCopy(input: {
   amountDueCentavos: number;
   referenceCode: string;
   deadline: string;
-  method: "qr_ph" | "counter";
   now: Date;
 }): string {
   const amount = formatPesos(input.amountDueCentavos);
   const deadline = formatPaymentDeadline(input.deadline, input.now);
-  if (input.method === "qr_ph") {
-    return `Almost done! To hold your slot, please pay ${amount} by ${deadline}. Scan the QR with GCash, Maya, or your bank app and put ${input.referenceCode} in the message/notes. Then send me a photo of your receipt here.`;
-  }
-  return `Almost done! To hold your slot, please pay ${amount} at the hospital cashier by ${deadline} and give the reference code ${input.referenceCode}. If it isn't paid by then, the request may be cancelled.`;
+  return `Almost done! To hold your slot, please pay ${amount} by ${deadline}. Scan the QR with GCash, Maya, or your bank app and put ${input.referenceCode} in the message/notes. Then send me a photo of your receipt here.`;
 }
 
 /**
@@ -107,9 +103,9 @@ export function hmoOfferCopy(offer: HmoOfferStatus, hmoName: string): string | u
     case "membership_not_usable":
       return `Your ${hmoName} membership can't be used for payment. You can check it in your account.`;
     case "doctor_not_accredited":
-      return `This doctor doesn't accept ${hmoName}. You can pay by QR Ph or at the counter instead.`;
+      return `This doctor doesn't accept ${hmoName}. You can pay by QR Ph instead.`;
     case "accreditation_expired":
-      return `This doctor's ${hmoName} accreditation has ended. You can pay by QR Ph or at the counter instead.`;
+      return `This doctor's ${hmoName} accreditation has ended. You can pay by QR Ph instead.`;
   }
 }
 

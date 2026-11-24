@@ -95,9 +95,8 @@ Authorization model note: under ADR-0003, every table has RLS on with no policie
 |---|---|---|
 | Each chart: every threshold band, boundaries, below-minimum → null | test | `tests/unit/analytics/interpretation.test.ts` |
 | ≤ 12 words per line, ≤ 15 per summary point, no cause words, deterministic | test | `tests/unit/analytics/interpretation.test.ts` |
-| Summary: alerts first, max 3, steady line, not-enough line | test | `tests/unit/analytics/interpretation.test.ts` |
-| Summary card badges with text labels and chart links; "What it means" line | test | `tests/component/analytics/analytics-summary.test.tsx` |
-| Analytics page and dashboard interpret the filtered data | test | `tests/component/analytics/page.test.tsx`, `tests/component/admin-dashboard/page.test.tsx`, `tests/unit/analytics/dashboard-service.test.ts` |
+| "What it means" line under each chart; no Summary card on `/admin` or `/admin/analytics` (removed 2026-11-24) | test | `tests/component/analytics/page.test.tsx`, `tests/component/admin-dashboard/page.test.tsx`, `tests/unit/analytics/dashboard-service.test.ts` |
+| Analytics page interprets the filtered data | test | `tests/component/analytics/page.test.tsx` |
 | No LLM or external call | static (by construction) | `src/lib/analytics/interpretation.ts` is pure and imports only the metric layer |
 
 ## ADM-13, ADM-14 Knowledge base
@@ -184,7 +183,7 @@ Authorization model note: under ADR-0003, every table has RLS on with no policie
 
 | Item | Status | Where |
 |---|---|---|
-| With `payment.enabled`, the slot is followed by the discount question (Senior 60+ / PWD / None, one only) and the payer question (I'll pay / Pay at the hospital / My HMO with active HMOs and a member number) | test | `tests/unit/chat/booking-payment.test.ts`, `tests/component/chat/payment-cards.test.tsx` |
+| With `payment.enabled`, the slot is followed by the discount question (Senior 60+ / PWD / None, one only) and the payer question (I'll pay / My HMO with active HMOs and a member number) | test | `tests/unit/chat/booking-payment.test.ts`, `tests/component/chat/payment-cards.test.tsx` |
 | PhilHealth offered only when the item's benefit is above ₱0 (never for a consultation); a PhilHealth answer for a consult is refused in TS and SQL | test + local SQL smoke | `tests/unit/chat/booking-payment.test.ts`, `tests/component/chat/payment-cards.test.tsx`, db/README.md (0034) |
 | Consultation fee from the database: doctor fee overrides the specialty default; null is "price on request" and not bookable in chat | test + local SQL smoke | `tests/unit/chat/booking-payment.test.ts`, `tests/unit/billing/chat-booking-charges-sql.test.ts` |
 | Summary card shows price, VAT exemption, 20%, PhilHealth, HMO, and amount to pay from `computeCharge`; HMO member number masked | test | `tests/unit/chat/booking-payment.test.ts`, `tests/component/chat/payment-cards.test.tsx` |
@@ -205,7 +204,7 @@ Authorization model note: under ADR-0003, every table has RLS on with no policie
 | Item | Status | Where |
 |---|---|---|
 | Spec payment request text (scan the QR, put the reference in the notes, send a photo of the receipt) and the "Got your receipt…" reply, both templated | test | `tests/unit/chat/payment.test.ts`, `tests/unit/payments/receipt-upload.test.ts` |
-| QR card with QR image (`payment.qr_image_path`, same-site paths only), account name, amount, reference code, and deadline; "QR isn't set up yet, pay at the cashier" fallback; no QR or upload for a counter payment | test | `tests/component/chat/pay-in-chat.test.tsx`, `tests/unit/chat/payment.test.ts` |
+| QR card with QR image (`payment.qr_image_path`, same-site paths only), account name, amount, reference code, and deadline; "QR isn't set up yet, pay at the cashier" fallback; no QR or upload for a counter payment; chat refuses a `counter` payment (0043) | test | `tests/component/chat/pay-in-chat.test.tsx`, `tests/unit/chat/payment.test.ts`, `tests/unit/billing/chat-no-counter-sql.test.ts` |
 | Receipt upload control (labelled file input, `accept` JPEG/PNG/WebP) posts to `POST /api/v1/payments/[id]/receipt`; Cami's reply is appended and the card shows "Receipt sent"; refusals show the server's fixed message | test | `tests/component/chat/pay-in-chat.test.tsx` |
 | Only JPEG/PNG/WebP up to 5 MB, by file signature (GIF, PDF, renamed text, empty, > 5 MB refused; the detected type wins over the browser's) | test + local Storage smoke | `tests/unit/billing/receipts.test.ts`, `tests/unit/payments/receipt-upload.test.ts`, db/README.md (0035) |
 | Another patient's payment (or a malformed ID) is reported as not found (404), in the route and in SQL | test + local SQL smoke | `tests/unit/payments/receipt-upload.test.ts`, `tests/unit/billing/payment-receipts-sql.test.ts`, db/README.md (0035) |

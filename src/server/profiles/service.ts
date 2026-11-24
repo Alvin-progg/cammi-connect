@@ -134,3 +134,46 @@ export async function updateDoctorContact(input: {
     throw new Error("Unable to update the doctor profile.");
   }
 }
+
+export type PatientProfileDetails = {
+  fullName: string;
+  phone: string | null;
+};
+
+export async function getPatientProfileDetails(
+  patientId: string,
+): Promise<PatientProfileDetails | null> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("full_name, phone")
+    .eq("id", patientId)
+    .eq("role", "patient")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error("Unable to load the patient profile.");
+  }
+  if (!data) {
+    return null;
+  }
+  return { fullName: data.full_name, phone: data.phone };
+}
+
+/** Writes only the caller's own row: the id comes from the session, never the form. */
+export async function updatePatientProfile(input: {
+  patientId: string;
+  fullName: string;
+  phone: string;
+}): Promise<void> {
+  const supabase = getSupabaseAdminClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ full_name: input.fullName, phone: input.phone || null })
+    .eq("id", input.patientId)
+    .eq("role", "patient");
+
+  if (error) {
+    throw new Error("Unable to update the patient profile.");
+  }
+}

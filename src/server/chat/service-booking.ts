@@ -317,7 +317,7 @@ export async function confirmServiceBooking(draft: BookingDraft, ctx: BookingCon
   }
 
   return {
-    reply: bookedPaymentReply(outcome.payment, quote.payment, quote.hmoName, ctx.now, SERVICE_COPY.requested),
+    reply: bookedPaymentReply(outcome.payment, quote.hmoName, ctx.now, SERVICE_COPY.requested),
     payload: {
       kind: "booking_result",
       doctorName: serviceNames(services).join(" + "),
