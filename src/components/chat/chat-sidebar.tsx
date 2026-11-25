@@ -7,10 +7,15 @@ import type { ConversationSummary } from "@/lib/chat/schemas";
 import type { PatientNotification } from "@/lib/notifications/types";
 import { signOutAction } from "@/server/auth/actions";
 
-import { CalendarIcon, LogOutIcon, PanelLeftIcon, SearchIcon, PlusIcon } from "lucide-react";
+import { CalendarIcon, LogOutIcon, PanelLeftIcon, PinIcon, SearchIcon, PlusIcon } from "lucide-react";
 import { BrandMark } from "@/components/ui/brand-mark";
 import { initialsOf } from "@/components/ui/rail";
 
+import {
+  DeleteConversationButton,
+  PinConversationButton,
+  useConversationActions,
+} from "./conversation-row-actions";
 import { PatientNotificationsPanel } from "./patient-notifications";
 
 /**
@@ -36,7 +41,7 @@ export function ChatSidebar({
   onNavigate,
   searchOpen,
   onSearchOpenChange,
-  conversations,
+  conversations: savedConversations,
   activeConversationId,
   appointmentsActive,
   patientName,
@@ -58,6 +63,10 @@ export function ChatSidebar({
   notifications?: PatientNotification[];
 }) {
   const [query, setQuery] = useState("");
+  const { conversations, setPinned, remove } = useConversationActions(
+    savedConversations,
+    activeConversationId,
+  );
   const isOpen = state === "open";
 
   const normalizedQuery = searchOpen ? query.trim().toLowerCase() : "";
@@ -162,20 +171,39 @@ export function ChatSidebar({
               {matches.map((conversation) => {
                 const isActive = conversation.id === activeConversationId;
                 return (
-                  <li key={conversation.id}>
+                  <li key={conversation.id} className="group/row relative">
                     <Link
                       href={`/chat?c=${conversation.id}`}
                       title={conversation.title}
                       aria-current={isActive ? "page" : undefined}
                       onClick={onNavigate}
-                      className={`focus-ring flex min-h-11 items-center rounded-xl px-3 text-sm transition-colors motion-reduce:transition-none ${
+                      className={`focus-ring flex min-h-11 items-center gap-2 rounded-xl px-3 pr-20 text-sm transition-colors motion-reduce:transition-none ${
                         isActive
                           ? "bg-primary-soft font-semibold text-ink"
                           : "font-medium text-ink-secondary hover:bg-surface-muted hover:text-ink"
                       }`}
                     >
+                      {conversation.pinned ? (
+                        <>
+                          <PinIcon aria-hidden="true" className="size-3.5 shrink-0 text-primary" />
+                          <span className="sr-only">Pinned</span>
+                        </>
+                      ) : null}
                       <span className="truncate whitespace-nowrap">{conversation.title}</span>
                     </Link>
+                    {/* Hidden until the row is hovered or focused; always shown on touch screens. */}
+                    <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none">
+                      <PinConversationButton
+                        title={conversation.title}
+                        pinned={conversation.pinned}
+                        onToggle={() => setPinned(conversation.id, !conversation.pinned)}
+                      />
+                      <DeleteConversationButton
+                        conversationId={conversation.id}
+                        title={conversation.title}
+                        onConfirm={() => remove(conversation.id)}
+                      />
+                    </div>
                   </li>
                 );
               })}

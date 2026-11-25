@@ -768,6 +768,7 @@ export type Database = {
           booking_state: Json | null;
           created_at: string;
           updated_at: string;
+          pinned_at: string | null;
         };
         Insert: {
           id?: string;
@@ -776,11 +777,13 @@ export type Database = {
           booking_state?: Json | null;
           created_at?: string;
           updated_at?: string;
+          pinned_at?: string | null;
         };
         Update: {
           title?: string;
           booking_state?: Json | null;
           updated_at?: string;
+          pinned_at?: string | null;
         };
         Relationships: [];
       };

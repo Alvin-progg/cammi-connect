@@ -1408,6 +1408,17 @@ supabase status                 # local URL and keys for a local .env.local
 supabase stop
 ```
 
+## Chat pin and delete: `0045`
+
+`0045_chat_pin.sql` adds `chat_conversations.pinned_at` and recreates the `updated_at`
+trigger so it skips updates that change only `pinned_at` (pinning must not reorder the list
+or restart the 12-month retention clock). Apply in the Supabase SQL editor before deploying
+this code, because the sidebar list selects `pinned_at` (it can run again).
+
+Delete is a hard delete; `chat_messages` rows cascade (`0004`). Smoke test as a patient at
+`/chat`: pin a conversation (it moves to the top, others keep their order), unpin it, delete
+another one, and delete the open one (you land on a new chat).
+
 ## Chat counter payments removed: `0043`
 
 `0043_chat_no_counter_payment.sql` adds a trigger on `payments` that refuses a new

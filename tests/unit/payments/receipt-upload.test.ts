@@ -51,7 +51,7 @@ beforeEach(() => {
     chat: {
       getConversation: vi.fn(async (patientId: string, conversationId: string) =>
         patientId === PATIENT.id && conversationId === CONVERSATION_ID
-          ? { id: CONVERSATION_ID, title: "Booking", updatedAt: NOW.toISOString() }
+          ? { id: CONVERSATION_ID, title: "Booking", updatedAt: NOW.toISOString(), pinned: false }
           : null,
       ),
       latestConversationId: vi.fn(async () => LATEST_CONVERSATION_ID),

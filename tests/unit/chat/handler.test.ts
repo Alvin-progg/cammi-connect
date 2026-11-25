@@ -39,7 +39,7 @@ function fakeStore(): ChatStore {
   return {
     getConversation: vi.fn(async (patientId: string, conversationId: string) =>
       patientId === PATIENT.id && conversationId === OWN_CONVERSATION_ID
-        ? { id: OWN_CONVERSATION_ID, title: "Earlier chat", updatedAt: NOW.toISOString() }
+        ? { id: OWN_CONVERSATION_ID, title: "Earlier chat", updatedAt: NOW.toISOString(), pinned: false }
         : null,
     ),
     listMessages: vi.fn(async (): Promise<ChatMessage[]> => [

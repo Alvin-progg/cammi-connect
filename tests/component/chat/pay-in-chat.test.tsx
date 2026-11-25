@@ -14,6 +14,11 @@ const mocks = vi.hoisted(() => ({ toastError: vi.fn(), toastSuccess: vi.fn() }))
 
 vi.mock("@/server/appointments/actions", () => ({ cancelPatientAppointmentAction: vi.fn() }));
 vi.mock("@/server/auth/actions", () => ({ signOutAction: vi.fn() }));
+
+vi.mock("@/server/chat/conversation-actions", () => ({
+  setConversationPinnedAction: vi.fn(),
+  deleteConversationAction: vi.fn(),
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
 }));

@@ -4,11 +4,18 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { PatientNotificationsPanel } from "@/components/chat/patient-notifications";
 import type { PatientNotification } from "@/lib/notifications/types";
+import {
+  markAllPatientNotificationsReadAction,
+  markPatientNotificationReadAction,
+} from "@/server/notifications/patient-actions";
 
 vi.mock("@/server/notifications/patient-actions", () => ({
   markPatientNotificationReadAction: vi.fn(),
   markAllPatientNotificationsReadAction: vi.fn(),
 }));
+
+/** Keeps the action pending, so only the optimistic update can explain the UI. */
+const never = () => new Promise<never>(() => {});
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 // jsdom does not implement modal dialogs; mimic the open/close contract.
@@ -83,5 +90,49 @@ describe("PatientNotificationsPanel", () => {
     await user.click(screen.getByRole("button", { name: /notifications/i }));
 
     expect(screen.getAllByRole("button", { name: /mark as read/i })).toHaveLength(1);
+  });
+
+  it("marks one read at once, before the server answers", async () => {
+    vi.mocked(markPatientNotificationReadAction).mockImplementationOnce(never);
+    const user = userEvent.setup();
+    render(
+      <PatientNotificationsPanel
+        notifications={[
+          notification({}),
+          notification({ id: "22222222-2222-4222-8222-222222222222", title: "Cancelled" }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /notifications, 2 unread/i }));
+    await user.click(screen.getAllByRole("button", { name: /^mark as read$/i })[0]);
+
+    expect(await screen.findAllByRole("button", { name: /^mark as read$/i })).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: /notifications, 1 unread/i, hidden: true }),
+    ).toBeInTheDocument();
+  });
+
+  it("marks all read at once, before the server answers", async () => {
+    vi.mocked(markAllPatientNotificationsReadAction).mockImplementationOnce(never);
+    const user = userEvent.setup();
+    render(
+      <PatientNotificationsPanel
+        notifications={[
+          notification({}),
+          notification({ id: "22222222-2222-4222-8222-222222222222", title: "Cancelled" }),
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /notifications, 2 unread/i }));
+    await user.click(screen.getByRole("button", { name: /mark all as read/i }));
+
+    await vi.waitFor(() =>
+      expect(screen.queryAllByRole("button", { name: /^mark as read$/i })).toHaveLength(0),
+    );
+    expect(
+      screen.getByRole("button", { name: /^notifications$/i, hidden: true }),
+    ).toBeInTheDocument();
   });
 });

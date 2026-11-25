@@ -1,7 +1,7 @@
 "use client";
 
 import { BellIcon } from "lucide-react";
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useOptimistic, useRef, useState } from "react";
 
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -26,10 +26,21 @@ const ICON_SLOT = "inline-flex size-8 shrink-0 items-center justify-center";
  * times are computed in the browser and cannot mismatch the server render.
  */
 export function PatientNotificationsPanel({
-  notifications,
+  notifications: savedNotifications,
 }: {
   notifications: PatientNotification[];
 }) {
+  // Read state flips at once; it reverts if the save fails, and the revalidated
+  // props replace it when the save succeeds.
+  const [notifications, markReadOptimistically] = useOptimistic(
+    savedNotifications,
+    (current, readId: string | "all") => {
+      const readAt = new Date().toISOString();
+      return current.map((item) =>
+        item.readAt === null && (readId === "all" || item.id === readId) ? { ...item, readAt } : item,
+      );
+    },
+  );
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const unreadCount = notifications.filter((item) => item.readAt === null).length;
@@ -74,6 +85,7 @@ export function PatientNotificationsPanel({
           <NotificationList
             notifications={notifications}
             unreadCount={unreadCount}
+            onMarkRead={markReadOptimistically}
             onClose={() => dialogRef.current?.close()}
           />
         ) : null}
@@ -85,10 +97,13 @@ export function PatientNotificationsPanel({
 function NotificationList({
   notifications,
   unreadCount,
+  onMarkRead,
   onClose,
 }: {
   notifications: PatientNotification[];
   unreadCount: number;
+  /** Runs inside the form's transition, so the optimistic change reverts on failure. */
+  onMarkRead: (readId: string | "all") => void;
   onClose: () => void;
 }) {
   const [markAllState, markAllAction, markAllPending] = useActionState(
@@ -107,7 +122,12 @@ function NotificationList({
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
         <h2 className="text-base font-semibold text-ink">Notifications</h2>
         <div className="flex items-center gap-2">
-          <form action={() => markAllAction()}>
+          <form
+            action={() => {
+              onMarkRead("all");
+              markAllAction();
+            }}
+          >
             <button
               type="submit"
               disabled={unreadCount === 0 || markAllPending}
@@ -152,7 +172,12 @@ function NotificationList({
                   ) : null}
                 </div>
                 {isUnread ? (
-                  <form action={markOneAction}>
+                  <form
+                    action={(formData) => {
+                      onMarkRead(notification.id);
+                      markOneAction(formData);
+                    }}
+                  >
                     <input type="hidden" name="notificationId" value={notification.id} />
                     <button type="submit" className={buttonVariants({ variant: "ghost", size: "sm" })}>
                       Mark as read

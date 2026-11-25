@@ -10,6 +10,13 @@ vi.mock("@/server/notifications/patient-actions", () => ({
 
 vi.mock("@/server/auth/actions", () => ({ signOutAction: vi.fn() }));
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
+vi.mock("@/server/chat/conversation-actions", () => ({
+  setConversationPinnedAction: vi.fn(),
+  deleteConversationAction: vi.fn(),
+}));
+
 function renderSidebar(patientName: string) {
   return render(
     <ChatSidebar

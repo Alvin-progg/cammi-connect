@@ -12,23 +12,28 @@ import type { Database } from "@/server/db/database.types";
 import type { ChatStore, NewChatMessage } from "./handler";
 import type { ReceiptChatStore } from "@/server/payments/receipts";
 
-import type { ChatViewStore } from "./service";
+import type { ChatViewStore, ConversationManagementStore } from "./service";
 
 type ConversationRow = Pick<
   Database["public"]["Tables"]["chat_conversations"]["Row"],
-  "id" | "title" | "updated_at"
+  "id" | "title" | "updated_at" | "pinned_at"
 >;
 type MessageRow = Pick<
   Database["public"]["Tables"]["chat_messages"]["Row"],
   "id" | "role" | "content" | "payload" | "created_at"
 >;
 
-const CONVERSATION_COLUMNS = "id, title, updated_at";
+const CONVERSATION_COLUMNS = "id, title, updated_at, pinned_at";
 const MESSAGE_COLUMNS = "id, role, content, payload, created_at";
 const CONVERSATION_LIST_LIMIT = 50;
 
 function toConversation(row: ConversationRow): ConversationSummary {
-  return { id: row.id, title: row.title, updatedAt: row.updated_at };
+  return {
+    id: row.id,
+    title: row.title,
+    updatedAt: row.updated_at,
+    pinned: row.pinned_at !== null,
+  };
 }
 
 function toMessage(row: MessageRow): ChatMessage {
@@ -48,7 +53,10 @@ function toMessage(row: MessageRow): ChatMessage {
  * is filtered by the patient ID from the session; message queries are only
  * reached after the conversation's ownership has been checked.
  */
-export const supabaseChatRepository: ChatStore & ChatViewStore & ReceiptChatStore = {
+export const supabaseChatRepository: ChatStore &
+  ChatViewStore &
+  ReceiptChatStore &
+  ConversationManagementStore = {
   async getConversation(patientId, conversationId) {
     const { data, error } = await getSupabaseAdminClient()
       .from("chat_conversations")
@@ -67,12 +75,41 @@ export const supabaseChatRepository: ChatStore & ChatViewStore & ReceiptChatStor
       .from("chat_conversations")
       .select(CONVERSATION_COLUMNS)
       .eq("patient_id", patientId)
+      // Pinned first (most recently pinned first), then by activity.
+      .order("pinned_at", { ascending: false, nullsFirst: false })
       .order("updated_at", { ascending: false })
       .limit(CONVERSATION_LIST_LIMIT);
     if (error) {
       throw new Error("Unable to load conversations.");
     }
     return (data ?? []).map(toConversation);
+  },
+
+  async setPinned(patientId, conversationId, pinned) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from("chat_conversations")
+      .update({ pinned_at: pinned ? new Date().toISOString() : null })
+      .eq("id", conversationId)
+      .eq("patient_id", patientId)
+      .select("id");
+    if (error) {
+      throw new Error("Unable to update the conversation.");
+    }
+    return (data ?? []).length > 0;
+  },
+
+  async deleteConversation(patientId, conversationId) {
+    // chat_messages rows cascade with the conversation.
+    const { data, error } = await getSupabaseAdminClient()
+      .from("chat_conversations")
+      .delete()
+      .eq("id", conversationId)
+      .eq("patient_id", patientId)
+      .select("id");
+    if (error) {
+      throw new Error("Unable to delete the conversation.");
+    }
+    return (data ?? []).length > 0;
   },
 
   async latestConversationId(patientId) {
