@@ -19,6 +19,7 @@ import {
   type AttendanceStatus,
 } from "@/lib/front-desk/schedule";
 import { getFrontDeskSession } from "@/server/auth/dal";
+import { sendNotificationEmailsAfterResponse } from "@/server/notifications/email-dispatch";
 
 import {
   supabaseFrontDeskBooker,
@@ -73,6 +74,7 @@ async function runDecision(
   revalidatePath(`${QUEUE_PATH}/${appointmentId}`);
   revalidatePath(SCHEDULE_PATH);
   revalidatePath("/doctor", "layout");
+  sendNotificationEmailsAfterResponse();
   return { status: "success", message: successMessage };
 }
 
@@ -292,6 +294,7 @@ export async function bookForPatientAction(
   revalidatePath(QUEUE_PATH);
   revalidatePath(SCHEDULE_PATH);
   revalidatePath("/doctor", "layout");
+  sendNotificationEmailsAfterResponse();
   redirect(`${QUEUE_PATH}/${result.appointmentId}`);
 }
 

@@ -10,6 +10,7 @@ import {
   pwdSubmissionSchema,
 } from "@/lib/benefits/schemas";
 import { getAdminSession, getFrontDeskSession, getPatientSession } from "@/server/auth/dal";
+import { sendNotificationEmailsAfterResponse } from "@/server/notifications/email-dispatch";
 
 import { supabaseBenefitsWriteStore } from "./repository";
 import { readOptionalImage } from "./registration";
@@ -122,6 +123,7 @@ export async function decideBenefitAction(
 
   revalidatePath(FRONT_DESK_PATH);
   revalidatePath(PATIENT_PATH);
+  sendNotificationEmailsAfterResponse();
   return {
     status: "success",
     message: result.status === "verified" ? "Verified." : "Rejected. The patient can resubmit.",

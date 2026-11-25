@@ -8,6 +8,7 @@ import { getFrontDeskSession } from "@/server/auth/dal";
 import { supabaseChatRepository } from "@/server/chat/repository";
 import type { RequestDecisionState } from "@/server/front-desk/actions";
 import type { DecisionResult } from "@/server/front-desk/service";
+import { sendNotificationEmailsAfterResponse } from "@/server/notifications/email-dispatch";
 
 import { decideHmo } from "./hmo";
 import { supabaseHmoDecisionRepository, supabasePaymentDecisionRepository } from "./repository";
@@ -36,6 +37,7 @@ async function runPaymentDecision(
 
   revalidatePath(QUEUE_PATH);
   revalidatePath(`${QUEUE_PATH}/${appointmentId}`);
+  sendNotificationEmailsAfterResponse();
   return { status: "success", message: successMessage };
 }
 

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getFrontDeskSession } from "@/server/auth/dal";
+import { sendNotificationEmailsAfterResponse } from "@/server/notifications/email-dispatch";
 import {
   bookForPatientAction,
   cancelAppointmentAction,
@@ -25,6 +26,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/server/auth/dal", () => ({ getFrontDeskSession: vi.fn() }));
+vi.mock("@/server/notifications/email-dispatch", () => ({ sendNotificationEmailsAfterResponse: vi.fn() }));
 vi.mock("@/server/front-desk/repository", () => ({
   supabaseFrontDeskRequestsRepository: {},
   supabaseFrontDeskRequestsWriter: {
@@ -92,6 +94,7 @@ describe("confirmRequestAction", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/front-desk/requests");
     expect(revalidatePath).toHaveBeenCalledWith(`/front-desk/requests/${APPOINTMENT_ID}`);
     expect(revalidatePath).toHaveBeenCalledWith("/doctor", "layout");
+    expect(sendNotificationEmailsAfterResponse).toHaveBeenCalledOnce();
   });
 
   it("refuses accounts that are not front desk staff without writing", async () => {
@@ -127,6 +130,7 @@ describe("confirmRequestAction", () => {
       message: "This request is no longer pending. Refresh to see its current status.",
     });
     expect(revalidatePath).not.toHaveBeenCalled();
+    expect(sendNotificationEmailsAfterResponse).not.toHaveBeenCalled();
   });
 });
 
