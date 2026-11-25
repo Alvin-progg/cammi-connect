@@ -4,10 +4,19 @@ import Link from "next/link";
 import { useState } from "react";
 
 import type { ConversationSummary } from "@/lib/chat/schemas";
+import type { PatientNotification } from "@/lib/notifications/types";
 import { signOutAction } from "@/server/auth/actions";
 
-import { CalendarIcon, LogOutIcon, PanelLeftIcon, SearchIcon, PlusIcon } from "lucide-react";
+import { CalendarIcon, LogOutIcon, PanelLeftIcon, PinIcon, SearchIcon, PlusIcon } from "lucide-react";
 import { BrandMark } from "@/components/ui/brand-mark";
+import { initialsOf } from "@/components/ui/rail";
+
+import {
+  DeleteConversationButton,
+  PinConversationButton,
+  useConversationActions,
+} from "./conversation-row-actions";
+import { PatientNotificationsPanel } from "./patient-notifications";
 
 /**
  * Width and label visibility are driven by `data-state` on the aside:
@@ -25,18 +34,6 @@ const ROW =
 
 const ICON_SLOT = "inline-flex size-8 shrink-0 items-center justify-center";
 
-/** Up to two initials for the account avatar; "?" when the name yields none. */
-function initialsOf(name: string): string {
-  const initials = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-  return initials || "?";
-}
-
 export function ChatSidebar({
   state,
   onToggle,
@@ -44,10 +41,11 @@ export function ChatSidebar({
   onNavigate,
   searchOpen,
   onSearchOpenChange,
-  conversations,
+  conversations: savedConversations,
   activeConversationId,
   appointmentsActive,
   patientName,
+  notifications = [],
 }: {
   state: SidebarState;
   onToggle: () => void;
@@ -61,8 +59,14 @@ export function ChatSidebar({
   appointmentsActive: boolean;
   /** The signed-in patient, shown in the account footer. */
   patientName: string;
+  /** Latest in-app notifications; the bell shows the unread count. */
+  notifications?: PatientNotification[];
 }) {
   const [query, setQuery] = useState("");
+  const { conversations, setPinned, remove } = useConversationActions(
+    savedConversations,
+    activeConversationId,
+  );
   const isOpen = state === "open";
 
   const normalizedQuery = searchOpen ? query.trim().toLowerCase() : "";
@@ -126,6 +130,7 @@ export function ChatSidebar({
           </span>
           <span className={LABEL}>My appointments</span>
         </Link>
+        <PatientNotificationsPanel notifications={notifications} />
         {searchOpen && isOpen ? (
           <input
             type="search"
@@ -166,20 +171,39 @@ export function ChatSidebar({
               {matches.map((conversation) => {
                 const isActive = conversation.id === activeConversationId;
                 return (
-                  <li key={conversation.id}>
+                  <li key={conversation.id} className="group/row relative">
                     <Link
                       href={`/chat?c=${conversation.id}`}
                       title={conversation.title}
                       aria-current={isActive ? "page" : undefined}
                       onClick={onNavigate}
-                      className={`focus-ring flex min-h-11 items-center rounded-xl px-3 text-sm transition-colors motion-reduce:transition-none ${
+                      className={`focus-ring flex min-h-11 items-center gap-2 rounded-xl px-3 pr-20 text-sm transition-colors motion-reduce:transition-none ${
                         isActive
                           ? "bg-primary-soft font-semibold text-ink"
                           : "font-medium text-ink-secondary hover:bg-surface-muted hover:text-ink"
                       }`}
                     >
+                      {conversation.pinned ? (
+                        <>
+                          <PinIcon aria-hidden="true" className="size-3.5 shrink-0 text-primary" />
+                          <span className="sr-only">Pinned</span>
+                        </>
+                      ) : null}
                       <span className="truncate whitespace-nowrap">{conversation.title}</span>
                     </Link>
+                    {/* Hidden until the row is hovered or focused; always shown on touch screens. */}
+                    <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 pointer-coarse:opacity-100 motion-reduce:transition-none">
+                      <PinConversationButton
+                        title={conversation.title}
+                        pinned={conversation.pinned}
+                        onToggle={() => setPinned(conversation.id, !conversation.pinned)}
+                      />
+                      <DeleteConversationButton
+                        conversationId={conversation.id}
+                        title={conversation.title}
+                        onConfirm={() => remove(conversation.id)}
+                      />
+                    </div>
                   </li>
                 );
               })}
@@ -194,15 +218,20 @@ export function ChatSidebar({
        * becomes horizontal once the sidebar is open.
        */}
       <div className="flex shrink-0 flex-col gap-0.5 border-t border-line px-2 py-2 group-data-[state=open]:flex-row group-data-[state=open]:items-center md:group-data-[state=auto]:flex-row md:group-data-[state=auto]:items-center">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <Link
+          href="/account"
+          onClick={onNavigate}
+          aria-label={`Your account, ${patientName}`}
+          className="focus-ring flex min-w-0 flex-1 items-center gap-3 rounded-xl"
+        >
           <span
             aria-hidden="true"
             className={`${ICON_SLOT} rounded-full bg-accent-soft text-xs font-semibold text-accent`}
           >
-            {initialsOf(patientName)}
+            {initialsOf(patientName, "?")}
           </span>
           <span className={`${LABEL} text-sm font-medium text-ink`}>{patientName}</span>
-        </div>
+        </Link>
         <form action={signOutAction}>
           <button
             type="submit"

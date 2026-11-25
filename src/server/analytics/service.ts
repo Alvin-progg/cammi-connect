@@ -1,6 +1,5 @@
 import "server-only";
 
-import { interpretAnalytics, summarize, type AnalyticsSummary } from "@/lib/analytics/interpretation";
 import {
   byDoctor,
   computeKpis,
@@ -128,8 +127,6 @@ export type DashboardData = {
   daily: DailyVolume[];
   statusDistribution: Record<VolumeStatus, number>;
   topDoctors: DoctorAnalytics[];
-  /** ADM-17 Summary card, interpreting this period's rows like the analytics page. */
-  summary: AnalyticsSummary;
   appointmentActivity: AppointmentActivityEntry[];
   adminActivity: AdminActivityEntry[];
 };
@@ -156,7 +153,6 @@ export async function loadDashboard(
   const cards = dashboardCards(rows, cancelled);
   const previousTotal = dashboardCards(previousRows, 0).total;
   const doctors = byDoctor(rows, now);
-  const months = analyticsPeriodMonths(query);
   return {
     cards,
     pending,
@@ -164,15 +160,6 @@ export async function loadDashboard(
     daily: dailyVolume(rows, analyticsPeriodDays(query)),
     statusDistribution: statusDistribution(rows),
     topDoctors: doctors.slice(0, TOP_DOCTOR_COUNT),
-    summary: summarize(
-      interpretAnalytics({
-        monthly: monthlyVolume(rows, months),
-        byDoctor: doctors,
-        heatmap: heatmap(rows),
-        outcomesByMonth: outcomesByMonth(rows, months, now),
-        ratesByWeekday: ratesByWeekday(rows, now),
-      }),
-    ),
     appointmentActivity,
     adminActivity,
   };

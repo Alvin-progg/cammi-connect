@@ -285,7 +285,6 @@ describe("lab tests: CBC + urinalysis, PWD, pay by QR", () => {
         amountDueCentavos: 29600,
         referenceCode: "CC-7F3K2",
         deadline: "2026-10-31T03:00:00.000Z",
-        method: "qr_ph",
         now: NOW,
       }),
     );

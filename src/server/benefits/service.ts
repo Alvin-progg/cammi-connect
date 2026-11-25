@@ -74,6 +74,7 @@ const FAILURE_MESSAGES: Record<string, string> = {
   invalid_dates: "Check the dates and try again.",
 };
 const GENERIC_FAILURE = "Could not save. Try again.";
+const DOCUMENT_OPEN_FAILURE = "Could not open the document. Try again.";
 
 function failureMessage(code: string): string {
   return FAILURE_MESSAGES[code] ?? GENERIC_FAILURE;
@@ -192,6 +193,11 @@ export async function viewBenefitDocument(
 ): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
   const recorded = await store.recordDocumentView(input);
   if (!recorded.ok) return { ok: false, message: failureMessage(recorded.code) };
-  const url = await store.signDocument(recorded.value, 60);
-  return { ok: true, url };
+  try {
+    const url = await store.signDocument(recorded.value, 60);
+    return { ok: true, url };
+  } catch {
+    // Storage errors can carry provider text; the staff user sees only this fixed line.
+    return { ok: false, message: DOCUMENT_OPEN_FAILURE };
+  }
 }

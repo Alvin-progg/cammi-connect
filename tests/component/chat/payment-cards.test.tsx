@@ -32,7 +32,7 @@ describe("PAY-03 payment cards", () => {
     expect(screen.queryByRole("button", { name: "PWD" })).not.toBeInTheDocument();
   });
 
-  it("offers self-pay, pay at the hospital, and HMO, and hides PhilHealth without a benefit", () => {
+  it("offers self-pay by QR, HMO, and hides PhilHealth, and hides PhilHealth without a benefit", () => {
     const onEvent = renderCard({
       kind: "payer_options",
       philhealth: false,
@@ -45,11 +45,7 @@ describe("PAY-03 payment cards", () => {
       type: "select_payer",
       payment: { payer: "self", method: "qr_ph" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Pay at the hospital" }));
-    expect(onEvent).toHaveBeenCalledWith({
-      type: "select_payer",
-      payment: { payer: "self", method: "counter" },
-    });
+    expect(screen.queryByRole("button", { name: "Pay at the hospital" })).not.toBeInTheDocument();
   });
 
   it("lets the patient pick a saved HMO membership, with no member number to type", () => {

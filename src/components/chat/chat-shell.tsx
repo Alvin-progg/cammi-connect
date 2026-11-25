@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import type { PatientAppointmentGroups } from "@/lib/appointments/patient";
+import type { PatientNotification } from "@/lib/notifications/types";
 import type {
   BookedPayment,
   CardEvent,
@@ -64,6 +65,7 @@ export function ChatShell({
   initialMessages,
   appointments,
   paymentQr = null,
+  notifications = [],
 }: {
   salutation: string;
   firstName: string;
@@ -81,6 +83,8 @@ export function ChatShell({
   appointments: (PatientAppointmentGroups & { payments?: Record<string, BookedPayment> }) | null;
   /** The hospital's QR settings; null while payment.enabled is off (PAY-04). */
   paymentQr?: PaymentQr | null;
+  /** The patient's latest in-app notifications, for the sidebar bell. */
+  notifications?: PatientNotification[];
 }) {
   const router = useRouter();
   const [activeConversationId, setActiveConversationId] = useState(conversationId);
@@ -218,6 +222,7 @@ export function ChatShell({
             activeConversationId={appointments ? null : activeConversationId}
             appointmentsActive={appointments !== null}
             patientName={patientName}
+            notifications={notifications}
           />
         </div>
 

@@ -95,9 +95,8 @@ Example, under the existing takeaway:
 
 ## Where it shows
 
-- `/admin/analytics`: Summary card above the KPIs; "What it means" under each takeaway.
-- `/admin` dashboard: the same Summary card (top 3), reusing `interpretation.ts`. Optional
-  in this slice; included if `loadDashboard` already has the datasets (it reuses ADM-10).
+- `/admin/analytics`: ~~Summary card above the KPIs~~ removed 2026-11-24 (owner request); "What it means" under each takeaway stays.
+- `/admin` dashboard: ~~the same Summary card (top 3)~~ removed 2026-11-24 (owner request; the dashboard already has Needs attention). Summary stays on `/admin/analytics` only.
 - CSV export: unchanged (data only).
 
 ## Files
@@ -143,4 +142,4 @@ The project owner approved every recommended default below.
 | I1 | Rule-based templates instead of AI-written text | Yes (reasons above) |
 | I2 | Thresholds and minimums in the tables above | Approve as listed; tune after real data |
 | I3 | Light suggestions allowed ("watch doctor capacity", "reminders matter most then") | Yes, only these fixed phrases, never new advice |
-| I4 | Show the Summary card on the `/admin` dashboard too | Yes |
+| I4 | Show the Summary card on the `/admin` dashboard too | Yes (superseded 2026-11-24: Summary card removed from `/admin` and `/admin/analytics` by owner request) |

@@ -1,3 +1,4 @@
+import Form from "next/form";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -50,8 +51,7 @@ export default async function AdminSchedulesPage({
   ]);
 
   const picker = (
-    <form
-      method="get"
+    <Form
       action="/admin/schedules"
       aria-label="Choose a doctor"
       className="flex flex-wrap items-end gap-3"
@@ -80,7 +80,7 @@ export default async function AdminSchedulesPage({
       <button type="submit" className={SECONDARY_BUTTON_CLASS}>
         Open schedule
       </button>
-    </form>
+    </Form>
   );
 
   if (!selected) {
@@ -108,8 +108,7 @@ export default async function AdminSchedulesPage({
               Hospital holidays
             </Link>
           </div>
-          <form
-            method="get"
+          <Form
             action="/admin/schedules"
             aria-label="Filter schedules"
             className="flex flex-wrap items-end gap-3"
@@ -135,7 +134,7 @@ export default async function AdminSchedulesPage({
             <Button type="submit" variant="outline" size="sm">
               Filter
             </Button>
-          </form>
+          </Form>
           <SchedulesOverview
             doctors={listedDoctors}
             schedules={schedules}

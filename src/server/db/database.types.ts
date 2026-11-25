@@ -11,7 +11,10 @@ import type {
   KnowledgeProcessingStatus,
   KnowledgeStatus,
 } from "@/lib/knowledge/types";
-import type { NotificationType } from "@/lib/notifications/types";
+import type {
+  NotificationType,
+  PatientNotificationType,
+} from "@/lib/notifications/types";
 import type { RequirementStatus } from "@/lib/requirements/types";
 import type { ScheduleExceptionType } from "@/lib/schedules/types";
 import type { ServiceBookingMode, ServiceCategory } from "@/lib/services/types";
@@ -731,6 +734,32 @@ export type Database = {
         };
         Relationships: [];
       };
+      patient_notifications: {
+        Row: {
+          id: string;
+          patient_id: string;
+          appointment_id: string | null;
+          type: PatientNotificationType;
+          title: string;
+          body: string;
+          read_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          patient_id: string;
+          appointment_id?: string | null;
+          type: PatientNotificationType;
+          title: string;
+          body?: string;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          read_at?: string | null;
+        };
+        Relationships: [];
+      };
       chat_conversations: {
         Row: {
           id: string;
@@ -739,6 +768,7 @@ export type Database = {
           booking_state: Json | null;
           created_at: string;
           updated_at: string;
+          pinned_at: string | null;
         };
         Insert: {
           id?: string;
@@ -747,11 +777,13 @@ export type Database = {
           booking_state?: Json | null;
           created_at?: string;
           updated_at?: string;
+          pinned_at?: string | null;
         };
         Update: {
           title?: string;
           booking_state?: Json | null;
           updated_at?: string;
+          pinned_at?: string | null;
         };
         Relationships: [];
       };
@@ -1750,6 +1782,7 @@ export type Database = {
       appointment_status: AppointmentStatus;
       booking_source: BookingSource;
       doctor_notification_type: NotificationType;
+      patient_notification_type: PatientNotificationType;
       schedule_exception_type: ScheduleExceptionType;
       payment_status: PaymentStatus;
     };

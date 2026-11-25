@@ -76,7 +76,7 @@ Range presets: Today, This week (Manila Monday–Sunday), This month, and Custom
 
 ## Interpretation (ADM-17, v3)
 
-Added on 2026-11-16. Each chart on `/admin/analytics` gets a "What it means" line (at most 12 words), and the page and the admin dashboard show a Summary card (at most 3 points of at most 15 words). Both come from `src/lib/analytics/interpretation.ts`, with the constants in `interpretation-thresholds.ts`: fixed templates over the chart's own filtered dataset, no LLM. Lines state meaning, never a cause, and never mention a patient.
+Added on 2026-11-16. Each chart on `/admin/analytics` gets a "What it means" line (at most 12 words). They come from `src/lib/analytics/interpretation.ts`, with the constants in `interpretation-thresholds.ts`: fixed templates over the chart's own filtered dataset, no LLM. Lines state meaning, never a cause, and never mention a patient.
 
 | Chart | Minimum (else "Not enough data yet to interpret.") | Bands → severity |
 |---|---|---|
@@ -87,4 +87,4 @@ Added on 2026-11-16. Each chart on `/admin/analytics` gets a "What it means" lin
 | Weekday rates | ≥ 20 finished visits | worst weekday's missed rate ≥ 1.5× the period's missed rate (all finished visits): that weekday stands out (alert); otherwise none (ok) |
 | Doctor rates | ≥ 20 finished visits | worst doctor's missed rate ≥ 1.5× the period's missed rate: names that doctor (alert); otherwise similar (ok) |
 
-Summary card: alert points first, then watch, each in chart order, at most 3, each prefixed with the chart's label (Volume, Doctors, Peak times, Outcomes, Weekdays, Doctor rates). Nothing alert or watch: "Everything looks steady for this period." No chart meets its minimum: "Not enough data yet to interpret this period." The dashboard computes the same interpretations from its own range's rows, and its points link to the analytics charts for the same dates and filters. The CSV export is unchanged.
+Summary card: removed 2026-11-24 (owner request). The per-chart "What it means" lines are unchanged.

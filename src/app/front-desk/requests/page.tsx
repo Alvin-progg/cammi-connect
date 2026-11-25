@@ -1,3 +1,4 @@
+import Form from "next/form";
 import { CalendarPlus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -89,8 +90,7 @@ export default async function FrontDeskRequestsPage({
             { href: viewHref("list"), label: "List", current: view === "list" },
           ]}
         />
-        <form
-          method="get"
+        <Form
           action="/front-desk/requests"
           aria-label="Filter requests"
           className="flex flex-wrap items-end gap-3"
@@ -186,7 +186,7 @@ export default async function FrontDeskRequestsPage({
           >
             Clear filters
           </Link>
-        </form>
+        </Form>
         {view === "board" ? (
           <RequestBoard items={queue.items} limitReached={queue.limitReached} now={now} />
         ) : (

@@ -287,6 +287,62 @@ describe("handleTurn", () => {
   });
 });
 
+describe("handleTurn other-intent knowledge fallback", () => {
+  const FOUND: KnowledgeSearchResult = {
+    found: true,
+    chunks: [
+      {
+        chunkId: "c2",
+        slug: "parking-policy",
+        title: "Parking Policy",
+        sectionTitle: null,
+        content: "Parking is free for the first two hours.",
+        similarity: 0.82,
+      },
+    ],
+    sources: [{ slug: "parking-policy", title: "Parking Policy", sectionTitle: null }],
+  };
+
+  it("answers an unclassified hospital question from retrieved context", async () => {
+    const generate = vi
+      .fn<(input: GenerateInput) => Promise<string>>()
+      .mockResolvedValueOnce(JSON.stringify({ intent: "other" }))
+      .mockResolvedValueOnce("Parking is free for the first two hours.");
+    const searchKnowledge = vi.fn(async () => FOUND);
+
+    const result = await handleTurn(
+      turn("Is parking free at the hospital?"),
+      turnDeps(generate, { searchKnowledge }),
+    );
+
+    expect(searchKnowledge).toHaveBeenCalledWith("Is parking free at the hospital?");
+    expect(result.reply).toBe("Parking is free for the first two hours.");
+    expect(result.payload).toEqual({ kind: "sources", sources: FOUND.sources });
+  });
+
+  it("falls back to the small-talk reply when no published chunk matches", async () => {
+    const generate = generateReturning(JSON.stringify({ intent: "other" }));
+
+    const result = await handleTurn(
+      turn("Is parking free at the hospital?"),
+      turnDeps(generate),
+    );
+
+    expect(result.payload).toBeNull();
+    expect(generate.mock.calls).toHaveLength(2);
+    expect(generate.mock.calls[1][0].systemPrompt).toBe(SMALL_TALK_SYSTEM_PROMPT);
+  });
+
+  it("does not search the knowledge base for a short greeting", async () => {
+    const generate = generateReturning(JSON.stringify({ intent: "other" }));
+    const searchKnowledge = vi.fn(async (): Promise<KnowledgeSearchResult> => FOUND);
+
+    await handleTurn(turn("thanks"), turnDeps(generate, { searchKnowledge }));
+
+    expect(searchKnowledge).not.toHaveBeenCalled();
+  });
+});
+
 describe("handleTurn service_inquiry", () => {
   const FOUND: KnowledgeSearchResult = {
     found: true,

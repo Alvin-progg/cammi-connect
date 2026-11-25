@@ -1,3 +1,4 @@
+import Form from "next/form";
 import { Plus } from "lucide-react";
 import type { Metadata } from "next";
 
@@ -48,8 +49,7 @@ export default async function AdminDoctorsPage({ searchParams }: PageProps<"/adm
     >
       <div className="flex flex-col gap-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <form
-            method="get"
+          <Form
             action="/admin/doctors"
             aria-label="Filter doctors"
             className="flex flex-wrap items-end gap-3"
@@ -103,7 +103,7 @@ export default async function AdminDoctorsPage({ searchParams }: PageProps<"/adm
             <Button type="submit" variant="outline" size="sm">
               Filter
             </Button>
-          </form>
+          </Form>
         </div>
         <DoctorsTable doctors={doctors} />
       </div>

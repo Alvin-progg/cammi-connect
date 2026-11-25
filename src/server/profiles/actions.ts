@@ -2,11 +2,11 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 
-import { updateDoctorProfileSchema } from "@/lib/profiles/schemas";
-import { getDoctorSession } from "@/server/auth/dal";
+import { updateDoctorProfileSchema, updatePatientProfileSchema } from "@/lib/profiles/schemas";
+import { getDoctorSession, getPatientSession } from "@/server/auth/dal";
 import { REFERENCE_CACHE_TAG } from "@/server/cache/reference-tag";
 
-import { updateDoctorContact } from "./service";
+import { updateDoctorContact, updatePatientProfile } from "./service";
 
 export type ProfileActionState =
   | { status: "idle" }
@@ -45,4 +45,34 @@ export async function updateDoctorProfileAction(
   updateTag(REFERENCE_CACHE_TAG);
   revalidatePath("/doctor", "layout");
   return { status: "success", message: "Profile updated." };
+}
+
+export async function updatePatientProfileAction(
+  _previous: ProfileActionState,
+  formData: FormData,
+): Promise<ProfileActionState> {
+  const session = await getPatientSession("/account");
+  if (!session) {
+    return { status: "error", message: "You are not authorized to update this profile." };
+  }
+
+  const parsed = updatePatientProfileSchema.safeParse({
+    fullName: formData.get("fullName"),
+    phone: formData.get("phone"),
+  });
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.error.issues[0]?.message ?? "Check your profile details.",
+    };
+  }
+
+  await updatePatientProfile({
+    patientId: session.patient.id,
+    fullName: parsed.data.fullName,
+    phone: parsed.data.phone,
+  });
+  revalidatePath("/account");
+  revalidatePath("/chat", "layout");
+  return { status: "success", message: "Profile saved." };
 }

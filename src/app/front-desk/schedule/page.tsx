@@ -1,3 +1,4 @@
+import Form from "next/form";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -78,7 +79,7 @@ export default async function FrontDeskSchedulePage({
           <LinkButton variant="outline" size="icon" href={dayHref(shiftManilaDate(filters.date, -1))} aria-label="Previous day">
             <ChevronLeft aria-hidden="true" />
           </LinkButton>
-          <form method="get" action="/front-desk/schedule" aria-label="Go to date" className="flex gap-2">
+          <Form action="/front-desk/schedule" aria-label="Go to date" className="flex gap-2">
             {filters.doctorId ? <input type="hidden" name="doctor" value={filters.doctorId} /> : null}
             {filters.status !== "all" ? <input type="hidden" name="status" value={filters.status} /> : null}
             {filters.search ? <input type="hidden" name="q" value={filters.search} /> : null}
@@ -95,7 +96,7 @@ export default async function FrontDeskSchedulePage({
             <button type="submit" className={SECONDARY_BUTTON_CLASS}>
               Go
             </button>
-          </form>
+          </Form>
           <LinkButton variant="outline" size="icon" href={dayHref(shiftManilaDate(filters.date, 1))} aria-label="Next day">
             <ChevronRight aria-hidden="true" />
           </LinkButton>
@@ -106,8 +107,7 @@ export default async function FrontDeskSchedulePage({
       }
     >
       <div className="flex flex-col gap-6">
-        <form
-          method="get"
+        <Form
           action="/front-desk/schedule"
           aria-label="Filter schedule"
           className="flex flex-wrap items-end gap-3 print:hidden"
@@ -174,7 +174,7 @@ export default async function FrontDeskSchedulePage({
           <div className="ml-auto">
             <PrintButton />
           </div>
-        </form>
+        </Form>
         <DailySchedule
           items={schedule.items}
           limitReached={schedule.limitReached}

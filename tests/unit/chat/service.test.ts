@@ -11,6 +11,7 @@ const OWN: ConversationSummary = {
   id: "00000000-0000-4000-8000-00000000c001",
   title: "Earlier chat",
   updatedAt: "2026-10-30T01:00:00.000Z",
+  pinned: false,
 };
 const MESSAGES: ChatMessage[] = [
   { id: "m1", role: "user", content: "Hi", payload: null, createdAt: "2026-10-30T01:00:00.000Z" },

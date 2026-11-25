@@ -1,18 +1,17 @@
+import { Clock } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { EmptyState } from "@/components/ui/data";
 import { DataTable } from "@/components/analytics/data-table";
 import { AUDIT_ACTION_LABELS } from "@/components/appointments/appointment-timeline";
+import { CELL, EmptyState, HEADER_CELL } from "@/components/ui/data";
 import { formatRate } from "@/lib/analytics/display";
 import type { DoctorAnalytics } from "@/lib/analytics/metrics";
 import { formatManilaDateTime } from "@/lib/appointments/format";
-import { MONITORING_PATH } from "@/lib/appointments/monitoring";
+import { monitoringListHref, MONITORING_PATH } from "@/lib/appointments/monitoring";
 import { APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
 import { formatRequestId } from "@/lib/front-desk/requests";
 import type { AdminActivityEntry, AppointmentActivityEntry, PendingSummary } from "@/server/analytics/service";
-
-const LIST_CLASS = "divide-y divide-line rounded-lg border border-line";
 
 function Section({ id, title, description, children }: { id: string; title: string; description: string; children: ReactNode }) {
   const headingId = `${id}-title`;
@@ -32,22 +31,70 @@ function Section({ id, title, description, children }: { id: string; title: stri
   );
 }
 
-/** Read-only pending snapshot; the front desk works the queue (D3). */
-export function PendingOverview({ pending }: { pending: PendingSummary }) {
+/** A bordered table for the activity feeds, with headers and cells the caller supplies. */
+function ActivityTable({ label, headers, children }: { label: string; headers: string[]; children: ReactNode }) {
   return (
-    <Section id="pending-overview" title="Front desk queue" description="Requests waiting for confirmation right now. Read-only.">
+    <div className="overflow-x-auto rounded-lg border border-line">
+      <table className="w-full min-w-[640px] border-separate border-spacing-0">
+        <caption className="sr-only">{label}</caption>
+        <thead>
+          <tr>
+            {headers.map((header) => (
+              <th key={header} scope="col" className={HEADER_CELL}>
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Needs attention: the live front desk queue, read-only (D3). Built only from the pending snapshot. */
+export function NeedsAttention({ pending }: { pending: PendingSummary }) {
+  const reviewHref = monitoringListHref({
+    search: "",
+    doctorId: null,
+    departmentId: null,
+    statuses: ["requested"],
+    source: null,
+    from: null,
+    to: null,
+    page: 1,
+  });
+
+  return (
+    <Section id="needs-attention" title="Needs attention" description="Requests waiting for the front desk right now.">
       {pending.count === 0 ? (
         <EmptyState>No pending requests.</EmptyState>
       ) : (
         <>
-          <p className="text-sm text-ink">
-            <span className="text-2xl font-semibold tabular-nums">{pending.count}</span> pending
-            {pending.oldestCreatedAt ? (
-              <span className="ml-2 text-ink-secondary">
-                Oldest waiting since {formatManilaDateTime(pending.oldestCreatedAt)}
-              </span>
-            ) : null}
-          </p>
+          <div className="flex items-start gap-3 rounded-lg border border-line p-4">
+            <span
+              aria-hidden="true"
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-warning-soft text-warning-soft-ink"
+            >
+              <Clock className="size-4" />
+            </span>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <p className="text-sm font-medium text-ink">
+                {pending.count} {pending.count === 1 ? "request" : "requests"} waiting for confirmation
+              </p>
+              {pending.oldestCreatedAt ? (
+                <p className="text-xs text-ink-muted">
+                  Oldest waiting since {formatManilaDateTime(pending.oldestCreatedAt)}
+                </p>
+              ) : null}
+            </div>
+            <Link
+              href={reviewHref}
+              className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-2 text-sm font-medium text-primary underline-offset-4 focus-ring hover:text-primary-hover hover:underline"
+            >
+              Review
+            </Link>
+          </div>
           <DataTable
             label="Pending requests by department"
             columns={["Department", "Pending"]}
@@ -89,32 +136,37 @@ export function AppointmentActivity({ entries }: { entries: AppointmentActivityE
       {entries.length === 0 ? (
         <EmptyState>No appointment activity yet.</EmptyState>
       ) : (
-        <ul className={LIST_CLASS}>
-          {entries.map((entry) => (
-            <li key={entry.id} className="flex items-start justify-between gap-3 px-4 py-3">
-              <div className="flex min-w-0 flex-col gap-1">
-                <span className="text-sm font-medium text-ink">
+        <ActivityTable label="Recent appointment activity" headers={["Time", "Actor", "Action", "Record"]}>
+          {entries.map((entry) => {
+            const requestId = formatRequestId(entry.appointmentId);
+            const previousStatus = entry.previousStatus;
+            return (
+              <tr key={entry.id}>
+                <td className={`${CELL} whitespace-nowrap text-ink-secondary tabular-nums`}>
+                  {formatManilaDateTime(entry.createdAt)}
+                </td>
+                <td className={CELL}>{entry.actorName ?? "System"}</td>
+                <td className={CELL}>
                   {AUDIT_ACTION_LABELS[entry.action]}
-                  {entry.previousStatus && entry.previousStatus !== entry.newStatus ? (
-                    <span className="ml-2 font-normal text-ink-secondary">
-                      {APPOINTMENT_STATUS_LABELS[entry.previousStatus]} → {APPOINTMENT_STATUS_LABELS[entry.newStatus]}
+                  {previousStatus && previousStatus !== entry.newStatus ? (
+                    <span className="ml-2 text-ink-secondary">
+                      {APPOINTMENT_STATUS_LABELS[previousStatus]} → {APPOINTMENT_STATUS_LABELS[entry.newStatus]}
                     </span>
                   ) : null}
-                </span>
-                <span className="text-xs text-ink-muted">
-                  {entry.actorName ?? "System"} · {formatManilaDateTime(entry.createdAt)}
-                </span>
-              </div>
-              <Link
-                href={`${MONITORING_PATH}/${entry.appointmentId}`}
-                aria-label={`View appointment ${formatRequestId(entry.appointmentId)}`}
-                className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-2 text-sm font-medium text-primary underline-offset-4 focus-ring hover:text-primary-hover hover:underline"
-              >
-                View
-              </Link>
-            </li>
-          ))}
-        </ul>
+                </td>
+                <td className={CELL}>
+                  <Link
+                    href={`${MONITORING_PATH}/${entry.appointmentId}`}
+                    aria-label={`View appointment ${requestId}`}
+                    className="font-mono text-xs font-medium text-primary underline-offset-4 focus-ring hover:text-primary-hover hover:underline"
+                  >
+                    {requestId}
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
+        </ActivityTable>
       )}
     </Section>
   );
@@ -126,16 +178,20 @@ export function SystemActivity({ entries }: { entries: AdminActivityEntry[] }) {
       {entries.length === 0 ? (
         <EmptyState>No admin activity yet.</EmptyState>
       ) : (
-        <ul className={LIST_CLASS}>
+        <ActivityTable label="System activity" headers={["Time", "Actor", "Action", "Target"]}>
           {entries.map((entry) => (
-            <li key={entry.id} className="flex flex-col gap-1 px-4 py-3">
-              <code className="text-sm font-medium text-ink">{entry.action}</code>
-              <span className="text-xs text-ink-muted">
-                {entry.targetType} · {entry.actorName ?? "Unknown"} · {formatManilaDateTime(entry.createdAt)}
-              </span>
-            </li>
+            <tr key={entry.id}>
+              <td className={`${CELL} whitespace-nowrap text-ink-secondary tabular-nums`}>
+                {formatManilaDateTime(entry.createdAt)}
+              </td>
+              <td className={CELL}>{entry.actorName ?? "Unknown"}</td>
+              <td className={CELL}>
+                <code className="font-mono text-xs">{entry.action}</code>
+              </td>
+              <td className={`${CELL} text-ink-secondary`}>{entry.targetType}</td>
+            </tr>
           ))}
-        </ul>
+        </ActivityTable>
       )}
     </Section>
   );

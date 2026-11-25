@@ -12,6 +12,11 @@ describe("RAG_SYSTEM_PROMPT", () => {
     expect(RAG_SYSTEM_PROMPT).toMatch(/not .*instructions/i);
   });
 
+  it("forbids markdown so replies show no asterisks or headings", () => {
+    expect(RAG_SYSTEM_PROMPT).toMatch(/no markdown/i);
+    expect(RAG_SYSTEM_PROMPT).toMatch(/asterisk/i);
+  });
+
   it("answers in Cami's voice", () => {
     expect(RAG_SYSTEM_PROMPT).toContain(CAMI_IDENTITY);
   });

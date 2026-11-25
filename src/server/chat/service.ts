@@ -42,3 +42,34 @@ export async function loadChatView(
     messages: await store.listMessages(conversation.id),
   };
 }
+
+/**
+ * Pin and delete act on rows the patient owns. The store scopes both writes by
+ * patient ID, so another patient's conversation reports `not_found`, the same
+ * as a missing one.
+ */
+export type ConversationManagementStore = {
+  setPinned(patientId: string, conversationId: string, pinned: boolean): Promise<boolean>;
+  deleteConversation(patientId: string, conversationId: string): Promise<boolean>;
+};
+
+export type ConversationMutationResult = { status: "updated" | "deleted" } | { status: "not_found" };
+
+export async function setConversationPinned(
+  patientId: string,
+  conversationId: string,
+  pinned: boolean,
+  store: ConversationManagementStore,
+): Promise<ConversationMutationResult> {
+  const updated = await store.setPinned(patientId, conversationId, pinned);
+  return updated ? { status: "updated" } : { status: "not_found" };
+}
+
+export async function deleteConversation(
+  patientId: string,
+  conversationId: string,
+  store: ConversationManagementStore,
+): Promise<ConversationMutationResult> {
+  const deleted = await store.deleteConversation(patientId, conversationId);
+  return deleted ? { status: "deleted" } : { status: "not_found" };
+}

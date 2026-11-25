@@ -321,4 +321,13 @@ export type ConversationSummary = {
   id: string;
   title: string;
   updatedAt: string;
+  pinned: boolean;
 };
+
+/** A conversation ID from the sidebar; anything else is refused before the DB. */
+export const conversationIdSchema = z.uuid("Invalid conversation reference.");
+
+export const setConversationPinnedSchema = z.object({
+  conversationId: conversationIdSchema,
+  pinned: z.boolean(),
+});

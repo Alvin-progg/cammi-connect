@@ -29,7 +29,7 @@
   (appointment, charge snapshot, line item, payment, and `created` event in one
   transaction; the SQL recomputes the price from the database and refuses a mismatch).
   Status on create is `awaiting_payment`, `hmo_pending`, or `not_required`. "Pay at the
-  hospital" (D6) is a self-pay method with the same deadline. A visit starting within 2
+  hospital" (D6) was a self-pay method in chat; reversed 2026-11-24, see D6. Chat self-pay is QR Ph only. A visit starting within 2
   hours can't be booked with payment ("pick a later time"). The payment request is text
   only (amount, reference code, deadline); the QR card is PAY-04. With
   `payment.enabled` off, booking is unchanged.
@@ -43,8 +43,8 @@
   database refuses. The QR card (QR image, account name, amount, reference, deadline,
   upload) follows the payment request, falls back to "pay at the cashier" when no QR is
   set, and is shown again under unpaid requests in My appointments. Cami's "Got your
-  receipt" reply is appended server-side. A "Pay at the hospital" payment gets no QR or
-  upload. The payment request now uses the spec's QR wording.
+  receipt" reply is appended server-side. A `counter` payment (HMO denial under 2 h,
+  or a front-desk booking) gets no QR or upload. The payment request now uses the spec's QR wording.
 - 2026-11-17 — **PAY-05 built** (migration `0036_payment_verification.sql`): the confirm
   function refuses `payment_not_verified` unless the payment is `verified`,
   `hmo_approved`, `not_required`, or `collect_at_counter`. An appointment with no
@@ -443,7 +443,7 @@ The project owner approved every recommended default below.
 | D3 | Where non-doctor bookings live | PAY-07 | Extend `appointments` (`kind`, `service_id`, nullable `doctor_id` only for services) so the front desk queue, audit, and analytics keep working; amend ADR-0007 |
 | D4 | Refund policy | PAY-05 | Cancel ≥ 24 h before → full refund; later → no refund but free rebooking within 30 days; hospital cancels → always full refund |
 | D5 | Receipt retention | PAY-04 | Delete images 90 days after the payment closes; keep the payment record |
-| D6 | "Pay at the hospital" option for patients without e-wallets (e.g. many seniors) | PAY-03 | Offer it, but the slot is held only until the deadline, same as QR, then cancelled if unpaid |
+| D6 | "Pay at the hospital" option for patients without e-wallets (e.g. many seniors) | PAY-03 | **Reversed 2026-11-24:** pay at the hospital is for walk-ins only (front desk). Chat self-pay is QR Ph only; migration `0043` refuses a `counter` payment awaiting payment. HMO denial under 2 h keeps `collect_at_counter`. |
 | D7 | Is the hospital a YAKAP provider, and which HMOs are accredited? | PAY-06 | Seed PhilHealth benefit ₱0 everywhere and a sample HMO list (Maxicare, Intellicare, MediCard, PhilCare) marked synthetic |
 | D8 | Who owns real prices | PAY-01 | Seed recommended synthetic rates; the hospital's billing office replaces them before go-live |
 | D9 | How Cami tells the patient about front desk decisions | PAY-05 | Server appends a templated assistant message to the patient's latest conversation; no SMS/email in this ticket |

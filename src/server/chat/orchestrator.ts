@@ -88,8 +88,8 @@ Shape:
 Rules:
 - Messages may be in English, Tagalog, or Taglish.
 - "book": the patient wants to book or schedule an appointment, see a doctor, or have something checked (for example "pa-check up", "magpatingin"), including when they describe symptoms or a concern and want to be seen, or changes the specialty, doctor, date, or time of a booking in progress.
-- "service_inquiry": questions about hospital services, requirements, documents to bring, visiting, or other hospital information.
-- "doctor_inquiry": questions about which departments, specialties, or doctors the hospital has, or about a named doctor.
+- "service_inquiry": questions about hospital services, requirements, documents to bring, visiting, hospital policies, fees, rules, facilities, or any other hospital information.
+- "doctor_inquiry": questions about which departments, specialties, or doctors the hospital has, or about a named doctor. Not for a patient who describes a symptom or concern and asks which specialty to pick; that is "book".
 - "appointment_status": the patient asks to see their appointments or their status.
 - "cancel": the patient wants to cancel an existing appointment.
 - "reschedule": the patient wants to move an existing appointment to another time.
@@ -176,7 +176,14 @@ async function answerHospitalQuestion(
   if (!search.found) {
     return NOT_VERIFIED_RESULT;
   }
+  return answerFromSearch(question, search, deps);
+}
 
+async function answerFromSearch(
+  question: string,
+  search: Extract<KnowledgeSearchResult, { found: true }>,
+  deps: TurnDeps,
+): Promise<Reply> {
   const answer = await deps.generate({
     systemPrompt: RAG_SYSTEM_PROMPT,
     messages: [
@@ -191,6 +198,25 @@ async function answerHospitalQuestion(
     return NOT_VERIFIED_RESULT;
   }
   return { reply: clipReply(reply), payload: { kind: "sources", sources: search.sources } };
+}
+
+/** Shortest message that is worth a knowledge search; greetings and thanks are not. */
+const KNOWLEDGE_MIN_WORDS = 3;
+
+/**
+ * A message the classifier did not label as hospital information may still be
+ * one (the intent prompt cannot list every topic). Retrieval runs first; when
+ * nothing matches, the message gets the small-talk reply as before.
+ */
+async function answerOtherMessage(text: string, input: TurnInput, deps: TurnDeps): Promise<Reply> {
+  if (text.trim().split(/\s+/).length < KNOWLEDGE_MIN_WORDS) {
+    return answerSmallTalk(text, input, deps);
+  }
+  const search = await deps.searchKnowledge(text);
+  if (!search.found) {
+    return answerSmallTalk(text, input, deps);
+  }
+  return answerFromSearch(text, search, deps);
 }
 
 /**
@@ -333,6 +359,10 @@ async function replyToMessage(
     case "service_inquiry":
       return answerHospitalQuestion(text, input, deps);
     case "doctor_inquiry":
+      // A described concern asked as a specialty question is routing, not a directory list (AI-APT-002).
+      if (extraction.concern && !extraction.doctorName) {
+        return startOrCorrectBooking(extraction, booking);
+      }
       return answerDirectoryQuestion(extraction, deps.tools);
     case "appointment_status":
       return showPatientAppointments(input.patientId, deps.tools, APPOINTMENTS_COPY.list);
@@ -341,6 +371,6 @@ async function replyToMessage(
     case "reschedule":
       return { reply: APPOINTMENTS_COPY.rescheduleUnavailable, payload: null };
     default:
-      return answerSmallTalk(text, input, deps);
+      return answerOtherMessage(text, input, deps);
   }
 }

@@ -5,6 +5,11 @@ import { ChatShell } from "@/components/chat/chat-shell";
 import type { PatientAppointment } from "@/lib/appointments/types";
 import type { ChatMessage, ConversationSummary } from "@/lib/chat/schemas";
 
+vi.mock("@/server/notifications/patient-actions", () => ({
+  markPatientNotificationReadAction: vi.fn(),
+  markAllPatientNotificationsReadAction: vi.fn(),
+}));
+
 const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   push: vi.fn(),
@@ -15,6 +20,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/server/appointments/actions", () => ({
   cancelPatientAppointmentAction: mocks.cancelAction,
+}));
+
+vi.mock("@/server/chat/conversation-actions", () => ({
+  setConversationPinnedAction: vi.fn(),
+  deleteConversationAction: vi.fn(),
 }));
 
 vi.mock("@/server/auth/actions", () => ({
@@ -34,11 +44,13 @@ const CONVERSATIONS: ConversationSummary[] = [
     id: "00000000-0000-4000-8000-00000000c001",
     title: "Cardiology questions",
     updatedAt: "2026-10-29T01:00:00.000Z",
+    pinned: false,
   },
   {
     id: "00000000-0000-4000-8000-00000000c002",
     title: "Visiting hours",
     updatedAt: "2026-10-28T01:00:00.000Z",
+    pinned: false,
   },
 ];
 
@@ -231,7 +243,7 @@ describe("ChatShell sidebar", () => {
     });
 
     expect(within(sidebar()).queryByText("Cardiology questions")).not.toBeInTheDocument();
-    expect(within(sidebar()).getByText("Visiting hours")).toBeInTheDocument();
+    expect(within(sidebar()).getByRole("link", { name: /Visiting hours/ })).toBeInTheDocument();
   });
 
   it("expands a collapsed sidebar into search from the rail", () => {

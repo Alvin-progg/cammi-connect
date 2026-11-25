@@ -9,7 +9,6 @@ import {
   SERIES,
   WeekdayRatesChart,
 } from "@/components/analytics/analytics-charts";
-import { AnalyticsSummary } from "@/components/analytics/analytics-summary";
 import { AnalyticsExportMenu, AnalyticsFilters } from "@/components/analytics/analytics-filters";
 import { ChartCard, ChartLegend, ChartSection } from "@/components/analytics/chart-card";
 import { DataTable } from "@/components/analytics/data-table";
@@ -31,7 +30,7 @@ import {
   toAnalyticsQuery,
   type AnalyticsRange,
 } from "@/lib/analytics/filters";
-import { interpretAnalytics, summarize } from "@/lib/analytics/interpretation";
+import { interpretAnalytics } from "@/lib/analytics/interpretation";
 import {
   doctorRatesTakeaway,
   doctorTakeaway,
@@ -65,7 +64,7 @@ const PERIOD_PHRASES: Record<AnalyticsRange, string> = {
  * Appointment analytics in the reference design (spec-admin ADM-11, metric
  * definitions v2 in docs/analytics-definitions.md): KPIs, Demand and Outcomes
  * charts with data-written takeaways, URL filters, and CSV export. ADM-17
- * adds a Summary card and a "What it means" line per chart (definitions v3).
+ * adds a "What it means" line per chart (definitions v3).
  */
 export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/admin/analytics">) {
   const params = await searchParams;
@@ -268,8 +267,6 @@ export default async function AdminAnalyticsPage({ searchParams }: PageProps<"/a
             <DoctorRatesChart data={analytics.byDoctor} />
           </ChartCard>
         </div>
-
-        <AnalyticsSummary summary={summarize(interpretations)} />
 
         <div className="flex flex-col gap-1 text-sm text-ink-muted">
           {outcomeMonths ? <p>{`Outcome figures cover visits that finished in ${outcomeMonths}.`}</p> : null}

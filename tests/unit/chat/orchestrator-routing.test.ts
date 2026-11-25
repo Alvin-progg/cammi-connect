@@ -215,6 +215,40 @@ describe("need-based specialty routing (AI-APT-002)", () => {
     expect(result.state.draft.specialtyId).toBe(FAMILY.id);
   });
 
+  it("routes a symptom asked as a specialty question instead of listing specialties", async () => {
+    const { turnDeps } = deps({
+      intent: "doctor_inquiry",
+      concern: "Cough",
+      specialtyCandidates: ["Family Medicine"],
+      routingConfidence: "high",
+    });
+
+    const result = await handleTurn(
+      turn("i have a cough and i dont know what specialty to pick"),
+      turnDeps,
+    );
+
+    expect(result.reply).toBe(ROUTING_COPY.routed("Family Medicine"));
+    expect(result.payload).toMatchObject({ kind: "doctor_options" });
+    expect(result.reply).not.toContain("Departments:");
+  });
+
+  it("uses the first-contact specialty for a concern asked as a specialty question with low confidence", async () => {
+    const { turnDeps } = deps({
+      intent: "doctor_inquiry",
+      concern: "Cough",
+      routingConfidence: "low",
+    });
+
+    const result = await handleTurn(
+      turn("i have a cough and i dont know what specialty to pick"),
+      turnDeps,
+    );
+
+    expect(result.reply).toBe(ROUTING_COPY.firstContact("Family Medicine"));
+    expect(result.reply).not.toContain("Departments:");
+  });
+
   it("routes a child to Pediatrics", async () => {
     const { turnDeps } = deps({
       intent: "book",

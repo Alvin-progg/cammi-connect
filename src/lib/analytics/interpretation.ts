@@ -49,12 +49,6 @@ export type InterpretedChartId = (typeof INTERPRETED_CHARTS)[number]["id"];
 export type Interpretations = Record<InterpretedChartId, Interpretation | null>;
 
 export const NOT_ENOUGH_DATA_MESSAGE = "Not enough data yet to interpret.";
-export const SUMMARY_STEADY_MESSAGE = "Everything looks steady for this period.";
-export const SUMMARY_THIN_MESSAGE = "Not enough data yet to interpret this period.";
-const SUMMARY_LIMIT = 3;
-
-export type SummaryPoint = { chartId: InterpretedChartId; severity: Exclude<Severity, "ok">; text: string };
-export type AnalyticsSummary = { points: SummaryPoint[] } | { message: string };
 
 function sentence(severity: Severity, text: string, point: string): Interpretation {
   return { severity, text, point };
@@ -197,18 +191,3 @@ export function interpretAnalytics(
   };
 }
 
-/** Up to 3 Summary card points: alerts, then watch items, each in chart order. */
-export function summarize(interpretations: Interpretations): AnalyticsSummary {
-  const charts = INTERPRETED_CHARTS.flatMap(({ id, label }) => {
-    const interpretation = interpretations[id];
-    return interpretation ? [{ id, label, interpretation }] : [];
-  });
-  if (charts.length === 0) return { message: SUMMARY_THIN_MESSAGE };
-
-  const points = (["alert", "watch"] as const).flatMap((severity) =>
-    charts
-      .filter(({ interpretation }) => interpretation.severity === severity)
-      .map(({ id, label, interpretation }) => ({ chartId: id, severity, text: `${label}: ${interpretation.point}` })),
-  );
-  return points.length > 0 ? { points: points.slice(0, SUMMARY_LIMIT) } : { message: SUMMARY_STEADY_MESSAGE };
-}

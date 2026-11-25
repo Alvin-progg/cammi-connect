@@ -265,6 +265,25 @@ describe("updatePasswordAction", () => {
     expect(updatePassword).not.toHaveBeenCalled();
   });
 
+  it("returns a patient who changed their password from the account page", async () => {
+    const formData = passwordFormData();
+    formData.set("returnTo", "/account");
+
+    await updatePasswordAction({}, formData);
+
+    expect(updatePassword).toHaveBeenCalledWith("new-secret");
+    expect(redirect).toHaveBeenCalledWith("/account");
+  });
+
+  it("ignores any other returnTo value and uses the role dashboard", async () => {
+    const formData = passwordFormData();
+    formData.set("returnTo", "https://evil.example/");
+
+    await updatePasswordAction({}, formData);
+
+    expect(redirect).toHaveBeenCalledWith("/front-desk");
+  });
+
   it("sends a signed-out visitor to sign in", async () => {
     vi.mocked(getUser).mockResolvedValue(null);
     vi.mocked(redirect).mockImplementation(() => {

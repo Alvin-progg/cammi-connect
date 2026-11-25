@@ -1,3 +1,4 @@
+import Form from "next/form";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -118,7 +119,7 @@ export function AppointmentsCard({
         <p className="text-sm text-ink-muted" role="status">
           {summary}
         </p>
-        <form method="get" action="/doctor" className="flex flex-wrap items-center gap-2">
+        <Form action="/doctor" className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="view" value="week" />
           <input type="hidden" name="week" value={weekStart} />
           <label htmlFor="filter-status" className="sr-only">
@@ -143,7 +144,7 @@ export function AppointmentsCard({
           >
             Apply
           </button>
-        </form>
+        </Form>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">{children}</div>

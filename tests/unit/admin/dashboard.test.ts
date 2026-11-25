@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  dashboardGreeting,
   dashboardHref,
   parseDashboardFilters,
   parseRecordIdParam,
@@ -82,5 +83,21 @@ describe("parseDashboardFilters", () => {
       doctorId: null,
       departmentId: DEPARTMENT_ID,
     });
+  });
+});
+
+describe("dashboardGreeting", () => {
+  // Manila is UTC+8, so 01:00Z is 09:00 Manila.
+  it("greets by the Manila hour", () => {
+    expect(dashboardGreeting(new Date("2026-11-07T01:00:00.000Z"))).toBe("Good morning");
+    expect(dashboardGreeting(new Date("2026-11-07T06:00:00.000Z"))).toBe("Good afternoon");
+    expect(dashboardGreeting(new Date("2026-11-07T11:00:00.000Z"))).toBe("Good evening");
+  });
+
+  it("uses the Manila boundary hours (noon and 18:00)", () => {
+    expect(dashboardGreeting(new Date("2026-11-07T03:59:00.000Z"))).toBe("Good morning");
+    expect(dashboardGreeting(new Date("2026-11-07T04:00:00.000Z"))).toBe("Good afternoon");
+    expect(dashboardGreeting(new Date("2026-11-07T09:59:00.000Z"))).toBe("Good afternoon");
+    expect(dashboardGreeting(new Date("2026-11-07T10:00:00.000Z"))).toBe("Good evening");
   });
 });

@@ -1,3 +1,4 @@
+import Form from "next/form";
 import { Download } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
@@ -37,10 +38,9 @@ export function AnalyticsFilters({
   departments: FilterOption[];
 }) {
   return (
-    <form
+    <Form
       role="search"
       aria-label="Filter analytics"
-      method="get"
       action={ANALYTICS_PATH}
       className="flex flex-wrap items-center gap-2"
     >
@@ -111,7 +111,7 @@ export function AnalyticsFilters({
       <button type="submit" className={buttonVariants({ variant: "primary", size: "sm" })}>
         Apply
       </button>
-    </form>
+    </Form>
   );
 }
 

@@ -131,7 +131,7 @@ describe("MonitoringFilters", () => {
     );
 
     const form = screen.getByRole("search", { name: "Filter appointments" });
-    expect(form).toHaveAttribute("method", "get");
+    expect(form).not.toHaveAttribute("method");
     expect(form).toHaveAttribute("action", "/admin/appointments");
     expect(screen.getByLabelText("Patient name")).toHaveValue("Synthetic");
     expect(screen.getByLabelText("Doctor")).toHaveValue(DOCTOR_ID);

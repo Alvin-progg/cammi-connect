@@ -96,6 +96,16 @@ export function toDashboardQuery(filters: DashboardFilters): AnalyticsQuery {
   };
 }
 
+/** Time-of-day greeting for the dashboard header, by the Manila clock. */
+export function dashboardGreeting(now: Date = new Date()): string {
+  const manilaHour = Number(
+    new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", hourCycle: "h23" }).format(now),
+  );
+  if (manilaHour < 12) return "Good morning";
+  if (manilaHour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 /** The dashboard URL. Presets carry no dates, since they follow from today. */
 export function dashboardHref(filters: DashboardFilters): string {
   const params = new URLSearchParams();

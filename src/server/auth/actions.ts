@@ -138,6 +138,7 @@ export async function registerAction(
 }
 
 const SET_PASSWORD_PATH = "/account/password";
+const ACCOUNT_PATH = "/account";
 
 /**
  * Sets a new password for the signed-in user. They arrive here from an
@@ -163,6 +164,10 @@ export async function updatePasswordAction(
   const result = await updatePassword(parsed.data.password);
   if (!result.ok) {
     return { formError: messageForAuthError(result.code) };
+  }
+  // Exact match only: the form may name a return page, never an arbitrary URL.
+  if (formData.get("returnTo") === ACCOUNT_PATH) {
+    redirect(ACCOUNT_PATH);
   }
   redirect(await defaultLandingPath(user.id));
 }
