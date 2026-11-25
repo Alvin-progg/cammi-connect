@@ -36,6 +36,10 @@ export const PATIENT_NOTIFICATION_TYPES = [
   "hmo_approved",
   "hmo_denied",
   "payment_expired",
+  "pwd_verified",
+  "pwd_rejected",
+  "hmo_membership_verified",
+  "hmo_membership_rejected",
 ] as const;
 
 export type PatientNotificationType = (typeof PATIENT_NOTIFICATION_TYPES)[number];
@@ -50,6 +54,10 @@ export const PATIENT_NOTIFICATION_TYPE_LABELS: Record<PatientNotificationType, s
   hmo_approved: "HMO",
   hmo_denied: "HMO",
   payment_expired: "Payment",
+  pwd_verified: "PWD",
+  pwd_rejected: "PWD",
+  hmo_membership_verified: "HMO",
+  hmo_membership_rejected: "HMO",
 };
 
 export type PatientNotification = {

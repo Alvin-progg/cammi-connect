@@ -718,6 +718,8 @@ export type Database = {
           body: string;
           read_at: string | null;
           created_at: string;
+          emailed_at: string | null;
+          email_attempts: number;
         };
         Insert: {
           id?: string;
@@ -728,9 +730,13 @@ export type Database = {
           body?: string;
           read_at?: string | null;
           created_at?: string;
+          emailed_at?: string | null;
+          email_attempts?: number;
         };
         Update: {
           read_at?: string | null;
+          emailed_at?: string | null;
+          email_attempts?: number;
         };
         Relationships: [];
       };
@@ -744,6 +750,8 @@ export type Database = {
           body: string;
           read_at: string | null;
           created_at: string;
+          emailed_at: string | null;
+          email_attempts: number;
         };
         Insert: {
           id?: string;
@@ -754,9 +762,13 @@ export type Database = {
           body?: string;
           read_at?: string | null;
           created_at?: string;
+          emailed_at?: string | null;
+          email_attempts?: number;
         };
         Update: {
           read_at?: string | null;
+          emailed_at?: string | null;
+          email_attempts?: number;
         };
         Relationships: [];
       };

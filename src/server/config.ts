@@ -35,6 +35,57 @@ export function getServerEnv(): ServerEnv {
   return cachedEnv;
 }
 
+const MAIL_ENV_NAMES = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "MAIL_FROM", "APP_BASE_URL"] as const;
+
+const mailEnvSchema = z.object({
+  SMTP_HOST: z.string().min(1),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_USER: z.string().min(1),
+  SMTP_PASS: z.string().min(1),
+  MAIL_FROM: z.string().min(1),
+  APP_BASE_URL: z.url(),
+});
+
+export type MailEnv = {
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  smtpPass: string;
+  mailFrom: string;
+  /** Origin for links in emails, without a trailing slash. */
+  appBaseUrl: string;
+};
+
+let cachedMailEnv: MailEnv | null = null;
+
+/**
+ * Lazily validates the SMTP settings for notification emails. Returns null when
+ * none are set, so email stays off in dev and tests while in-app notifications
+ * keep working. A partial setup throws, naming the variables but never a value.
+ */
+export function getMailEnv(): MailEnv | null {
+  if (cachedMailEnv) return cachedMailEnv;
+
+  const raw = Object.fromEntries(MAIL_ENV_NAMES.map((name) => [name, process.env[name]?.trim() || undefined]));
+  if (Object.values(raw).every((value) => value === undefined)) return null;
+
+  const parsed = mailEnvSchema.safeParse(raw);
+  if (!parsed.success) {
+    const invalidNames = [...new Set(parsed.error.issues.map((issue) => issue.path.join(".")))];
+    throw new Error(`Missing or invalid mail configuration. Check ${invalidNames.join(", ")} in .env.local.`);
+  }
+
+  cachedMailEnv = {
+    smtpHost: parsed.data.SMTP_HOST,
+    smtpPort: parsed.data.SMTP_PORT,
+    smtpUser: parsed.data.SMTP_USER,
+    smtpPass: parsed.data.SMTP_PASS,
+    mailFrom: parsed.data.MAIL_FROM,
+    appBaseUrl: parsed.data.APP_BASE_URL.replace(/\/+$/, ""),
+  };
+  return cachedMailEnv;
+}
+
 const aiProviderEnvSchema = z.object({
   GEMINI_API_KEY: z.string().min(1),
   GEMINI_EMBEDDING_MODEL: z.string().min(1).default("gemini-embedding-001"),

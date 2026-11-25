@@ -10,6 +10,7 @@ import {
 } from "@/lib/appointments/schemas";
 import type { DoctorAppointmentAction } from "@/lib/appointments/transitions";
 import { getDoctorSession, getPatientSession } from "@/server/auth/dal";
+import { sendNotificationEmailsAfterResponse } from "@/server/notifications/email-dispatch";
 import { supabaseDoctorSchedulesRepository } from "@/server/schedules/repository";
 
 import {
@@ -55,6 +56,7 @@ async function runDoctorMutation(
     return { status: "error", message: result.message };
   }
   revalidatePath("/doctor", "layout");
+  sendNotificationEmailsAfterResponse();
   return { status: "success", message: successMessage };
 }
 
@@ -197,6 +199,7 @@ export async function bookAppointmentAction(
     return { status: "error", message: result.message };
   }
   revalidatePath("/doctor", "layout");
+  sendNotificationEmailsAfterResponse();
   return {
     status: "success",
     message: "Appointment requested. It is not confirmed until the doctor confirms it.",
@@ -234,5 +237,6 @@ export async function cancelPatientAppointmentAction(
   }
   revalidatePath("/chat");
   revalidatePath("/doctor", "layout");
+  sendNotificationEmailsAfterResponse();
   return { status: "success", message: "Appointment cancelled." };
 }

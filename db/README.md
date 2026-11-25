@@ -38,6 +38,16 @@ GROQ_BASE_URL=https://api.groq.com/openai/v1
 # Optional: per-attempt timeout and extra attempts for transient failures.
 LLM_TIMEOUT_SECONDS=20
 LLM_MAX_RETRIES=2
+
+# Optional: notification emails (0046/0047). Leave all unset to keep email off.
+SMTP_HOST=smtp.example.com
+# Optional: default shown. 465 uses implicit TLS; other ports use STARTTLS.
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASS=...
+MAIL_FROM="CamiConnect <no-reply@example.com>"
+# Origin used for links in emails.
+APP_BASE_URL=https://your-app.example.com
 ```
 
 - The publishable key is used for Auth in the browser/server session client.
@@ -1407,6 +1417,38 @@ scripts/db-local-apply.sh       # drops public schema, applies db/migrations in 
 supabase status                 # local URL and keys for a local .env.local
 supabase stop
 ```
+
+## Notification emails: `0046` and `0047`
+
+Run `0046_patient_notification_benefit_types.sql` **on its own** first (it adds enum values),
+then `0047_notification_email_outbox.sql`. `0047` adds `emailed_at`/`email_attempts` to
+`patient_notifications` and `doctor_notifications`, marks existing rows as already emailed,
+and adds patient notifications for front desk PWD and HMO membership decisions.
+
+The trigger-written notification rows are the outbox. After a successful front desk,
+payment, benefit, doctor, or patient action (and after every `POST /api/v1/chat`), the app
+emails pending rows from the last 24 hours through Nodemailer, after the response is sent.
+Each row is claimed before sending, so overlapping runs never send twice; a failed send is
+retried up to 3 times. Recipients are the sign-in email of active profiles; walk-in
+patients and inactive accounts get none. Emails carry the same fixed text as the bell, plus
+a link to `APP_BASE_URL`.
+
+`npm run notifications:send-emails` sends anything still pending (for example pg_cron
+payment expiries that no action dispatched) and retries failures. Schedule it every few
+minutes in production. It prints counts only.
+
+`SMTP_PASS` is server-only and is scanned for by `npm run check:bundle`.
+
+We use Gmail SMTP: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_USER` the Gmail
+address, and `SMTP_PASS` an App Password (needs 2-Step Verification on the account; the
+normal password is refused). `MAIL_FROM` must use that address or a verified alias, or
+Gmail rewrites it. A personal Gmail account sends about 500 emails a day; Workspace about
+2,000.
+
+Smoke test with a test inbox (for example Mailtrap): confirm a request at
+`/front-desk/requests` (patient and doctor emails), verify a PWD declaration at
+`/front-desk/benefits` (patient email), then run `npm run notifications:send-emails`
+(prints `Sent 0, ...` when nothing is left).
 
 ## Chat pin and delete: `0045`
 

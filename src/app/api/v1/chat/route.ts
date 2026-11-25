@@ -11,6 +11,7 @@ import { supabaseChatRepository } from "@/server/chat/repository";
 import { createChatTools } from "@/server/chat/tools";
 import { supabaseDirectoryRepository } from "@/server/directory/repository";
 import { supabaseKnowledgeRepository } from "@/server/knowledge/repository";
+import { sendNotificationEmailsAfterResponse } from "@/server/notifications/email-dispatch";
 import { searchHospitalInformation } from "@/server/knowledge/service";
 import { supabaseServiceBookingRepository } from "@/server/service-booking/repository";
 import { supabaseChargeRepository } from "@/server/payments/repository";
@@ -23,6 +24,10 @@ async function embedQuery(question: string): Promise<number[]> {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  // Chat turns can book or cancel, which writes doctor notifications. It also
+  // sweeps rows no action dispatched, such as pg_cron payment expiries.
+  sendNotificationEmailsAfterResponse();
+
   // Read once per request, and only after the handler has authenticated the patient.
   let settings: ReturnType<typeof getSettings> | undefined;
   const loadSettings = () => (settings ??= getSettings(supabaseSettingsRepository));
