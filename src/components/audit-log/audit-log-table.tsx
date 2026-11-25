@@ -1,3 +1,4 @@
+import Form from "next/form";
 import Link from "next/link";
 
 import { EmptyState } from "@/components/ui/data";
@@ -32,10 +33,9 @@ export function AuditLogFilters({
   actors: { id: string; name: string }[];
 }) {
   return (
-    <form
+    <Form
       role="search"
       aria-label="Filter audit log"
-      method="get"
       action={AUDIT_LOG_PATH}
       className="flex flex-wrap items-end gap-3"
     >
@@ -108,7 +108,7 @@ export function AuditLogFilters({
           Filter
         </button>
       </div>
-    </form>
+    </Form>
   );
 }
 

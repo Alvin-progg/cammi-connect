@@ -1,3 +1,4 @@
+import Form from "next/form";
 import { Plus } from "lucide-react";
 import type { Metadata } from "next";
 
@@ -62,8 +63,7 @@ export default async function AdminKnowledgeBasePage({
       <div className="flex flex-col gap-6">
         <FailedDocumentsPanel documents={failed} />
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <form
-            method="get"
+          <Form
             action="/admin/knowledge-base"
             aria-label="Filter knowledge documents"
             className="flex flex-wrap items-end gap-3"
@@ -102,7 +102,7 @@ export default async function AdminKnowledgeBasePage({
             <Button type="submit" variant="outline" size="sm">
               Filter
             </Button>
-          </form>
+          </Form>
         </div>
         <KnowledgeList documents={documents} />
         <section aria-labelledby="knowledge-coverage-heading" className="flex flex-col gap-2">

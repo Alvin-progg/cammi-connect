@@ -1,3 +1,4 @@
+import Form from "next/form";
 import Link from "next/link";
 
 import { EmptyState } from "@/components/ui/data";
@@ -38,10 +39,9 @@ export function MonitoringFilters({
   const selectedStatuses = new Set(filters.statuses);
 
   return (
-    <form
+    <Form
       role="search"
       aria-label="Filter appointments"
-      method="get"
       action={MONITORING_PATH}
       className="flex flex-col gap-4"
     >
@@ -163,7 +163,7 @@ export function MonitoringFilters({
           </button>
         </div>
       </div>
-    </form>
+    </Form>
   );
 }
 

@@ -1,3 +1,4 @@
+import Form from "next/form";
 import Link from "next/link";
 
 import { ActiveBadge } from "@/components/ui/badge";
@@ -26,10 +27,9 @@ function usersListHref(filters: UserListFilters, page: number): string {
 /** GET form, so filters live in the URL and survive reloads and sharing. */
 export function UsersFilters({ filters }: { filters: UserListFilters }) {
   return (
-    <form
+    <Form
       role="search"
       aria-label="Filter accounts"
-      method="get"
       action={USERS_PATH}
       className="flex flex-wrap items-end gap-3"
     >
@@ -78,7 +78,7 @@ export function UsersFilters({ filters }: { filters: UserListFilters }) {
       <button type="submit" className={buttonVariants({ variant: "outline", size: "sm" })}>
         Filter
       </button>
-    </form>
+    </Form>
   );
 }
 

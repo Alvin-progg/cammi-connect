@@ -16,13 +16,13 @@ describe("AppointmentFilters", () => {
     expect(screen.getByRole("button", { name: "Apply filters" })).toBeInTheDocument();
   });
 
-  it("submits the filters as a GET request to the dashboard", () => {
+  it("submits the filters to the dashboard through next/form (client navigation)", () => {
     render(
       <AppointmentFilters filters={{ date: "2026-10-25", status: null }} />,
     );
 
     const form = screen.getByRole("button", { name: "Apply filters" }).closest("form");
-    expect(form).toHaveAttribute("method", "get");
+    expect(form).not.toHaveAttribute("method");
     expect(form).toHaveAttribute("action", "/doctor");
     expect(screen.getByLabelText("Status")).toHaveValue("all");
   });

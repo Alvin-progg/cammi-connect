@@ -1,3 +1,5 @@
+import Form from "next/form";
+import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import {
   DASHBOARD_PATH,
@@ -27,7 +29,7 @@ function PeriodSwitch({ filters }: { filters: Filters }) {
       {DASHBOARD_RANGES.map((range) => {
         const active = filters.range === range;
         return (
-          <a
+          <Link
             key={range}
             href={dashboardHref({ ...filters, range })}
             aria-current={active ? "page" : undefined}
@@ -36,7 +38,7 @@ function PeriodSwitch({ filters }: { filters: Filters }) {
             }`}
           >
             {DASHBOARD_RANGE_LABELS[range]}
-          </a>
+          </Link>
         );
       })}
     </nav>
@@ -61,10 +63,9 @@ export function DashboardFilters({
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-3 shadow-soft">
-      <form
+      <Form
         role="search"
         aria-label="Filter dashboard"
-        method="get"
         action={DASHBOARD_PATH}
         className="flex flex-wrap items-end gap-3"
       >
@@ -125,16 +126,16 @@ export function DashboardFilters({
               Apply
             </button>
             {isDefault ? null : (
-              <a
+              <Link
                 href={DASHBOARD_PATH}
                 className="inline-flex min-h-9 items-center rounded-md px-3 text-sm text-ink-secondary transition-colors duration-150 ease-out hover:text-ink focus-ring motion-reduce:transition-none"
               >
                 Reset
-              </a>
+              </Link>
             )}
           </div>
         </div>
-      </form>
+      </Form>
 
       <p className="px-1 text-xs text-ink-muted">
         {formatManilaMediumDate(filters.from)} – {formatManilaMediumDate(filters.to)}. Times in Asia/Manila.

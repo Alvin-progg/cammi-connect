@@ -3,6 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 
+vi.mock("@/server/notifications/patient-actions", () => ({
+  markPatientNotificationReadAction: vi.fn(),
+  markAllPatientNotificationsReadAction: vi.fn(),
+}));
+
 vi.mock("@/server/auth/actions", () => ({ signOutAction: vi.fn() }));
 
 function renderSidebar(patientName: string) {

@@ -1,3 +1,4 @@
+import Form from "next/form";
 import { UserPlus } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -128,7 +129,7 @@ export default async function FrontDeskBookPage({ searchParams }: PageProps<"/fr
         }
         patientStep={<PatientSummary patient={patient} />}
         doctorControl={
-          <form method="get" aria-label="Choose a doctor and date" className="flex flex-col gap-3">
+          <Form action="/front-desk/book" aria-label="Choose a doctor and date" className="flex flex-col gap-3">
             <input type="hidden" name="patient" value={patient.id} />
             <FieldGrid className="lg:grid-cols-3">
               <div className="flex flex-col gap-1.5">
@@ -187,7 +188,7 @@ export default async function FrontDeskBookPage({ searchParams }: PageProps<"/fr
             >
               Show slots
             </button>
-          </form>
+          </Form>
         }
       />
     </FrontDeskShell>
@@ -201,7 +202,7 @@ async function PatientStep({ search }: { search: string | null }) {
 
   return (
     <Fieldset legend="1 · Patient">
-      <form method="get" role="search" aria-label="Find the patient" className="flex flex-wrap items-center gap-2">
+      <Form action="/front-desk/book" role="search" aria-label="Find the patient" className="flex flex-wrap items-center gap-2">
         <SearchInput
           label="Name or phone number"
           type="search"
@@ -216,7 +217,7 @@ async function PatientStep({ search }: { search: string | null }) {
         <Button type="submit" variant="outline" size="sm">
           Search
         </Button>
-      </form>
+      </Form>
       {outcome && !outcome.ok ? (
         <p role="alert" className="text-sm text-danger-soft-ink">
           {outcome.message}

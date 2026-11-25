@@ -13,6 +13,8 @@ import { listPatientAppointments } from "@/server/appointments/service";
 import { getPatientSession } from "@/server/auth/dal";
 import { supabaseChatRepository } from "@/server/chat/repository";
 import { loadChatView } from "@/server/chat/service";
+import { supabasePatientNotificationsRepository } from "@/server/notifications/patient-repository";
+import { listPatientNotifications } from "@/server/notifications/patient-service";
 import { listOpenPaymentsForPatient } from "@/server/payments/repository";
 import { supabaseSettingsRepository } from "@/server/settings/repository";
 import { getSettings } from "@/server/settings/service";
@@ -49,13 +51,14 @@ export default async function ChatPage({
   const now = new Date();
 
   const paymentEnabled = settings["payment.enabled"];
-  const [view, appointments, payments] = await Promise.all([
+  const [view, appointments, payments, notifications] = await Promise.all([
     loadChatView(patientId, pageView === "chat" ? requestedId : undefined, supabaseChatRepository),
     pageView === "appointments"
       ? listPatientAppointments(patientId, supabasePatientAppointmentsRepository)
       : null,
     // "Pay later" (PAY-04): unpaid payments for the patient's requests.
     pageView === "appointments" && paymentEnabled ? listOpenPaymentsForPatient(patientId) : {},
+    listPatientNotifications(patientId, supabasePatientNotificationsRepository),
   ]);
   const { salutation, firstName } = greetingFor(session.patient.fullName, now);
 
@@ -74,6 +77,7 @@ export default async function ChatPage({
         appointments={
           appointments ? { ...splitPatientAppointments(appointments, now), payments } : null
         }
+        notifications={notifications}
         paymentQr={
           paymentEnabled
             ? {

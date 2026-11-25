@@ -1,3 +1,4 @@
+import Form from "next/form";
 import Link from "next/link";
 
 import { APPOINTMENT_STATUSES, APPOINTMENT_STATUS_LABELS } from "@/lib/appointments/status";
@@ -19,8 +20,7 @@ export function AppointmentFilters({
       >
         Filter appointments
       </h2>
-      <form
-        method="get"
+      <Form
         action="/doctor"
         className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,12rem)_minmax(0,14rem)_auto] sm:items-end"
       >
@@ -70,7 +70,7 @@ export function AppointmentFilters({
             Reset
           </Link>
         </div>
-      </form>
+      </Form>
     </section>
   );
 }

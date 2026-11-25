@@ -5,6 +5,11 @@ import { ChatShell } from "@/components/chat/chat-shell";
 import type { PatientAppointment } from "@/lib/appointments/types";
 import type { ChatMessage, ConversationSummary } from "@/lib/chat/schemas";
 
+vi.mock("@/server/notifications/patient-actions", () => ({
+  markPatientNotificationReadAction: vi.fn(),
+  markAllPatientNotificationsReadAction: vi.fn(),
+}));
+
 const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   push: vi.fn(),

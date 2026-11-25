@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { formatReply, type InlineSegment, type ReplyBlock } from "@/lib/chat/format-reply";
 import type { CardEvent, ChatMessagePayload, ChatRole } from "@/lib/chat/schemas";
 
 import { AppointmentCard, isAppointmentPayload } from "./appointment-cards";
@@ -113,6 +114,39 @@ export function MessageBubble({
   );
 }
 
+const TEXT_CLASS = "break-words text-[15px] leading-7 text-ink";
+
+function InlineText({ segments }: { segments: InlineSegment[] }) {
+  return segments.map((segment, index) =>
+    segment.strong ? <strong key={index} className="font-semibold">{segment.text}</strong> : segment.text,
+  );
+}
+
+/** Renders a reply's markdown subset as React elements (see `formatReply`). */
+function FormattedReply({ content }: { content: string }) {
+  const blocks: ReplyBlock[] = formatReply(content);
+
+  return (
+    <div className={`mt-1.5 space-y-2 ${TEXT_CLASS}`}>
+      {blocks.map((block, index) =>
+        block.kind === "list" ? (
+          <ul key={index} className="list-disc space-y-1 pl-5">
+            {block.items.map((item, itemIndex) => (
+              <li key={itemIndex}>
+                <InlineText segments={item} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p key={index}>
+            <InlineText segments={block.segments} />
+          </p>
+        ),
+      )}
+    </div>
+  );
+}
+
 /** Split out so the reveal hook is not called conditionally for user messages. */
 function AssistantMessage({
   content,
@@ -130,7 +164,6 @@ function AssistantMessage({
   reveal: { elapsedMs: number } | null;
 }) {
   const { shown, done } = useWordReveal(content, reveal !== null);
-  const textClass = "whitespace-pre-wrap break-words text-[15px] leading-7 text-ink";
 
   return (
     <li className="flex justify-start gap-3">
@@ -145,14 +178,14 @@ function AssistantMessage({
         <div className="rounded-xl border border-line bg-surface px-4 py-3">
           <p className="text-xs font-medium text-ink-secondary">CamiConnect</p>
           {done ? (
-            <p className={`mt-1.5 ${textClass}`}>{content}</p>
+            <FormattedReply content={content} />
           ) : (
             <>
-              {/* Announced once in full; the typing animation is visual only. */}
-              <p className="sr-only">{content}</p>
-              <p data-testid="reveal-text" aria-hidden="true" className={`mt-1.5 ${textClass}`}>
-                {shown}
-              </p>
+              {/* Announced once in full, without markdown marks; the typing animation is visual only. */}
+              <p className="sr-only">{content.replaceAll("*", "")}</p>
+              <div data-testid="reveal-text" aria-hidden="true">
+                <FormattedReply content={shown} />
+              </div>
             </>
           )}
           {!done || payload === null ? null : (

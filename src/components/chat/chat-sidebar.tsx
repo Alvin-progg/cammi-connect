@@ -4,11 +4,14 @@ import Link from "next/link";
 import { useState } from "react";
 
 import type { ConversationSummary } from "@/lib/chat/schemas";
+import type { PatientNotification } from "@/lib/notifications/types";
 import { signOutAction } from "@/server/auth/actions";
 
 import { CalendarIcon, LogOutIcon, PanelLeftIcon, SearchIcon, PlusIcon } from "lucide-react";
 import { BrandMark } from "@/components/ui/brand-mark";
 import { initialsOf } from "@/components/ui/rail";
+
+import { PatientNotificationsPanel } from "./patient-notifications";
 
 /**
  * Width and label visibility are driven by `data-state` on the aside:
@@ -37,6 +40,7 @@ export function ChatSidebar({
   activeConversationId,
   appointmentsActive,
   patientName,
+  notifications = [],
 }: {
   state: SidebarState;
   onToggle: () => void;
@@ -50,6 +54,8 @@ export function ChatSidebar({
   appointmentsActive: boolean;
   /** The signed-in patient, shown in the account footer. */
   patientName: string;
+  /** Latest in-app notifications; the bell shows the unread count. */
+  notifications?: PatientNotification[];
 }) {
   const [query, setQuery] = useState("");
   const isOpen = state === "open";
@@ -115,6 +121,7 @@ export function ChatSidebar({
           </span>
           <span className={LABEL}>My appointments</span>
         </Link>
+        <PatientNotificationsPanel notifications={notifications} />
         {searchOpen && isOpen ? (
           <input
             type="search"

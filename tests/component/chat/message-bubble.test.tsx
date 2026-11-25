@@ -101,3 +101,25 @@ describe("MessageBubble reveal", () => {
     expect(screen.getByText(REPLY)).toBeInTheDocument();
   });
 });
+
+describe("MessageBubble formatting", () => {
+  it("renders bold and bullet markdown as elements, without literal asterisks", () => {
+    stubMotionPreference({ reduce: true });
+    const content = "Bring these:\n* **Valid ID**\n* Lab results";
+    const { container } = renderList(<MessageBubble role="assistant" content={content} />);
+
+    expect(screen.getByText("Valid ID").tagName).toBe("STRONG");
+    expect(Array.from(container.querySelectorAll("ul > li"), (item) => item.textContent)).toEqual([
+      "Valid ID",
+      "Lab results",
+    ]);
+    expect(screen.queryByText(/\*/)).not.toBeInTheDocument();
+  });
+
+  it("does not show asterisks in the screen reader copy", () => {
+    stubMotionPreference({ reduce: false });
+    renderList(<MessageBubble role="assistant" content="Bring a **valid ID**." reveal={{ elapsedMs: 900 }} />);
+
+    expect(screen.getByText("Bring a valid ID.")).toHaveClass("sr-only");
+  });
+});
